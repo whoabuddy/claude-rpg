@@ -1,9 +1,12 @@
-import { useMemo, memo, useCallback } from 'react'
+import { useMemo, memo } from 'react'
 import type { TmuxWindow, TmuxPane } from '@shared/types'
 import { PaneCard } from './PaneCard'
+import { ConnectionStatus } from './ConnectionStatus'
 
 interface OverviewDashboardProps {
   windows: TmuxWindow[]
+  attentionCount: number
+  connected: boolean
   onSendPrompt: (paneId: string, prompt: string) => void
 }
 
@@ -14,7 +17,7 @@ interface PaneWithWindow extends TmuxPane {
 // Stable no-op function to avoid creating new references
 const NOOP = () => {}
 
-export function OverviewDashboard({ windows, onSendPrompt }: OverviewDashboardProps) {
+export function OverviewDashboard({ windows, attentionCount, connected, onSendPrompt }: OverviewDashboardProps) {
   // Categorize panes by status
   const { attention, working, claudeIdle, other, stats } = useMemo(() => {
     const attention: PaneWithWindow[] = []
@@ -28,8 +31,6 @@ export function OverviewDashboard({ windows, onSendPrompt }: OverviewDashboardPr
     for (const window of windows) {
       for (const pane of window.panes) {
         totalPanes++
-        // Note: Creating new object here is unavoidable, but useMemo ensures
-        // we only recalculate when windows changes
         const paneWithWindow: PaneWithWindow = { ...pane, window }
 
         if (pane.process.type === 'claude') {
@@ -71,20 +72,22 @@ export function OverviewDashboard({ windows, onSendPrompt }: OverviewDashboardPr
   }, [windows])
 
   const hasAnyClaude = stats.claudePanes > 0
-  const needsAttention = attention.length
 
   return (
     <div className="p-4 space-y-6">
-      {/* Summary header */}
+      {/* Compact header: stats left, connection right */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold">
-          {stats.windowCount} Window{stats.windowCount !== 1 ? 's' : ''} / {stats.totalPanes} Pane{stats.totalPanes !== 1 ? 's' : ''}
-          {needsAttention > 0 && (
-            <span className="ml-2 text-rpg-waiting">
-              ({needsAttention} need{needsAttention !== 1 ? '' : 's'} attention)
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-rpg-idle">
+            {stats.windowCount} Window{stats.windowCount !== 1 ? 's' : ''} / {stats.totalPanes} Pane{stats.totalPanes !== 1 ? 's' : ''}
+          </span>
+          {attentionCount > 0 && (
+            <span className="px-2 py-0.5 rounded bg-rpg-waiting/20 text-rpg-waiting text-xs font-medium animate-pulse">
+              {attentionCount} need{attentionCount !== 1 ? '' : 's'} attention
             </span>
           )}
-        </h2>
+        </div>
+        <ConnectionStatus connected={connected} />
       </div>
 
       {!hasAnyClaude && stats.totalPanes === 0 ? (

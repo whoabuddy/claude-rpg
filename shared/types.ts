@@ -16,6 +16,7 @@ export interface PaneProcess {
   type: PaneProcessType
   command: string         // "claude", "bash", "node"
   pid: number
+  typing?: boolean        // true if terminal content changed recently (all pane types)
   claudeSession?: ClaudeSessionInfo  // only when type='claude'
 }
 
@@ -146,6 +147,7 @@ export interface PostToolUseEvent extends BaseEvent {
   success: boolean
   duration?: number
   toolResponse?: unknown
+  toolInput?: Record<string, unknown>
 }
 
 export interface StopEvent extends BaseEvent {

@@ -496,33 +496,43 @@ async function broadcastTerminalUpdates() {
       if (content === null) continue
 
       const contentChanged = lastTerminalContent.get(pane.id) !== content
+      const lastTyping = lastTypingActivity.get(pane.id) || 0
 
-      // Detect typing for Claude panes
-      if (isClaudePane && pane.process.claudeSession) {
-        const session = pane.process.claudeSession
-        const lastTyping = lastTypingActivity.get(pane.id) || 0
+      // Detect typing for all panes
+      if (contentChanged) {
+        lastTypingActivity.set(pane.id, now)
 
-        if (contentChanged && session.status === 'idle') {
-          // Terminal changed while idle → user is typing
-          lastTypingActivity.set(pane.id, now)
-          const updated = updateClaudeSession(pane.id, { status: 'typing' })
-          if (updated) {
-            pane.process.claudeSession = updated
-            savePanesCache()
-            broadcast({ type: 'pane_update', payload: pane })
+        // For Claude panes, update session status
+        if (isClaudePane && pane.process.claudeSession) {
+          const session = pane.process.claudeSession
+          if (session.status === 'idle') {
+            const updated = updateClaudeSession(pane.id, { status: 'typing' })
+            if (updated) {
+              pane.process.claudeSession = updated
+              savePanesCache()
+            }
           }
-        } else if (contentChanged && session.status === 'typing') {
-          // Continue typing - update activity time
-          lastTypingActivity.set(pane.id, now)
-        } else if (!contentChanged && session.status === 'typing' && now - lastTyping > TYPING_IDLE_TIMEOUT_MS) {
-          // No changes for a while and was typing → revert to idle
+        }
+
+        // For all panes, set typing flag
+        if (!pane.process.typing) {
+          pane.process.typing = true
+          broadcast({ type: 'pane_update', payload: pane })
+        }
+      } else if (pane.process.typing && now - lastTyping > TYPING_IDLE_TIMEOUT_MS) {
+        // No changes for a while and was typing → clear typing flag
+        pane.process.typing = false
+
+        // For Claude panes, also reset session status
+        if (isClaudePane && pane.process.claudeSession?.status === 'typing') {
           const updated = updateClaudeSession(pane.id, { status: 'idle' })
           if (updated) {
             pane.process.claudeSession = updated
             savePanesCache()
-            broadcast({ type: 'pane_update', payload: pane })
           }
         }
+
+        broadcast({ type: 'pane_update', payload: pane })
       }
 
       // Only broadcast terminal content if changed

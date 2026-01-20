@@ -51,12 +51,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, com
     )
   }
 
-  return (
-    <ProcessPaneCard
-      pane={pane}
-      compact={compact}
-    />
-  )
+  return <ProcessPaneCard pane={pane} />
 })
 
 // Helper to get activity display text - extracted from nested ternary
@@ -317,64 +312,51 @@ const ClaudePaneCard = memo(function ClaudePaneCard({ pane, session, onSendPromp
   )
 })
 
-// Non-Claude process pane card - removed unused window prop
+// Non-Claude process pane card - simple compact display, no expansion
 interface ProcessPaneCardProps {
   pane: TmuxPane
-  compact?: boolean
 }
 
-const ProcessPaneCard = memo(function ProcessPaneCard({ pane, compact }: ProcessPaneCardProps) {
-  const [expanded, setExpanded] = useState(false)
-  const terminalContent = usePaneTerminal(pane.id)
-
-  const toggleExpanded = useCallback(() => setExpanded(prev => !prev), [])
-
-  const borderColor = processColors[pane.process.type as keyof typeof processColors] || processColors.idle
+const ProcessPaneCard = memo(function ProcessPaneCard({ pane }: ProcessPaneCardProps) {
+  const isTyping = pane.process.typing
+  const borderColor = isTyping
+    ? 'border-rpg-accent/50'
+    : (processColors[pane.process.type as keyof typeof processColors] || processColors.idle)
 
   return (
-    <div className={`rounded-lg border ${borderColor} bg-rpg-card/50 transition-all`}>
-      <div className="p-3 cursor-pointer" onClick={toggleExpanded}>
-        <div className="flex items-center gap-3">
-          {/* Process icon */}
-          <div className="w-8 h-8 rounded bg-rpg-bg/50 flex items-center justify-center text-sm font-mono text-rpg-idle flex-shrink-0">
-            {pane.process.type === 'shell' ? '$' : pane.process.type === 'process' ? '>' : '-'}
-          </div>
+    <div className={`rounded-lg border ${borderColor} bg-rpg-card/50 transition-all p-3`}>
+      <div className="flex items-center gap-3">
+        {/* Process icon */}
+        <div className={`w-8 h-8 rounded bg-rpg-bg/50 flex items-center justify-center text-sm font-mono flex-shrink-0 ${isTyping ? 'text-rpg-accent' : 'text-rpg-idle'}`}>
+          {pane.process.type === 'shell' ? '$' : pane.process.type === 'process' ? '>' : '-'}
+        </div>
 
-          {/* Process info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-sm">{pane.process.command}</span>
-              {pane.repo && (
-                <span className="text-xs text-rpg-accent">
-                  {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
-                </span>
-              )}
-            </div>
-            <div className="text-xs text-rpg-idle/50 truncate">
-              {pane.cwd}
-            </div>
+        {/* Process info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-sm">{pane.process.command}</span>
+            {pane.repo && (
+              <span className="text-xs text-rpg-accent">
+                {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
+              </span>
+            )}
+            {isTyping && (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-rpg-accent animate-pulse" />
+                <span className="text-xs text-rpg-accent/70">typing</span>
+              </div>
+            )}
           </div>
-
-          {/* Pane target */}
-          <div className="text-xs text-rpg-idle/30 font-mono flex-shrink-0">
-            {pane.target}
+          <div className="text-xs text-rpg-idle/50 truncate">
+            {pane.cwd}
           </div>
         </div>
 
-        {/* Terminal preview */}
-        {!compact && !expanded && (
-          <div className="mt-2">
-            <TerminalPreview content={terminalContent} lines={8} className="bg-black/20 text-rpg-idle/50 max-h-20" />
-          </div>
-        )}
+        {/* Pane target */}
+        <div className="text-xs text-rpg-idle/30 font-mono flex-shrink-0">
+          {pane.target}
+        </div>
       </div>
-
-      {/* Expanded terminal */}
-      {expanded && (
-        <div className="px-3 pb-3">
-          <ExpandedTerminal content={terminalContent} />
-        </div>
-      )}
     </div>
   )
 })

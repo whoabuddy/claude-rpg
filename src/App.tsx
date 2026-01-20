@@ -1,28 +1,17 @@
-import { useState, useCallback, useEffect } from 'react'
-import { WindowBar } from './components/WindowBar'
+import { useState, useCallback } from 'react'
 import { OverviewDashboard } from './components/OverviewDashboard'
-import { WindowView } from './components/WindowView'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useWindows, sendPromptToPane } from './hooks/useWindows'
 import { initTerminalCache } from './hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
 
-type ViewMode = 'overview' | 'window'
-
 // Initialize terminal cache once
 initTerminalCache()
 
 export default function App() {
   const { connected } = useWebSocket()
-  const {
-    windows,
-    selectedWindowId,
-    setSelectedWindowId,
-    selectedWindow,
-    attentionPanes,
-  } = useWindows()
-  const [viewMode, setViewMode] = useState<ViewMode>('overview')
+  const { windows, attentionPanes } = useWindows()
   const [notificationsDismissed, setNotificationsDismissed] = useState(false)
 
   // Notifications
@@ -41,11 +30,6 @@ export default function App() {
     },
     []
   )
-
-  const handleWindowSelect = useCallback((windowId: string) => {
-    setSelectedWindowId(windowId)
-    setViewMode('window')
-  }, [setSelectedWindowId])
 
   const showNotificationBanner = permission === 'default' && !notificationsDismissed
 
@@ -74,74 +58,15 @@ export default function App() {
         </div>
       )}
 
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-rpg-border">
-        <h1 className="text-lg font-bold text-rpg-accent">Claude RPG</h1>
-        <div className="flex items-center gap-3">
-          {/* View Toggle */}
-          <div className="flex bg-rpg-card rounded border border-rpg-border">
-            <button
-              onClick={() => setViewMode('overview')}
-              className={`px-3 py-1 text-xs transition-colors ${
-                viewMode === 'overview'
-                  ? 'bg-rpg-accent text-rpg-bg font-medium'
-                  : 'text-rpg-idle hover:text-white'
-              }`}
-            >
-              Overview
-            </button>
-            <button
-              onClick={() => setViewMode('window')}
-              className={`px-3 py-1 text-xs transition-colors ${
-                viewMode === 'window'
-                  ? 'bg-rpg-accent text-rpg-bg font-medium'
-                  : 'text-rpg-idle hover:text-white'
-              }`}
-            >
-              Window
-            </button>
-          </div>
-          <ConnectionStatus connected={connected} />
-        </div>
-      </header>
-
-      {/* Main content */}
+      {/* Main content - Dashboard only */}
       <main className="flex-1 overflow-y-auto">
-        {viewMode === 'overview' ? (
-          <OverviewDashboard
-            windows={windows}
-            onSendPrompt={handleSendPrompt}
-          />
-        ) : selectedWindow ? (
-          <WindowView
-            window={selectedWindow}
-            onSendPrompt={handleSendPrompt}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full text-rpg-idle">
-            <p>Select a window from the bar below</p>
-          </div>
-        )}
-      </main>
-
-      {/* Window Bar - at bottom, only in window mode (like tmux status bar) */}
-      {viewMode === 'window' && (
-        <WindowBar
+        <OverviewDashboard
           windows={windows}
-          selectedId={selectedWindowId}
-          onSelect={setSelectedWindowId}
+          attentionCount={attentionPanes.length}
+          connected={connected}
+          onSendPrompt={handleSendPrompt}
         />
-      )}
-
-      {/* Attention indicator - floating badge when panes need attention */}
-      {viewMode !== 'overview' && attentionPanes.length > 0 && (
-        <button
-          onClick={() => setViewMode('overview')}
-          className="fixed bottom-16 right-4 px-4 py-2 bg-rpg-waiting text-rpg-bg rounded-full shadow-lg animate-pulse hover:bg-rpg-waiting/80 transition-colors"
-        >
-          {attentionPanes.length} need{attentionPanes.length === 1 ? 's' : ''} attention
-        </button>
-      )}
+      </main>
     </div>
   )
 }
