@@ -1,9 +1,9 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { execSync } from 'child_process'
-import { join, basename } from 'path'
+import { join } from 'path'
 import { randomUUID, createHash } from 'crypto'
 import { DEFAULTS } from '../shared/defaults.js'
-import type { Companion, RepoInfo, CompanionStats } from '../shared/types.js'
+import type { Companion, CompanionStats } from '../shared/types.js'
+import { detectRepoInfo } from './utils.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // English First Names (for Claude sessions)
@@ -57,62 +57,6 @@ export async function fetchBitcoinFace(sessionId: string): Promise<string | unde
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Git Repo Detection
-// ═══════════════════════════════════════════════════════════════════════════
-
-function detectRepoInfo(cwd: string): RepoInfo | null {
-  try {
-    // Check if it's a git repo
-    const gitDir = join(cwd, '.git')
-    if (!existsSync(gitDir)) {
-      // Try to find .git in parent directories
-      let current = cwd
-      while (current !== '/') {
-        if (existsSync(join(current, '.git'))) {
-          cwd = current
-          break
-        }
-        current = join(current, '..')
-      }
-      if (!existsSync(join(cwd, '.git'))) {
-        return null
-      }
-    }
-
-    // Get remote URL
-    let remote: string | undefined
-    let org: string | undefined
-    let name: string
-
-    try {
-      remote = execSync('git remote get-url origin', { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim()
-
-      // Parse org/name from remote
-      // git@github.com:org/repo.git or https://github.com/org/repo.git
-      const match = remote.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/)
-      if (match) {
-        org = match[1]
-        name = match[2]
-      } else {
-        name = basename(cwd)
-      }
-    } catch {
-      // No remote, use directory name
-      name = basename(cwd)
-    }
-
-    return {
-      path: cwd,
-      remote,
-      org,
-      name,
-    }
-  } catch {
-    return null
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 // Companion Management
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -142,7 +86,7 @@ function createDefaultStats(): CompanionStats {
   }
 }
 
-export function findOrCreateCompanion(companions: Companion[], cwd: string): Companion | null {
+export function findOrCreateCompanion(companions: Companion[], cwd: string): Companion | undefined {
   // Find existing companion by repo path
   const existing = companions.find(c => c.repo.path === cwd)
   if (existing) {
@@ -153,7 +97,7 @@ export function findOrCreateCompanion(companions: Companion[], cwd: string): Com
   const repoInfo = detectRepoInfo(cwd)
   if (!repoInfo) {
     // Not a git repo, skip
-    return null
+    return undefined
   }
 
   // Check if we have a companion for this repo (might be different cwd)

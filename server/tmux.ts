@@ -1,18 +1,22 @@
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import { existsSync } from 'fs'
-import { execSync } from 'child_process'
-import { join, basename } from 'path'
 import type {
   TmuxWindow,
   TmuxPane,
   PaneProcess,
-  PaneProcessType,
-  RepoInfo,
   ClaudeSessionInfo,
 } from '../shared/types.js'
+import {
+  detectRepoInfo,
+  findPaneByTarget,
+  findPaneById,
+  getClaudePanes,
+} from './utils.js'
 
 const execAsync = promisify(exec)
+
+// Re-export utilities for backward compatibility
+export { findPaneByTarget, findPaneById, getClaudePanes }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // State Management
@@ -120,6 +124,13 @@ export async function pollTmuxState(): Promise<TmuxWindow[]> {
 // Process Detection
 // ═══════════════════════════════════════════════════════════════════════════
 
+const SHELL_COMMANDS = ['bash', 'zsh', 'sh', 'fish']
+
+interface ChildProcess {
+  pid: number
+  command: string
+}
+
 /**
  * Detect the type of process running in a pane
  */
@@ -139,8 +150,7 @@ async function detectPaneProcess(
   }
 
   // Shell with potential child processes
-  if (['bash', 'zsh', 'sh', 'fish'].includes(currentCommand)) {
-    // Check for Claude running as child process
+  if (SHELL_COMMANDS.includes(currentCommand)) {
     const children = await getChildProcesses(pid)
     const claudeChild = children.find(c => c.command.includes('claude'))
 
@@ -179,11 +189,6 @@ async function detectPaneProcess(
   }
 }
 
-interface ChildProcess {
-  pid: number
-  command: string
-}
-
 /**
  * Get child processes of a given PID
  */
@@ -211,67 +216,6 @@ async function getChildProcesses(ppid: number): Promise<ChildProcess[]> {
       })
   } catch {
     return []
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Git Repo Detection
-// ═══════════════════════════════════════════════════════════════════════════
-
-function detectRepoInfo(cwd: string): RepoInfo | undefined {
-  if (!cwd) return undefined
-
-  try {
-    // Check if it's a git repo
-    let repoRoot = cwd
-    const gitDir = join(cwd, '.git')
-    if (!existsSync(gitDir)) {
-      // Try to find .git in parent directories
-      let current = cwd
-      while (current !== '/') {
-        if (existsSync(join(current, '.git'))) {
-          repoRoot = current
-          break
-        }
-        current = join(current, '..')
-      }
-      if (!existsSync(join(repoRoot, '.git'))) {
-        return undefined
-      }
-    }
-
-    // Get remote URL
-    let remote: string | undefined
-    let org: string | undefined
-    let name: string
-
-    try {
-      remote = execSync('git remote get-url origin', {
-        cwd: repoRoot,
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      }).trim()
-
-      // Parse org/name from remote
-      const match = remote.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/)
-      if (match) {
-        org = match[1]
-        name = match[2]
-      } else {
-        name = basename(repoRoot)
-      }
-    } catch {
-      name = basename(repoRoot)
-    }
-
-    return {
-      path: repoRoot,
-      remote,
-      org,
-      name,
-    }
-  } catch {
-    return undefined
   }
 }
 
@@ -324,55 +268,6 @@ export function removeClaudeSession(paneId: string): void {
     console.log(`[claude-rpg] Removed Claude session "${session.name}" from pane ${paneId}`)
     claudeSessionsByPane.delete(paneId)
   }
-}
-
-/**
- * Find pane by tmux target (session:window.pane format)
- */
-export function findPaneByTarget(
-  windows: TmuxWindow[],
-  target: string
-): TmuxPane | undefined {
-  for (const window of windows) {
-    for (const pane of window.panes) {
-      if (pane.target === target) {
-        return pane
-      }
-    }
-  }
-  return undefined
-}
-
-/**
- * Find pane by pane ID
- */
-export function findPaneById(
-  windows: TmuxWindow[],
-  paneId: string
-): TmuxPane | undefined {
-  for (const window of windows) {
-    for (const pane of window.panes) {
-      if (pane.id === paneId) {
-        return pane
-      }
-    }
-  }
-  return undefined
-}
-
-/**
- * Get all Claude panes
- */
-export function getClaudePanes(windows: TmuxWindow[]): TmuxPane[] {
-  const panes: TmuxPane[] = []
-  for (const window of windows) {
-    for (const pane of window.panes) {
-      if (pane.process.type === 'claude') {
-        panes.push(pane)
-      }
-    }
-  }
-  return panes
 }
 
 /**

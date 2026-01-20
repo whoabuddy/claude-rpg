@@ -150,115 +150,99 @@ setInterval(pollTmux, TMUX_POLL_INTERVAL_MS)
 // Event Normalization (Claude Code hooks → internal format)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type RawHookEvent = Record<string, any>
+// Hook event type with known fields
+interface RawHookEvent {
+  hook_event_name?: string
+  hookType?: string
+  session_id?: string
+  sessionId?: string
+  cwd?: string
+  timestamp?: number
+  tmuxTarget?: string
+  paneId?: string
+  tool_name?: string
+  tool_use_id?: string
+  tool_input?: Record<string, unknown>
+  tool_response?: Record<string, unknown>
+  prompt?: string
+  message?: string
+}
+
+// Map hook names to internal event types
+const HOOK_TYPE_MAP: Record<string, ClaudeEvent['type']> = {
+  PreToolUse: 'pre_tool_use',
+  PostToolUse: 'post_tool_use',
+  Stop: 'stop',
+  SubagentStop: 'subagent_stop',
+  UserPromptSubmit: 'user_prompt_submit',
+  Notification: 'notification',
+  SessionStart: 'session_start',
+  SessionEnd: 'session_end',
+}
 
 function normalizeEvent(raw: RawHookEvent): ClaudeEvent & { paneId?: string } {
   const hookName = raw.hook_event_name || raw.hookType || ''
-  const typeMap: Record<string, ClaudeEvent['type']> = {
-    PreToolUse: 'pre_tool_use',
-    PostToolUse: 'post_tool_use',
-    Stop: 'stop',
-    SubagentStop: 'subagent_stop',
-    UserPromptSubmit: 'user_prompt_submit',
-    Notification: 'notification',
-    SessionStart: 'session_start',
-    SessionEnd: 'session_end',
+  const type = HOOK_TYPE_MAP[hookName] || 'pre_tool_use'
+
+  // Common fields for all events
+  const base = {
+    sessionId: raw.session_id || raw.sessionId || '',
+    cwd: raw.cwd || '',
+    timestamp: raw.timestamp || Date.now(),
+    tmuxTarget: raw.tmuxTarget,
+    paneId: raw.paneId,
   }
 
-  const type = typeMap[hookName] || 'pre_tool_use'
-  const sessionId = raw.session_id || raw.sessionId || ''
-  const cwd = raw.cwd || ''
-  const timestamp = raw.timestamp || Date.now()
-  const tmuxTarget = raw.tmuxTarget || undefined
-  const paneId = raw.paneId || undefined
+  switch (type) {
+    case 'pre_tool_use':
+      return {
+        ...base,
+        type: 'pre_tool_use',
+        tool: raw.tool_name || '',
+        toolUseId: raw.tool_use_id || '',
+        toolInput: raw.tool_input,
+      }
 
-  const base = { type, sessionId, cwd, timestamp, tmuxTarget }
-
-  if (type === 'pre_tool_use') {
-    return {
-      ...base,
-      type: 'pre_tool_use',
-      tool: raw.tool_name || '',
-      toolUseId: raw.tool_use_id || '',
-      toolInput: raw.tool_input,
-      paneId,
+    case 'post_tool_use': {
+      const success = raw.tool_response ? !raw.tool_response.error : true
+      return {
+        ...base,
+        type: 'post_tool_use',
+        tool: raw.tool_name || '',
+        toolUseId: raw.tool_use_id || '',
+        success,
+        toolResponse: raw.tool_response,
+        toolInput: raw.tool_input,
+      }
     }
-  }
 
-  if (type === 'post_tool_use') {
-    const response = raw.tool_response as Record<string, unknown> | undefined
-    const success = response ? !response.error : true
+    case 'user_prompt_submit':
+      return { ...base, type: 'user_prompt_submit', prompt: raw.prompt || '' }
 
-    return {
-      ...base,
-      type: 'post_tool_use',
-      tool: raw.tool_name || '',
-      toolUseId: raw.tool_use_id || '',
-      success,
-      toolResponse: raw.tool_response,
-      toolInput: raw.tool_input,
-      paneId,
-    } as ClaudeEvent & { paneId?: string }
-  }
+    case 'notification':
+      return { ...base, type: 'notification', message: raw.message || '' }
 
-  if (type === 'user_prompt_submit') {
-    return {
-      ...base,
-      type: 'user_prompt_submit',
-      prompt: raw.prompt || '',
-      paneId,
-    }
-  }
+    case 'stop':
+      return { ...base, type: 'stop' }
 
-  if (type === 'notification') {
-    return {
-      ...base,
-      type: 'notification',
-      message: raw.message || '',
-      paneId,
-    }
-  }
+    case 'subagent_stop':
+      return { ...base, type: 'subagent_stop' }
 
-  if (type === 'stop') {
-    return {
-      ...base,
-      type: 'stop',
-      paneId,
-    }
-  }
+    case 'session_start':
+      return { ...base, type: 'session_start' }
 
-  if (type === 'subagent_stop') {
-    return {
-      ...base,
-      type: 'subagent_stop',
-      paneId,
-    }
-  }
+    case 'session_end':
+      return { ...base, type: 'session_end' }
 
-  if (type === 'session_start') {
-    return {
-      ...base,
-      type: 'session_start',
-      paneId,
-    }
-  }
-
-  if (type === 'session_end') {
-    return {
-      ...base,
-      type: 'session_end',
-      paneId,
-    }
-  }
-
-  return {
-    ...base,
-    type: 'pre_tool_use',
-    tool: raw.tool_name || 'unknown',
-    toolUseId: raw.tool_use_id || '',
-    toolInput: raw.tool_input,
-    paneId,
+    default:
+      // Fallback to pre_tool_use for unknown types
+      return {
+        ...base,
+        type: 'pre_tool_use',
+        tool: raw.tool_name || 'unknown',
+        toolUseId: raw.tool_use_id || '',
+        toolInput: raw.tool_input,
+      }
   }
 }
 

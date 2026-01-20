@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 import type { TmuxWindow } from '@shared/types'
 
 interface WindowBarProps {
@@ -7,24 +7,58 @@ interface WindowBarProps {
   onSelect: (id: string) => void
 }
 
+// Memoized window stats to avoid recalculating on every render
+interface WindowStats {
+  claudeCount: number
+  waitingCount: number
+  workingCount: number
+}
+
+function getWindowStats(window: TmuxWindow): WindowStats {
+  let claudeCount = 0
+  let waitingCount = 0
+  let workingCount = 0
+
+  for (const pane of window.panes) {
+    if (pane.process.type === 'claude') {
+      claudeCount++
+      const status = pane.process.claudeSession?.status
+      if (status === 'waiting') waitingCount++
+      else if (status === 'working') workingCount++
+    }
+  }
+
+  return { claudeCount, waitingCount, workingCount }
+}
+
 export const WindowBar = memo(function WindowBar({ windows, selectedId, onSelect }: WindowBarProps) {
+  // Memoize window stats calculation
+  const windowStats = useMemo(() => {
+    const stats = new Map<string, WindowStats>()
+    for (const window of windows) {
+      stats.set(window.id, getWindowStats(window))
+    }
+    return stats
+  }, [windows])
+
   if (windows.length === 0) {
     return null
   }
 
   return (
-    <div className="flex items-center gap-1 px-3 py-2 bg-rpg-card border-b border-rpg-border overflow-x-auto">
+    <div
+      className="flex items-center gap-1 px-3 py-2 bg-rpg-card border-b border-rpg-border overflow-x-auto"
+      style={{ WebkitOverflowScrolling: 'touch' }}
+    >
       {windows.map(window => {
         const isSelected = window.id === selectedId
-        const claudePanes = window.panes.filter(p => p.process.type === 'claude')
-        const waitingPanes = claudePanes.filter(p => p.process.claudeSession?.status === 'waiting')
-        const workingPanes = claudePanes.filter(p => p.process.claudeSession?.status === 'working')
+        const stats = windowStats.get(window.id) || { claudeCount: 0, waitingCount: 0, workingCount: 0 }
 
         return (
           <button
             key={window.id}
             onClick={() => onSelect(window.id)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors whitespace-nowrap ${
+            className={`flex items-center gap-2 px-3 py-2.5 rounded text-sm transition-colors whitespace-nowrap min-h-[44px] ${
               isSelected
                 ? 'bg-rpg-accent text-rpg-bg font-medium'
                 : 'bg-rpg-bg/50 text-rpg-idle hover:text-white hover:bg-rpg-bg'
@@ -35,14 +69,14 @@ export const WindowBar = memo(function WindowBar({ windows, selectedId, onSelect
 
             {/* Status indicators */}
             <div className="flex items-center gap-1">
-              {waitingPanes.length > 0 && (
-                <span className="w-2 h-2 rounded-full bg-rpg-waiting animate-pulse" title={`${waitingPanes.length} waiting`} />
+              {stats.waitingCount > 0 && (
+                <span className="w-2 h-2 rounded-full bg-rpg-waiting animate-pulse" title={`${stats.waitingCount} waiting`} />
               )}
-              {workingPanes.length > 0 && !waitingPanes.length && (
-                <span className="w-2 h-2 rounded-full bg-rpg-working animate-pulse" title={`${workingPanes.length} working`} />
+              {stats.workingCount > 0 && stats.waitingCount === 0 && (
+                <span className="w-2 h-2 rounded-full bg-rpg-working animate-pulse" title={`${stats.workingCount} working`} />
               )}
-              {claudePanes.length > 0 && (
-                <span className="text-xs text-rpg-idle/70">({claudePanes.length})</span>
+              {stats.claudeCount > 0 && (
+                <span className="text-xs text-rpg-idle/70">({stats.claudeCount})</span>
               )}
             </div>
           </button>

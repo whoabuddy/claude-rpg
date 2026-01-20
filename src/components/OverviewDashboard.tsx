@@ -1,4 +1,4 @@
-import { useMemo, memo } from 'react'
+import { useMemo, memo, useCallback } from 'react'
 import type { TmuxWindow, TmuxPane } from '@shared/types'
 import { PaneCard } from './PaneCard'
 
@@ -10,6 +10,9 @@ interface OverviewDashboardProps {
 interface PaneWithWindow extends TmuxPane {
   window: TmuxWindow
 }
+
+// Stable no-op function to avoid creating new references
+const NOOP = () => {}
 
 export function OverviewDashboard({ windows, onSendPrompt }: OverviewDashboardProps) {
   // Categorize panes by status
@@ -25,7 +28,9 @@ export function OverviewDashboard({ windows, onSendPrompt }: OverviewDashboardPr
     for (const window of windows) {
       for (const pane of window.panes) {
         totalPanes++
-        const paneWithWindow = { ...pane, window }
+        // Note: Creating new object here is unavoidable, but useMemo ensures
+        // we only recalculate when windows changes
+        const paneWithWindow: PaneWithWindow = { ...pane, window }
 
         if (pane.process.type === 'claude') {
           claudePanes++
@@ -132,7 +137,6 @@ export function OverviewDashboard({ windows, onSendPrompt }: OverviewDashboardPr
 const variantStyles = {
   attention: 'text-rpg-waiting',
   working: 'text-rpg-working',
-  typing: 'text-rpg-accent',
   idle: 'text-rpg-idle',
 } as const
 
@@ -140,7 +144,7 @@ interface PaneGroupProps {
   title: string
   panes: PaneWithWindow[]
   onSendPrompt: (paneId: string, prompt: string) => void
-  variant: 'attention' | 'working' | 'typing' | 'idle'
+  variant: 'attention' | 'working' | 'idle'
 }
 
 const PaneGroup = memo(function PaneGroup({ title, panes, onSendPrompt, variant }: PaneGroupProps) {
@@ -170,7 +174,7 @@ interface OtherPanesSectionProps {
 function OtherPanesSection({ panes }: OtherPanesSectionProps) {
   return (
     <details className="group">
-      <summary className="text-sm font-medium text-rpg-idle/70 cursor-pointer hover:text-rpg-idle mb-3">
+      <summary className="text-sm font-medium text-rpg-idle/70 cursor-pointer hover:text-rpg-idle mb-3 min-h-[44px] flex items-center">
         Other Panes ({panes.length})
         <span className="ml-2 text-xs">click to expand</span>
       </summary>
@@ -180,7 +184,7 @@ function OtherPanesSection({ panes }: OtherPanesSectionProps) {
             key={pane.id}
             pane={pane}
             window={pane.window}
-            onSendPrompt={() => {}}
+            onSendPrompt={NOOP}
             compact
           />
         ))}
