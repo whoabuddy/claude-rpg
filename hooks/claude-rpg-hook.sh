@@ -64,10 +64,16 @@ EVENT=$(cat)
 HOOK_TYPE="${1:-unknown}"
 
 # Get tmux target and pane ID if available
+# Use $TMUX_PANE env var directly (more reliable than tmux commands)
 TMUX_TARGET=""
 PANE_ID=""
-if [[ -n "$TMUX" ]]; then
-  TMUX_TARGET=$(tmux display-message -p '#S:#I.#P' 2>/dev/null || echo "")
+if [[ -n "$TMUX_PANE" ]]; then
+  PANE_ID="$TMUX_PANE"
+  # Get target in session:window_index.pane_index format (must match polling format)
+  TMUX_TARGET=$(tmux display-message -p -t "$TMUX_PANE" '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null || echo "")
+elif [[ -n "$TMUX" ]]; then
+  # Fallback to display-message without target
+  TMUX_TARGET=$(tmux display-message -p '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null || echo "")
   PANE_ID=$(tmux display-message -p '#{pane_id}' 2>/dev/null || echo "")
 fi
 

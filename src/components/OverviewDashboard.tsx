@@ -36,6 +36,7 @@ export function OverviewDashboard({ windows, onSendPrompt }: OverviewDashboardPr
           } else if (status === 'working') {
             working.push(paneWithWindow)
           } else {
+            // 'idle' and 'typing' both go to claudeIdle (typing just gets border highlight)
             claudeIdle.push(paneWithWindow)
           }
         } else {
@@ -108,7 +109,7 @@ export function OverviewDashboard({ windows, onSendPrompt }: OverviewDashboardPr
             />
           )}
 
-          {/* Idle Claude */}
+          {/* Idle Claude (includes typing - they just get border highlight) */}
           {claudeIdle.length > 0 && (
             <PaneGroup
               title="Idle Claude"
@@ -131,6 +132,7 @@ export function OverviewDashboard({ windows, onSendPrompt }: OverviewDashboardPr
 const variantStyles = {
   attention: 'text-rpg-waiting',
   working: 'text-rpg-working',
+  typing: 'text-rpg-accent',
   idle: 'text-rpg-idle',
 } as const
 
@@ -138,7 +140,7 @@ interface PaneGroupProps {
   title: string
   panes: PaneWithWindow[]
   onSendPrompt: (paneId: string, prompt: string) => void
-  variant: 'attention' | 'working' | 'idle'
+  variant: 'attention' | 'working' | 'typing' | 'idle'
 }
 
 const PaneGroup = memo(function PaneGroup({ title, panes, onSendPrompt, variant }: PaneGroupProps) {

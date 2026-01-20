@@ -19,7 +19,7 @@ export interface PaneProcess {
   claudeSession?: ClaudeSessionInfo  // only when type='claude'
 }
 
-export type SessionStatus = 'idle' | 'working' | 'waiting' | 'error'
+export type SessionStatus = 'idle' | 'typing' | 'working' | 'waiting' | 'error'
 
 export interface PendingQuestion {
   question: string
@@ -116,6 +116,7 @@ export type ClaudeEventType =
   | 'pre_tool_use'
   | 'post_tool_use'
   | 'stop'
+  | 'subagent_stop'
   | 'user_prompt_submit'
   | 'notification'
   | 'session_start'
@@ -153,6 +154,11 @@ export interface StopEvent extends BaseEvent {
   response?: string
 }
 
+export interface SubagentStopEvent extends BaseEvent {
+  type: 'subagent_stop'
+  reason?: string
+}
+
 export interface UserPromptSubmitEvent extends BaseEvent {
   type: 'user_prompt_submit'
   prompt: string
@@ -175,6 +181,7 @@ export type ClaudeEvent =
   | PreToolUseEvent
   | PostToolUseEvent
   | StopEvent
+  | SubagentStopEvent
   | UserPromptSubmitEvent
   | NotificationEvent
   | SessionStartEvent

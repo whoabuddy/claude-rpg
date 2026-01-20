@@ -159,6 +159,7 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent & { paneId?: string } {
     PreToolUse: 'pre_tool_use',
     PostToolUse: 'post_tool_use',
     Stop: 'stop',
+    SubagentStop: 'subagent_stop',
     UserPromptSubmit: 'user_prompt_submit',
     Notification: 'notification',
     SessionStart: 'session_start',
@@ -223,6 +224,14 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent & { paneId?: string } {
     return {
       ...base,
       type: 'stop',
+      paneId,
+    }
+  }
+
+  if (type === 'subagent_stop') {
+    return {
+      ...base,
+      type: 'subagent_stop',
       paneId,
     }
   }
@@ -344,6 +353,29 @@ async function handleEvent(rawEvent: RawHookEvent) {
             }
           }
         }
+
+        // Detect ExitPlanMode (waiting for plan approval)
+        if (preEvent.tool === 'ExitPlanMode') {
+          sessionInfo.status = 'waiting'
+          sessionInfo.pendingQuestion = {
+            question: 'Plan complete - waiting for approval',
+            options: [
+              { label: 'Approve', description: 'Approve the plan and proceed' },
+              { label: 'Reject', description: 'Reject the plan' },
+            ],
+            multiSelect: false,
+            toolUseId: preEvent.toolUseId,
+            timestamp: event.timestamp,
+          }
+          console.log(`[claude-rpg] Plan mode complete in pane ${pane?.id}, waiting for approval`)
+        }
+
+        // Detect EnterPlanMode
+        if (preEvent.tool === 'EnterPlanMode') {
+          sessionInfo.status = 'working'
+          sessionInfo.currentTool = 'Planning'
+          console.log(`[claude-rpg] Entered plan mode in pane ${pane?.id}`)
+        }
       } else if (event.type === 'post_tool_use') {
         const postEvent = event as import('../shared/types.js').PostToolUseEvent
         sessionInfo.currentTool = undefined
@@ -376,13 +408,42 @@ async function handleEvent(rawEvent: RawHookEvent) {
             ? promptEvent.prompt.slice(0, 100) + '...'
             : promptEvent.prompt
         }
+      } else if (event.type === 'notification') {
+        // Notification may indicate permission prompts or other waiting states
+        const notifEvent = event as import('../shared/types.js').NotificationEvent
+        if (notifEvent.message) {
+          // Check for permission-related notifications
+          if (notifEvent.message.includes('permission') || notifEvent.message.includes('waiting')) {
+            sessionInfo.status = 'waiting'
+          }
+          console.log(`[claude-rpg] Notification in pane ${pane?.id}: ${notifEvent.message}`)
+        }
+      } else if (event.type === 'subagent_stop') {
+        // Subagent finished - main agent continues working
+        console.log(`[claude-rpg] Subagent stopped in pane ${pane?.id}`)
+        // Don't change status - main agent is still running
+      } else if (event.type === 'session_start') {
+        // New or resumed session - reset to idle state
+        sessionInfo.status = 'idle'
+        sessionInfo.currentTool = undefined
+        sessionInfo.currentFile = undefined
+        sessionInfo.pendingQuestion = undefined
+        sessionInfo.lastError = undefined
+        console.log(`[claude-rpg] Session started/resumed in pane ${pane?.id}`)
       } else if (event.type === 'session_end') {
         // Session ended - remove from cache
         removeClaudeSession(pane.id)
       }
 
-      updateClaudeSession(pane.id, sessionInfo)
+      const updatedSession = updateClaudeSession(pane.id, sessionInfo)
       savePanesCache()
+
+      // Update the pane object with fresh session data before broadcasting
+      if (updatedSession && pane.process.type === 'claude') {
+        pane.process.claudeSession = updatedSession
+      }
+
+      console.log(`[claude-rpg] Event ${event.type} → status: ${updatedSession?.status || 'unknown'} (pane ${pane.id})`)
       broadcast({ type: 'pane_update', payload: pane })
     }
   }
@@ -414,6 +475,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const lastTerminalContent = new Map<string, string>()
+const lastTypingActivity = new Map<string, number>()
+const TYPING_IDLE_TIMEOUT_MS = 3000 // Revert to idle after 3s of no typing
 
 async function captureTerminal(target: string): Promise<string | null> {
   try {
@@ -437,8 +500,8 @@ async function broadcastTerminalUpdates() {
     for (const pane of window.panes) {
       // Determine capture rate based on pane type
       // All Claude panes get fast capture, others get slow
-      const isClaudPane = pane.process.type === 'claude'
-      const interval = isClaudPane ? TERMINAL_ACTIVE_INTERVAL_MS : TERMINAL_IDLE_INTERVAL_MS
+      const isClaudePane = pane.process.type === 'claude'
+      const interval = isClaudePane ? TERMINAL_ACTIVE_INTERVAL_MS : TERMINAL_IDLE_INTERVAL_MS
 
       // Check per-pane rate limiting
       const lastCapture = lastPaneCapture.get(pane.id) || 0
@@ -448,8 +511,38 @@ async function broadcastTerminalUpdates() {
       const content = await captureTerminal(pane.target)
       if (content === null) continue
 
-      // Only broadcast if content changed
-      if (lastTerminalContent.get(pane.id) === content) continue
+      const contentChanged = lastTerminalContent.get(pane.id) !== content
+
+      // Detect typing for Claude panes
+      if (isClaudePane && pane.process.claudeSession) {
+        const session = pane.process.claudeSession
+        const lastTyping = lastTypingActivity.get(pane.id) || 0
+
+        if (contentChanged && session.status === 'idle') {
+          // Terminal changed while idle → user is typing
+          lastTypingActivity.set(pane.id, now)
+          const updated = updateClaudeSession(pane.id, { status: 'typing' })
+          if (updated) {
+            pane.process.claudeSession = updated
+            savePanesCache()
+            broadcast({ type: 'pane_update', payload: pane })
+          }
+        } else if (contentChanged && session.status === 'typing') {
+          // Continue typing - update activity time
+          lastTypingActivity.set(pane.id, now)
+        } else if (!contentChanged && session.status === 'typing' && now - lastTyping > TYPING_IDLE_TIMEOUT_MS) {
+          // No changes for a while and was typing → revert to idle
+          const updated = updateClaudeSession(pane.id, { status: 'idle' })
+          if (updated) {
+            pane.process.claudeSession = updated
+            savePanesCache()
+            broadcast({ type: 'pane_update', payload: pane })
+          }
+        }
+      }
+
+      // Only broadcast terminal content if changed
+      if (!contentChanged) continue
       lastTerminalContent.set(pane.id, content)
 
       // Update pane with terminal content
@@ -566,6 +659,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Event ingestion (from hook)
+  // Note: Hook already writes to events file, so we only process here (no duplicate write)
   if (url.pathname === '/event' && req.method === 'POST') {
     let body = ''
     req.on('data', chunk => body += chunk)
@@ -573,7 +667,6 @@ const server = http.createServer(async (req, res) => {
       try {
         const event = JSON.parse(body) as ClaudeEvent
         handleEvent(event)
-        appendFileSync(EVENTS_FILE, JSON.stringify(event) + '\n')
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ ok: true }))
       } catch {
@@ -592,9 +685,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Get single pane
-  const paneMatch = url.pathname.match(/^\/api\/panes\/(%\d+)$/)
+  const paneMatch = url.pathname.match(/^\/api\/panes\/([^/]+)$/)
   if (paneMatch && req.method === 'GET') {
-    const paneId = paneMatch[1]
+    const paneId = decodeURIComponent(paneMatch[1])
     const pane = findPaneById(windows, paneId)
 
     if (!pane) {
@@ -609,9 +702,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Send prompt to pane
-  const panePromptMatch = url.pathname.match(/^\/api\/panes\/(%\d+)\/prompt$/)
+  const panePromptMatch = url.pathname.match(/^\/api\/panes\/([^/]+)\/prompt$/)
   if (panePromptMatch && req.method === 'POST') {
-    const paneId = panePromptMatch[1]
+    const paneId = decodeURIComponent(panePromptMatch[1])
     const pane = findPaneById(windows, paneId)
 
     if (!pane) {

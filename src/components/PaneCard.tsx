@@ -7,6 +7,7 @@ const TERMINAL_PREVIEW_LINES = 15
 // Status colors for Claude sessions
 const statusColors = {
   idle: 'border-rpg-idle/50',
+  typing: 'border-rpg-accent/70',
   working: 'border-rpg-working',
   waiting: 'border-rpg-waiting',
   error: 'border-rpg-error',
@@ -14,6 +15,7 @@ const statusColors = {
 
 const statusBgColors = {
   idle: 'bg-rpg-card',
+  typing: 'bg-rpg-accent/5',
   working: 'bg-rpg-card',
   waiting: 'bg-rpg-waiting/10',
   error: 'bg-rpg-error/10',
@@ -21,6 +23,7 @@ const statusBgColors = {
 
 const indicatorColors = {
   idle: 'bg-rpg-idle',
+  typing: 'bg-rpg-accent',
   working: 'bg-rpg-working',
   waiting: 'bg-rpg-waiting',
   error: 'bg-rpg-error',
@@ -360,6 +363,7 @@ const ProcessPaneCard = memo(function ProcessPaneCard({ pane, window, compact }:
 function StatusIndicator({ status }: { status: string }) {
   const indicatorLabels = {
     idle: 'Idle',
+    typing: 'Typing',
     working: 'Working',
     waiting: 'Waiting',
     error: 'Error',
@@ -369,7 +373,7 @@ function StatusIndicator({ status }: { status: string }) {
     <div className="flex items-center gap-1">
       <div
         className={`w-2 h-2 rounded-full ${indicatorColors[status as keyof typeof indicatorColors] || indicatorColors.idle} ${
-          status === 'working' ? 'animate-pulse' : ''
+          status === 'working' || status === 'typing' ? 'animate-pulse' : ''
         }`}
       />
       <span className="text-xs text-rpg-idle/70">
