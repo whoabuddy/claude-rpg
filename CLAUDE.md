@@ -47,7 +47,7 @@ claude-rpg/
 │   └── cli.ts        # CLI for setup and running
 ├── src/              # React + Tailwind frontend
 │   ├── components/   # UI components (CompanionDetail, SessionCard, etc.)
-│   ├── hooks/        # React hooks (WebSocket, companions)
+│   ├── hooks/        # React hooks (WebSocket, companions, terminal output)
 │   └── styles/       # Tailwind CSS
 ├── shared/           # Shared types between server/client
 │   ├── types.ts      # TypeScript interfaces (Companion, Session, etc.)
@@ -81,8 +81,11 @@ interface Session {
   status: SessionStatus   // idle | working | waiting | error
   tmuxTarget?: string     // For terminal capture and prompt sending
   pendingQuestion?: PendingQuestion  // When AskUserQuestion is active
+  lastError?: SessionError           // When status is 'error'
   currentTool?: string
   currentFile?: string
+  lastPrompt?: string     // Last user prompt (truncated for display)
+  recentFiles?: string[]  // Recently touched files (last 5 unique)
   createdAt: number
   lastActivity: number
 }
@@ -109,6 +112,7 @@ interface Session {
 **Dev Commands:**
 - npm test / vitest / pytest: 5 XP
 - npm run build: 3 XP
+- npm run lint / eslint / prettier: 2 XP
 - wrangler / vercel deploy: 10 XP
 
 **Blockchain (Stacks):**
@@ -207,4 +211,4 @@ Then add the stat key to the `CompanionStats` interface in `shared/types.ts`.
 - [ ] Level-up animations
 - [ ] Achievement system
 - [ ] tmux focus sync (web ↔ TUI)
-- [ ] Session cleanup (remove stale sessions)
+- [x] Session cleanup (remove stale sessions)
