@@ -45,7 +45,7 @@ export function useCompanions(events: ClaudeEvent[]) {
   return { companions, selectedId, setSelectedId }
 }
 
-// Helper to send prompts
+// Helper to send prompts to a companion
 export async function sendPrompt(companionId: string, prompt: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_URL}/api/companions/${companionId}/prompt`, {
@@ -57,6 +57,22 @@ export async function sendPrompt(companionId: string, prompt: string): Promise<b
     return data.ok
   } catch (e) {
     console.error('[claude-rpg] Error sending prompt:', e)
+    return false
+  }
+}
+
+// Helper to send prompts to a specific session
+export async function sendPromptToSession(companionId: string, sessionId: string, prompt: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/api/companions/${companionId}/sessions/${sessionId}/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    })
+    const data = await res.json()
+    return data.ok
+  } catch (e) {
+    console.error('[claude-rpg] Error sending prompt to session:', e)
     return false
   }
 }

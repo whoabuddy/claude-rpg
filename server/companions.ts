@@ -1,30 +1,71 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { execSync } from 'child_process'
 import { join, basename } from 'path'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHash } from 'crypto'
 import { DEFAULTS } from '../shared/defaults.js'
-import type { Companion, RepoInfo, CompanionStats, CompanionState } from '../shared/types.js'
+import type { Companion, RepoInfo, CompanionStats, CompanionState, Session } from '../shared/types.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Companion Names (RPG-style)
+// English First Names (for sessions)
 // ═══════════════════════════════════════════════════════════════════════════
 
-const COMPANION_NAMES = [
-  'Sparky', 'Atlas', 'Nova', 'Pixel', 'Echo',
-  'Blaze', 'Frost', 'Sage', 'Bolt', 'Luna',
-  'Cipher', 'Flux', 'Glitch', 'Neon', 'Orbit',
-  'Pulse', 'Quark', 'Rune', 'Shade', 'Vex',
-  'Warp', 'Xenon', 'Yeti', 'Zephyr', 'Axiom',
+const ENGLISH_NAMES = [
+  'Alice', 'Bob', 'Charlie', 'Diana', 'Edward',
+  'Fiona', 'George', 'Hannah', 'Isaac', 'Julia',
+  'Kevin', 'Laura', 'Michael', 'Nancy', 'Oliver',
+  'Patricia', 'Quinn', 'Robert', 'Sarah', 'Thomas',
+  'Ursula', 'Victor', 'Wendy', 'Xavier', 'Yvonne',
+  'Zachary', 'Abigail', 'Benjamin', 'Catherine', 'Daniel',
+  'Eleanor', 'Franklin', 'Grace', 'Henry', 'Iris',
+  'James', 'Katherine', 'Leonard', 'Margaret', 'Nathan',
+  'Olivia', 'Patrick', 'Rachel', 'Samuel', 'Teresa',
+  'Vincent', 'William', 'Zoe', 'Arthur', 'Beatrice',
 ]
 
-function getRandomName(existingNames: string[]): string {
-  const available = COMPANION_NAMES.filter(n => !existingNames.includes(n))
-  if (available.length > 0) {
-    return available[Math.floor(Math.random() * available.length)]
+// Deterministic name from session ID
+export function getSessionName(sessionId: string): string {
+  const hash = createHash('md5').update(sessionId).digest()
+  const index = hash.readUInt16BE(0) % ENGLISH_NAMES.length
+  return ENGLISH_NAMES[index]
+}
+
+// Bitcoin face URL (cached SVG fetched separately)
+export function getBitcoinFaceUrl(sessionId: string): string {
+  return `https://bitcoinfaces.xyz/api/get-image?name=${encodeURIComponent(sessionId)}`
+}
+
+// Fetch and cache Bitcoin face SVG
+const bitcoinFaceCache = new Map<string, string>()
+
+export async function fetchBitcoinFace(sessionId: string): Promise<string | undefined> {
+  if (bitcoinFaceCache.has(sessionId)) {
+    return bitcoinFaceCache.get(sessionId)
   }
-  // Fallback: append number to name
-  const base = COMPANION_NAMES[Math.floor(Math.random() * COMPANION_NAMES.length)]
-  return `${base}${Math.floor(Math.random() * 100)}`
+
+  try {
+    const url = getBitcoinFaceUrl(sessionId)
+    const response = await fetch(url)
+    if (response.ok) {
+      const svg = await response.text()
+      bitcoinFaceCache.set(sessionId, svg)
+      return svg
+    }
+  } catch (e) {
+    console.error(`[claude-rpg] Error fetching Bitcoin face for ${sessionId}:`, e)
+  }
+  return undefined
+}
+
+// Create a new session
+export function createSession(sessionId: string, tmuxTarget?: string): Session {
+  return {
+    id: sessionId,
+    name: getSessionName(sessionId),
+    status: 'idle',
+    tmuxTarget,
+    createdAt: Date.now(),
+    lastActivity: Date.now(),
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -56,7 +97,7 @@ function detectRepoInfo(cwd: string): RepoInfo | null {
     let name: string
 
     try {
-      remote = execSync('git remote get-url origin', { cwd, encoding: 'utf-8' }).trim()
+      remote = execSync('git remote get-url origin', { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim()
 
       // Parse org/name from remote
       // git@github.com:org/repo.git or https://github.com/org/repo.git
@@ -115,6 +156,7 @@ function createDefaultStats(): CompanionStats {
 function createDefaultState(): CompanionState {
   return {
     status: 'idle',
+    sessions: [],
     lastActivity: Date.now(),
   }
 }
@@ -139,13 +181,10 @@ export function findOrCreateCompanion(companions: Companion[], cwd: string): Com
     return byRepoPath
   }
 
-  // Create new companion
-  const existingNames = companions.map(c => c.name)
-  const name = getRandomName(existingNames)
-
+  // Create new companion - use repo name as the companion name
   const companion: Companion = {
     id: randomUUID(),
-    name,
+    name: repoInfo.name,
     repo: repoInfo,
     level: 1,
     experience: 0,
@@ -157,7 +196,7 @@ export function findOrCreateCompanion(companions: Companion[], cwd: string): Com
   }
 
   companions.push(companion)
-  console.log(`[claude-rpg] Created new companion "${name}" for ${repoInfo.name}`)
+  console.log(`[claude-rpg] Created new companion for ${repoInfo.name}`)
 
   return companion
 }

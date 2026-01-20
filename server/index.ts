@@ -13,7 +13,8 @@ import type {
   TerminalOutput,
 } from '../shared/types.js'
 import { processEvent, detectCommandXP } from './xp.js'
-import { findOrCreateCompanion, saveCompanions, loadCompanions } from './companions.js'
+import { findOrCreateCompanion, saveCompanions, loadCompanions, createSession, fetchBitcoinFace } from './companions.js'
+import type { Session, PendingQuestion, PreToolUseEvent } from '../shared/types.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Configuration
@@ -148,7 +149,7 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
 // Event Processing
 // ═══════════════════════════════════════════════════════════════════════════
 
-function handleEvent(rawEvent: RawHookEvent) {
+async function handleEvent(rawEvent: RawHookEvent) {
   // Normalize the event from Claude Code hook format to internal format
   const event = normalizeEvent(rawEvent)
   // Dedupe
@@ -165,10 +166,83 @@ function handleEvent(rawEvent: RawHookEvent) {
   // Find or create companion from CWD
   const companion = findOrCreateCompanion(companions, event.cwd)
   if (companion) {
-    // Track tmux target for terminal capture
-    if (event.tmuxTarget) {
-      companionTmuxTargets.set(companion.id, event.tmuxTarget)
+    // Find or create session within companion
+    let session = companion.state.sessions.find(s => s.id === event.sessionId)
+    if (!session && event.sessionId) {
+      session = createSession(event.sessionId, event.tmuxTarget)
+      companion.state.sessions.push(session)
+      console.log(`[claude-rpg] New session "${session.name}" (${event.sessionId.slice(0, 8)}...) for ${companion.repo.name}`)
+
+      // Fetch Bitcoin face in background
+      fetchBitcoinFace(event.sessionId).then(svg => {
+        if (svg && session) {
+          session.avatarSvg = svg
+          saveCompanions(DATA_DIR, companions)
+          broadcast({ type: 'companion_update', payload: companion })
+        }
+      })
     }
+
+    if (session) {
+      // Update session state
+      session.lastActivity = event.timestamp
+      if (event.tmuxTarget) {
+        session.tmuxTarget = event.tmuxTarget
+        // Track for terminal capture (by session ID now)
+        sessionTmuxTargets.set(session.id, { companionId: companion.id, tmuxTarget: event.tmuxTarget })
+      }
+
+      // Update session status based on event type
+      if (event.type === 'pre_tool_use') {
+        const preEvent = event as PreToolUseEvent
+        session.status = 'working'
+        session.currentTool = preEvent.tool
+        if (preEvent.toolInput) {
+          session.currentFile = (preEvent.toolInput.file_path || preEvent.toolInput.path) as string | undefined
+        }
+
+        // Detect AskUserQuestion - set waiting status
+        if (preEvent.tool === 'AskUserQuestion' && preEvent.toolInput) {
+          session.status = 'waiting'
+          const input = preEvent.toolInput as Record<string, unknown>
+          const questions = input.questions as Array<{
+            question: string
+            options: Array<{ label: string; description?: string }>
+            multiSelect?: boolean
+          }> | undefined
+
+          if (questions && questions.length > 0) {
+            const q = questions[0] // Take first question for now
+            session.pendingQuestion = {
+              question: q.question,
+              options: q.options || [],
+              multiSelect: q.multiSelect || false,
+              toolUseId: preEvent.toolUseId,
+              timestamp: event.timestamp,
+            }
+          }
+        }
+      } else if (event.type === 'post_tool_use') {
+        session.currentTool = undefined
+        session.currentFile = undefined
+        // Clear pending question if AskUserQuestion completed
+        if (session.pendingQuestion) {
+          session.pendingQuestion = undefined
+          session.status = 'working'
+        }
+      } else if (event.type === 'stop') {
+        session.status = 'idle'
+        session.currentTool = undefined
+        session.currentFile = undefined
+        session.pendingQuestion = undefined
+      } else if (event.type === 'user_prompt_submit') {
+        session.status = 'working'
+        session.pendingQuestion = undefined
+      }
+    }
+
+    // Update companion aggregate status
+    updateCompanionStatus(companion)
 
     // Process event for XP and state updates
     const xpGain = processEvent(companion, event)
@@ -195,15 +269,37 @@ function handleEvent(rawEvent: RawHookEvent) {
   broadcast({ type: 'event', payload: event })
 }
 
+// Update companion's aggregate status from sessions
+function updateCompanionStatus(companion: Companion) {
+  const sessions = companion.state.sessions
+  if (sessions.length === 0) {
+    companion.state.status = 'idle'
+    return
+  }
+
+  // Priority: waiting > working > idle
+  if (sessions.some(s => s.status === 'waiting')) {
+    companion.state.status = 'waiting'
+  } else if (sessions.some(s => s.status === 'working')) {
+    companion.state.status = 'working'
+  } else if (sessions.some(s => s.status === 'error')) {
+    companion.state.status = 'attention'
+  } else {
+    companion.state.status = 'idle'
+  }
+
+  companion.state.lastActivity = Math.max(...sessions.map(s => s.lastActivity))
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Capture
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Track tmux targets per companion
-const companionTmuxTargets = new Map<string, string>()
+// Track tmux targets per session (sessionId -> { companionId, tmuxTarget })
+const sessionTmuxTargets = new Map<string, { companionId: string; tmuxTarget: string }>()
 const lastTerminalContent = new Map<string, string>()
 
-async function captureTerminal(companionId: string, tmuxTarget: string): Promise<string | null> {
+async function captureTerminal(tmuxTarget: string): Promise<string | null> {
   try {
     const { exec } = await import('child_process')
     const { promisify } = await import('util')
@@ -221,16 +317,18 @@ async function captureTerminal(companionId: string, tmuxTarget: string): Promise
 }
 
 async function broadcastTerminalUpdates() {
-  for (const [companionId, tmuxTarget] of companionTmuxTargets) {
-    const content = await captureTerminal(companionId, tmuxTarget)
+  for (const [sessionId, { companionId, tmuxTarget }] of sessionTmuxTargets) {
+    const content = await captureTerminal(tmuxTarget)
     if (content === null) continue
 
     // Only broadcast if content changed
-    if (lastTerminalContent.get(companionId) === content) continue
-    lastTerminalContent.set(companionId, content)
+    const cacheKey = `${companionId}:${sessionId}`
+    if (lastTerminalContent.get(cacheKey) === content) continue
+    lastTerminalContent.set(cacheKey, content)
 
     const output: TerminalOutput = {
       companionId,
+      sessionId,
       tmuxTarget,
       content,
       timestamp: Date.now(),
@@ -352,7 +450,73 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // Send prompt to companion
+  // Send prompt to specific session
+  const sessionPromptMatch = url.pathname.match(/^\/api\/companions\/([^/]+)\/sessions\/([^/]+)\/prompt$/)
+  if (sessionPromptMatch && req.method === 'POST') {
+    const [, companionId, sessionId] = sessionPromptMatch
+    const companion = companions.find(c => c.id === companionId)
+
+    if (!companion) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'Companion not found' }))
+      return
+    }
+
+    const session = companion.state.sessions.find(s => s.id === sessionId)
+    if (!session) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'Session not found' }))
+      return
+    }
+
+    if (!session.tmuxTarget) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'No tmux target for session' }))
+      return
+    }
+
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', async () => {
+      try {
+        const { prompt } = JSON.parse(body)
+
+        // Send to tmux via load-buffer/paste-buffer
+        const { exec } = await import('child_process')
+        const { promisify } = await import('util')
+        const execAsync = promisify(exec)
+
+        const tempFile = `/tmp/claude-rpg-prompt-${Date.now()}.txt`
+        writeFileSync(tempFile, prompt)
+
+        await execAsync(`tmux load-buffer ${tempFile}`)
+        await execAsync(`tmux paste-buffer -t ${session.tmuxTarget}`)
+        await new Promise(r => setTimeout(r, 100))
+        await execAsync(`tmux send-keys -t ${session.tmuxTarget} Enter`)
+
+        // Clean up temp file
+        const { unlink } = await import('fs/promises')
+        await unlink(tempFile).catch(() => {})
+
+        // Clear pending question after answering
+        if (session.pendingQuestion) {
+          session.pendingQuestion = undefined
+          session.status = 'working'
+          saveCompanions(DATA_DIR, companions)
+          broadcast({ type: 'companion_update', payload: companion })
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true }))
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: String(e) }))
+      }
+    })
+    return
+  }
+
+  // Send prompt to companion (uses most recent session)
   const promptMatch = url.pathname.match(/^\/api\/companions\/([^/]+)\/prompt$/)
   if (promptMatch && req.method === 'POST') {
     const companionId = promptMatch[1]
@@ -370,12 +534,12 @@ const server = http.createServer(async (req, res) => {
       try {
         const { prompt } = JSON.parse(body)
 
-        // Find tmux target from recent events for this companion
-        const recentEvent = events
-          .filter(e => e.cwd === companion.repo.path && e.tmuxTarget)
-          .pop()
+        // Find tmux target from sessions (prefer most recent active)
+        const session = companion.state.sessions
+          .filter(s => s.tmuxTarget)
+          .sort((a, b) => b.lastActivity - a.lastActivity)[0]
 
-        if (!recentEvent?.tmuxTarget) {
+        if (!session?.tmuxTarget) {
           res.writeHead(400, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ ok: false, error: 'No tmux target found for companion' }))
           return
@@ -390,9 +554,9 @@ const server = http.createServer(async (req, res) => {
         writeFileSync(tempFile, prompt)
 
         await execAsync(`tmux load-buffer ${tempFile}`)
-        await execAsync(`tmux paste-buffer -t ${recentEvent.tmuxTarget}`)
+        await execAsync(`tmux paste-buffer -t ${session.tmuxTarget}`)
         await new Promise(r => setTimeout(r, 100))
-        await execAsync(`tmux send-keys -t ${recentEvent.tmuxTarget} Enter`)
+        await execAsync(`tmux send-keys -t ${session.tmuxTarget} Enter`)
 
         // Clean up temp file
         const { unlink } = await import('fs/promises')

@@ -120,12 +120,9 @@ export function detectCommandXP(command: string): CommandDetection | null {
 
 export function processEvent(companion: Companion, event: ClaudeEvent): XPGain | null {
   companion.lastActivity = event.timestamp
-  companion.state.lastActivity = event.timestamp
 
-  // Track Claude session
-  if (event.sessionId && companion.state.activeClaudeSession !== event.sessionId) {
-    companion.state.activeClaudeSession = event.sessionId
-  }
+  // Session state management is now in index.ts
+  // This function focuses on XP and stats tracking
 
   switch (event.type) {
     case 'pre_tool_use':
@@ -135,14 +132,10 @@ export function processEvent(companion: Companion, event: ClaudeEvent): XPGain |
       return processPostToolUse(companion, event as PostToolUseEvent)
 
     case 'stop':
-      companion.state.status = 'idle'
-      companion.state.currentTool = undefined
-      companion.state.currentFile = undefined
       companion.stats.sessionsCompleted++
       return awardXP(companion, XP_REWARDS.session_completed, 'session', 'Session completed')
 
     case 'user_prompt_submit':
-      companion.state.status = 'working'
       companion.stats.promptsReceived++
       return null
 
@@ -152,16 +145,7 @@ export function processEvent(companion: Companion, event: ClaudeEvent): XPGain |
 }
 
 function processPreToolUse(companion: Companion, event: PreToolUseEvent): XPGain | null {
-  companion.state.status = 'working'
-  companion.state.currentTool = event.tool
-
-  // Extract file from tool input if available
-  if (event.toolInput) {
-    const input = event.toolInput as Record<string, unknown>
-    companion.state.currentFile = (input.file_path || input.path || input.pattern) as string | undefined
-  }
-
-  // Track tool usage
+  // Track tool usage in stats
   companion.stats.toolsUsed[event.tool] = (companion.stats.toolsUsed[event.tool] || 0) + 1
 
   // Award XP for tool use
@@ -170,7 +154,6 @@ function processPreToolUse(companion: Companion, event: PreToolUseEvent): XPGain
 }
 
 function processPostToolUse(companion: Companion, event: PostToolUseEvent): XPGain | null {
-  companion.state.currentTool = undefined
 
   let totalXP = 0
   let xpType = 'tool_complete'

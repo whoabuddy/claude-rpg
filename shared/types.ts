@@ -45,12 +45,35 @@ export interface CompanionStats {
   }
 }
 
+export type SessionStatus = 'idle' | 'working' | 'waiting' | 'error'
+
+export interface PendingQuestion {
+  question: string
+  options: Array<{ label: string; description?: string }>
+  multiSelect: boolean
+  toolUseId: string
+  timestamp: number
+}
+
+export interface Session {
+  id: string                        // Claude session UUID
+  name: string                      // English first name (deterministic from ID)
+  avatarSvg?: string                // Cached Bitcoin face SVG
+  status: SessionStatus
+  tmuxTarget?: string
+  pendingQuestion?: PendingQuestion // When waiting for user input
+  currentTool?: string
+  currentFile?: string
+  createdAt: number
+  lastActivity: number
+}
+
 export type CompanionStatus = 'idle' | 'working' | 'waiting' | 'attention' | 'offline'
 
 export interface CompanionState {
-  status: CompanionStatus
-  activeClaudeSession?: string
-  currentTool?: string
+  status: CompanionStatus           // Aggregate status from sessions
+  sessions: Session[]               // Active sessions in this repo
+  currentTool?: string              // Legacy, for backward compat
   currentFile?: string
   lastActivity: number
 }
@@ -158,6 +181,7 @@ export function levelFromTotalXP(totalXP: number): { level: number; currentXP: n
 
 export interface TerminalOutput {
   companionId: string
+  sessionId: string
   tmuxTarget: string
   content: string
   timestamp: number

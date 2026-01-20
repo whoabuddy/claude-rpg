@@ -1,16 +1,19 @@
-import { useState, useEffect } from 'react'
 import { CompanionList } from './components/CompanionList'
 import { CompanionDetail } from './components/CompanionDetail'
 import { PromptInput } from './components/PromptInput'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { useWebSocket } from './hooks/useWebSocket'
-import { useCompanions } from './hooks/useCompanions'
-import type { Companion } from '@shared/types'
+import { useCompanions, sendPromptToSession } from './hooks/useCompanions'
 
 export default function App() {
   const { connected, events } = useWebSocket()
   const { companions, selectedId, setSelectedId } = useCompanions(events)
   const selectedCompanion = companions.find(c => c.id === selectedId)
+
+  const handleSendPromptToSession = async (sessionId: string, prompt: string) => {
+    if (!selectedCompanion) return
+    await sendPromptToSession(selectedCompanion.id, sessionId, prompt)
+  }
 
   return (
     <div className="h-full flex flex-col bg-rpg-bg">
@@ -30,7 +33,10 @@ export default function App() {
       {/* Main content */}
       <main className="flex-1 overflow-y-auto">
         {selectedCompanion ? (
-          <CompanionDetail companion={selectedCompanion} />
+          <CompanionDetail
+            companion={selectedCompanion}
+            onSendPrompt={handleSendPromptToSession}
+          />
         ) : (
           <div className="flex items-center justify-center h-full text-rpg-idle">
             <p>No companions yet. Start Claude Code in a project!</p>
