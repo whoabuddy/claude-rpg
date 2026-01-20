@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: theme('colors.rpg.bg');
+}
+
+::-webkit-scrollbar-thumb {
+  background: theme('colors.rpg.border');
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: theme('colors.rpg.accent-dim');
+}
+
+/* XP bar animation */
+.xp-bar {
+  transition: width 0.5s ease-out;
+}
+
+/* Status indicator pulse */
+.status-working {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.status-waiting {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Mobile touch feedback */
+@media (hover: none) {
+  .touch-feedback:active {
+    transform: scale(0.98);
+    opacity: 0.9;
+  }
+}

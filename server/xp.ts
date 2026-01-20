@@ -1,0 +1,260 @@
+import type { ClaudeEvent, Companion, XPGain, PreToolUseEvent, PostToolUseEvent } from '../shared/types.js'
+import { xpForLevel } from '../shared/types.js'
+
+// ═══════════════════════════════════════════════════════════════════════════
+// XP Rewards Configuration
+// ═══════════════════════════════════════════════════════════════════════════
+
+const XP_REWARDS = {
+  tools: {
+    Read: 1,
+    Edit: 3,
+    Write: 5,
+    Bash: 2,
+    Grep: 1,
+    Glob: 1,
+    Task: 5,
+    WebFetch: 2,
+    WebSearch: 2,
+    TodoWrite: 1,
+    AskUserQuestion: 1,
+    default: 1,
+  },
+  tool_success_bonus: 1,
+  question_answered: 2,
+  session_completed: 10,
+
+  git: {
+    commit: 15,
+    push: 10,
+    pr_created: 20,
+    pr_merged: 50,
+    branch_created: 5,
+  },
+
+  commands: {
+    test: 5,
+    build: 3,
+    deploy: 10,
+    lint: 2,
+  },
+
+  blockchain: {
+    clarinet_check: 5,
+    clarinet_test: 8,
+    testnet_deploy: 25,
+    mainnet_deploy: 100,
+  },
+} as const
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Command Detection
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface CommandDetection {
+  type: string
+  xp: number
+  statKey: string
+}
+
+export function detectCommandXP(command: string): CommandDetection | null {
+  const cmd = command.toLowerCase()
+
+  // Git operations
+  if (cmd.includes('git commit')) {
+    return { type: 'git.commit', xp: XP_REWARDS.git.commit, statKey: 'git.commits' }
+  }
+  if (cmd.includes('git push')) {
+    return { type: 'git.push', xp: XP_REWARDS.git.push, statKey: 'git.pushes' }
+  }
+  if (cmd.includes('gh pr create')) {
+    return { type: 'git.pr_created', xp: XP_REWARDS.git.pr_created, statKey: 'git.prsCreated' }
+  }
+  if (cmd.includes('gh pr merge')) {
+    return { type: 'git.pr_merged', xp: XP_REWARDS.git.pr_merged, statKey: 'git.prsMerged' }
+  }
+  if (/git checkout -b|git switch -c/.test(cmd)) {
+    return { type: 'git.branch', xp: XP_REWARDS.git.branch_created, statKey: 'git.branches' }
+  }
+
+  // Testing
+  if (/npm (run )?test|pnpm test|vitest|jest|pytest|cargo test|go test/.test(cmd)) {
+    return { type: 'commands.test', xp: XP_REWARDS.commands.test, statKey: 'commands.testsRun' }
+  }
+
+  // Building
+  if (/npm run build|pnpm build|tsc|cargo build|go build|make\b/.test(cmd)) {
+    return { type: 'commands.build', xp: XP_REWARDS.commands.build, statKey: 'commands.buildsRun' }
+  }
+
+  // Deploying (non-blockchain)
+  if (/wrangler|npm run wrangler|vercel|netlify deploy|npm run deploy/.test(cmd)) {
+    return { type: 'commands.deploy', xp: XP_REWARDS.commands.deploy, statKey: 'commands.deploysRun' }
+  }
+
+  // Linting
+  if (/npm run lint|eslint|prettier|cargo clippy|cargo fmt/.test(cmd)) {
+    return { type: 'commands.lint', xp: XP_REWARDS.commands.lint, statKey: 'commands.lintsRun' }
+  }
+
+  // Blockchain - Clarinet
+  if (cmd.includes('clarinet check')) {
+    return { type: 'blockchain.check', xp: XP_REWARDS.blockchain.clarinet_check, statKey: 'blockchain.clarinetChecks' }
+  }
+  if (cmd.includes('clarinet test')) {
+    return { type: 'blockchain.test', xp: XP_REWARDS.blockchain.clarinet_test, statKey: 'blockchain.clarinetTests' }
+  }
+  if (/clarinet deploy.*--testnet|stx deploy.*testnet/.test(cmd)) {
+    return { type: 'blockchain.testnet', xp: XP_REWARDS.blockchain.testnet_deploy, statKey: 'blockchain.testnetDeploys' }
+  }
+  if (/clarinet deploy.*--mainnet|stx deploy.*mainnet/.test(cmd)) {
+    return { type: 'blockchain.mainnet', xp: XP_REWARDS.blockchain.mainnet_deploy, statKey: 'blockchain.mainnetDeploys' }
+  }
+
+  return null
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Event Processing
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function processEvent(companion: Companion, event: ClaudeEvent): XPGain | null {
+  companion.lastActivity = event.timestamp
+  companion.state.lastActivity = event.timestamp
+
+  // Track Claude session
+  if (event.sessionId && companion.state.activeClaudeSession !== event.sessionId) {
+    companion.state.activeClaudeSession = event.sessionId
+  }
+
+  switch (event.type) {
+    case 'pre_tool_use':
+      return processPreToolUse(companion, event as PreToolUseEvent)
+
+    case 'post_tool_use':
+      return processPostToolUse(companion, event as PostToolUseEvent)
+
+    case 'stop':
+      companion.state.status = 'idle'
+      companion.state.currentTool = undefined
+      companion.state.currentFile = undefined
+      companion.stats.sessionsCompleted++
+      return awardXP(companion, XP_REWARDS.session_completed, 'session', 'Session completed')
+
+    case 'user_prompt_submit':
+      companion.state.status = 'working'
+      companion.stats.promptsReceived++
+      return null
+
+    default:
+      return null
+  }
+}
+
+function processPreToolUse(companion: Companion, event: PreToolUseEvent): XPGain | null {
+  companion.state.status = 'working'
+  companion.state.currentTool = event.tool
+
+  // Extract file from tool input if available
+  if (event.toolInput) {
+    const input = event.toolInput as Record<string, unknown>
+    companion.state.currentFile = (input.file_path || input.path || input.pattern) as string | undefined
+  }
+
+  // Track tool usage
+  companion.stats.toolsUsed[event.tool] = (companion.stats.toolsUsed[event.tool] || 0) + 1
+
+  // Award XP for tool use
+  const toolXP = XP_REWARDS.tools[event.tool as keyof typeof XP_REWARDS.tools] || XP_REWARDS.tools.default
+  return awardXP(companion, toolXP, `tool.${event.tool}`, `Used ${event.tool}`)
+}
+
+function processPostToolUse(companion: Companion, event: PostToolUseEvent): XPGain | null {
+  companion.state.currentTool = undefined
+
+  let totalXP = 0
+  let xpType = 'tool_complete'
+  let description = `${event.tool} completed`
+
+  // Success bonus
+  if (event.success) {
+    totalXP += XP_REWARDS.tool_success_bonus
+  }
+
+  // Check for special commands in Bash
+  if (event.tool === 'Bash' && event.success) {
+    // Get command from event
+    const toolInput = (event as unknown as { toolInput?: { command?: string } }).toolInput
+    const command = toolInput?.command || ''
+
+    const commandXP = detectCommandXP(command)
+    if (commandXP) {
+      totalXP += commandXP.xp
+      xpType = commandXP.type
+      description = getCommandDescription(commandXP.type, command)
+
+      // Update stats based on command type
+      incrementStat(companion.stats, commandXP.statKey)
+    }
+  }
+
+  if (totalXP > 0) {
+    return awardXP(companion, totalXP, xpType, description)
+  }
+
+  return null
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+function awardXP(companion: Companion, amount: number, type: string, description: string): XPGain {
+  companion.experience += amount
+  companion.totalExperience += amount
+
+  // Check for level up
+  const xpNeeded = xpForLevel(companion.level)
+  while (companion.experience >= xpNeeded) {
+    companion.experience -= xpNeeded
+    companion.level++
+    console.log(`[claude-rpg] ${companion.name} leveled up to ${companion.level}!`)
+  }
+
+  return {
+    companionId: companion.id,
+    amount,
+    type,
+    description,
+    timestamp: Date.now(),
+  }
+}
+
+function incrementStat(stats: Companion['stats'], path: string) {
+  const parts = path.split('.')
+  let obj: Record<string, unknown> = stats as unknown as Record<string, unknown>
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    obj = obj[parts[i]] as Record<string, unknown>
+  }
+
+  const key = parts[parts.length - 1]
+  obj[key] = ((obj[key] as number) || 0) + 1
+}
+
+function getCommandDescription(type: string, command: string): string {
+  switch (type) {
+    case 'git.commit': return 'Git commit'
+    case 'git.push': return 'Git push'
+    case 'git.pr_created': return 'PR created'
+    case 'git.pr_merged': return 'PR merged'
+    case 'commands.test': return 'Tests run'
+    case 'commands.build': return 'Build completed'
+    case 'commands.deploy': return 'Deploy triggered'
+    case 'blockchain.check': return 'Clarinet check'
+    case 'blockchain.test': return 'Clarinet test'
+    case 'blockchain.testnet': return 'Testnet deploy'
+    case 'blockchain.mainnet': return 'Mainnet deploy!'
+    default: return command.slice(0, 30)
+  }
+}
