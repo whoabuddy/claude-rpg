@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react'
-import type { Companion, Session } from '@shared/types'
-import { useTerminalOutput } from '../hooks/useTerminalOutput'
+import type { TmuxPane, TmuxWindow, ClaudeSessionInfo } from '@shared/types'
+import { usePaneTerminal } from '../hooks/usePaneTerminal'
 
-// Constants
 const TERMINAL_PREVIEW_LINES = 15
 
-// Move static style objects to module scope to avoid recreation on every render
+// Status colors for Claude sessions
 const statusColors = {
   idle: 'border-rpg-idle/50',
   working: 'border-rpg-working',
@@ -27,27 +26,62 @@ const indicatorColors = {
   error: 'bg-rpg-error',
 } as const
 
-const indicatorLabels = {
-  idle: 'Idle',
-  working: 'Working',
-  waiting: 'Waiting',
-  error: 'Error',
+// Process type colors for non-Claude panes
+const processColors = {
+  shell: 'border-rpg-idle/30',
+  process: 'border-blue-500/50',
+  idle: 'border-rpg-idle/20',
 } as const
 
-interface DashboardSessionCardProps {
-  session: Session
-  companion: Companion
-  onSendPrompt: (companionId: string, sessionId: string, prompt: string) => void
+interface PaneCardProps {
+  pane: TmuxPane
+  window: TmuxWindow
+  onSendPrompt: (paneId: string, prompt: string) => void
+  compact?: boolean
 }
 
-export const DashboardSessionCard = memo(function DashboardSessionCard({ session, companion, onSendPrompt }: DashboardSessionCardProps) {
+export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, compact = false }: PaneCardProps) {
+  const isClaudPane = pane.process.type === 'claude'
+  const claudeSession = pane.process.claudeSession
+
+  if (isClaudPane && claudeSession) {
+    return (
+      <ClaudePaneCard
+        pane={pane}
+        window={window}
+        session={claudeSession}
+        onSendPrompt={onSendPrompt}
+        compact={compact}
+      />
+    )
+  }
+
+  return (
+    <ProcessPaneCard
+      pane={pane}
+      window={window}
+      compact={compact}
+    />
+  )
+})
+
+// Claude-specific pane card
+interface ClaudePaneCardProps {
+  pane: TmuxPane
+  window: TmuxWindow
+  session: ClaudeSessionInfo
+  onSendPrompt: (paneId: string, prompt: string) => void
+  compact?: boolean
+}
+
+const ClaudePaneCard = memo(function ClaudePaneCard({ pane, window, session, onSendPrompt, compact }: ClaudePaneCardProps) {
   const [answerInput, setAnswerInput] = useState('')
   const [expanded, setExpanded] = useState(false)
-  const terminalContent = useTerminalOutput(session.id)
+  const terminalContent = usePaneTerminal(pane.id)
   const terminalRef = useRef<HTMLPreElement>(null)
   const previewRef = useRef<HTMLPreElement>(null)
 
-  // Auto-scroll terminal preview and expanded view to bottom
+  // Auto-scroll terminal
   useEffect(() => {
     if (previewRef.current) {
       previewRef.current.scrollTop = previewRef.current.scrollHeight
@@ -58,21 +92,18 @@ export const DashboardSessionCard = memo(function DashboardSessionCard({ session
   }, [terminalContent, expanded])
 
   const handleAnswer = (answer: string) => {
-    onSendPrompt(companion.id, session.id, answer)
+    onSendPrompt(pane.id, answer)
     setAnswerInput('')
   }
 
-  // Memoize terminal preview computation
   const terminalPreview = useMemo(
     () => terminalContent?.split('\n').slice(-TERMINAL_PREVIEW_LINES).join('\n') || '',
     [terminalContent]
   )
 
   return (
-    <div
-      className={`rounded-lg border-2 ${statusColors[session.status]} ${statusBgColors[session.status]} transition-all`}
-    >
-      {/* Header - always visible */}
+    <div className={`rounded-lg border-2 ${statusColors[session.status]} ${statusBgColors[session.status]} transition-all`}>
+      {/* Header */}
       <div
         className="p-3 cursor-pointer"
         onClick={() => setExpanded(!expanded)}
@@ -92,13 +123,16 @@ export const DashboardSessionCard = memo(function DashboardSessionCard({ session
 
           {/* Session info */}
           <div className="flex-1 min-w-0">
-            {/* Project + Status row */}
+            {/* Name + Project + Status */}
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-medium text-sm">{companion.repo.name}</span>
+              <span className="font-medium text-sm">{session.name}</span>
+              {pane.repo && (
+                <span className="text-xs text-rpg-idle/70">{pane.repo.name}</span>
+              )}
               <StatusIndicator status={session.status} />
             </div>
 
-            {/* Last prompt or current activity - this is the main context */}
+            {/* Activity context */}
             <div className="text-sm text-white/90 line-clamp-2">
               {session.lastPrompt ? (
                 <span><span className="text-rpg-idle/50">Task:</span> {session.lastPrompt}</span>
@@ -110,16 +144,14 @@ export const DashboardSessionCard = memo(function DashboardSessionCard({ session
               ) : session.status === 'waiting' ? (
                 <span className="text-rpg-waiting">Waiting for input...</span>
               ) : session.status === 'error' && session.lastError ? (
-                <span className="text-rpg-error">
-                  Error in {session.lastError.tool}
-                </span>
+                <span className="text-rpg-error">Error in {session.lastError.tool}</span>
               ) : (
                 <span className="text-rpg-idle/50">No recent activity</span>
               )}
             </div>
 
-            {/* Recent files - compact display */}
-            {session.recentFiles && session.recentFiles.length > 0 && (
+            {/* Recent files */}
+            {!compact && session.recentFiles && session.recentFiles.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1.5">
                 {session.recentFiles.slice(0, 3).map((file, i) => (
                   <span
@@ -145,8 +177,8 @@ export const DashboardSessionCard = memo(function DashboardSessionCard({ session
           </div>
         </div>
 
-        {/* Terminal preview - always visible when there's output */}
-        {terminalPreview && !expanded && (
+        {/* Terminal preview */}
+        {!compact && terminalPreview && !expanded && (
           <div className="mt-2">
             <pre
               ref={previewRef}
@@ -158,7 +190,7 @@ export const DashboardSessionCard = memo(function DashboardSessionCard({ session
         )}
       </div>
 
-      {/* Pending Question - inline for waiting status */}
+      {/* Pending Question */}
       {session.pendingQuestion && (
         <div className="px-3 pb-3">
           <div className="p-3 bg-rpg-waiting/20 rounded border border-rpg-waiting/50">
@@ -208,7 +240,7 @@ export const DashboardSessionCard = memo(function DashboardSessionCard({ session
         </div>
       )}
 
-      {/* Error details - inline for error status */}
+      {/* Error details */}
       {session.status === 'error' && session.lastError && !session.pendingQuestion && (
         <div className="px-3 pb-3">
           <div className="p-3 bg-rpg-error/20 rounded border border-rpg-error/50">
@@ -225,7 +257,7 @@ export const DashboardSessionCard = memo(function DashboardSessionCard({ session
         </div>
       )}
 
-      {/* Expandable full Terminal */}
+      {/* Expanded terminal */}
       {expanded && (
         <div className="px-3 pb-3">
           <pre
@@ -240,7 +272,95 @@ export const DashboardSessionCard = memo(function DashboardSessionCard({ session
   )
 })
 
+// Non-Claude process pane card
+interface ProcessPaneCardProps {
+  pane: TmuxPane
+  window: TmuxWindow
+  compact?: boolean
+}
+
+const ProcessPaneCard = memo(function ProcessPaneCard({ pane, window, compact }: ProcessPaneCardProps) {
+  const [expanded, setExpanded] = useState(false)
+  const terminalContent = usePaneTerminal(pane.id)
+  const terminalRef = useRef<HTMLPreElement>(null)
+
+  useEffect(() => {
+    if (expanded && terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight
+    }
+  }, [terminalContent, expanded])
+
+  const terminalPreview = useMemo(
+    () => terminalContent?.split('\n').slice(-8).join('\n') || '',
+    [terminalContent]
+  )
+
+  const borderColor = processColors[pane.process.type as keyof typeof processColors] || processColors.idle
+
+  return (
+    <div className={`rounded-lg border ${borderColor} bg-rpg-card/50 transition-all`}>
+      <div
+        className="p-3 cursor-pointer"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-3">
+          {/* Process icon */}
+          <div className="w-8 h-8 rounded bg-rpg-bg/50 flex items-center justify-center text-sm font-mono text-rpg-idle flex-shrink-0">
+            {pane.process.type === 'shell' ? '$' : pane.process.type === 'process' ? '>' : '-'}
+          </div>
+
+          {/* Process info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-sm">{pane.process.command}</span>
+              {pane.repo && (
+                <span className="text-xs text-rpg-idle/50">{pane.repo.name}</span>
+              )}
+            </div>
+            <div className="text-xs text-rpg-idle/50 truncate">
+              {pane.cwd}
+            </div>
+          </div>
+
+          {/* Pane target */}
+          <div className="text-xs text-rpg-idle/30 font-mono flex-shrink-0">
+            {pane.target}
+          </div>
+        </div>
+
+        {/* Terminal preview */}
+        {!compact && terminalPreview && !expanded && (
+          <div className="mt-2">
+            <pre className="bg-black/20 rounded px-2 py-1 text-xs font-mono text-rpg-idle/50 overflow-hidden max-h-20 whitespace-pre-wrap">
+              {terminalPreview}
+            </pre>
+          </div>
+        )}
+      </div>
+
+      {/* Expanded terminal */}
+      {expanded && (
+        <div className="px-3 pb-3">
+          <pre
+            ref={terminalRef}
+            className="bg-black/50 rounded p-3 text-xs font-mono text-green-400/70 overflow-auto max-h-64 whitespace-pre-wrap"
+          >
+            {terminalContent || <span className="text-rpg-idle/50">No output</span>}
+          </pre>
+        </div>
+      )}
+    </div>
+  )
+})
+
 function StatusIndicator({ status }: { status: string }) {
+  const indicatorLabels = {
+    idle: 'Idle',
+    working: 'Working',
+    waiting: 'Waiting',
+    error: 'Error',
+  } as const
+
   return (
     <div className="flex items-center gap-1">
       <div
@@ -248,7 +368,9 @@ function StatusIndicator({ status }: { status: string }) {
           status === 'working' ? 'animate-pulse' : ''
         }`}
       />
-      <span className="text-xs text-rpg-idle/70">{indicatorLabels[status as keyof typeof indicatorLabels] || status}</span>
+      <span className="text-xs text-rpg-idle/70">
+        {indicatorLabels[status as keyof typeof indicatorLabels] || status}
+      </span>
     </div>
   )
 }

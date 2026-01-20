@@ -18,39 +18,94 @@ npm run setup
 ## Architecture
 
 ```
-Claude Code → Hook Script → Server → WebSocket → React UI
-                              ↓
-                         companions.json (projects + sessions)
-                         events.jsonl (history)
-                              ↓
-                         Bitcoin Faces API (avatar SVGs)
+Tmux Polling (1s)     Claude Hooks
+       ↓                    ↓
+   TmuxState          correlate by
+       ↓              paneId/target
+   [Windows]              ↓
+       ↓            [Pane.claudeSession]
+   [Panes] ←──────────────┘
+       ↓
+   WebSocket → React UI
 ```
 
 ### Key Concepts
 
-- **Companion** = Git repo = Project with RPG progression (level, XP, stats)
-- **Session** = Unit of work = Individual Claude Code session within a project
-  - Gets an English first name (deterministic from session ID)
-  - Gets a Bitcoin face avatar from bitcoinfaces.xyz
-  - Tracks status: idle, working, waiting (for user input), error
-- **CWD** from Claude events → maps to repo → maps to companion
-- **XP** from Claude tools + git commands + dev commands (tests, builds, deploys)
+- **Pane** = Tmux pane = Primary unit of observation (ephemeral, polled from tmux)
+- **Window** = Tmux window = Groups panes (matches tmux status bar)
+- **ClaudeSession** = Claude instance in a pane with avatar, status, questions
+- **Companion** = Git repo = Project with RPG progression (level, XP, stats) - persisted
+- **Process Detection** = Classifies panes: claude | shell | process | idle
+
+### Data Model
+
+```typescript
+// Primary (ephemeral - polled from tmux)
+TmuxWindow {
+  id: string              // "work:1"
+  sessionName: string     // "work"
+  windowIndex: number     // 1
+  windowName: string      // "claude-rpg"
+  panes: TmuxPane[]
+}
+
+TmuxPane {
+  id: string              // "%51" (unique pane ID)
+  target: string          // "work:2.0"
+  process: PaneProcess
+  cwd: string
+  repo?: RepoInfo
+  terminalContent?: string
+}
+
+PaneProcess {
+  type: 'claude' | 'shell' | 'process' | 'idle'
+  command: string
+  pid: number
+  claudeSession?: ClaudeSessionInfo  // only when type='claude'
+}
+
+ClaudeSessionInfo {
+  id: string              // session UUID
+  name: string            // "Alice" (English name)
+  avatarSvg?: string      // Bitcoin face
+  status: 'idle' | 'working' | 'waiting' | 'error'
+  pendingQuestion?: PendingQuestion
+  // ... other Claude-specific fields
+}
+
+// Secondary (persisted for XP/stats)
+Companion {
+  id, name, repo, level, experience, stats
+}
+```
 
 ## Project Structure
 
 ```
 claude-rpg/
 ├── server/           # Node.js WebSocket server
-│   ├── index.ts      # Main server, event processing, session management
-│   ├── companions.ts # Companion/session CRUD, git repo detection, Bitcoin faces
+│   ├── index.ts      # Main server, event processing, WebSocket
+│   ├── tmux.ts       # Tmux polling, process detection, session cache
+│   ├── companions.ts # Companion XP/stats, Bitcoin faces
 │   ├── xp.ts         # XP calculation, command detection
 │   └── cli.ts        # CLI for setup and running
 ├── src/              # React + Tailwind frontend
-│   ├── components/   # UI components (CompanionDetail, SessionCard, etc.)
-│   ├── hooks/        # React hooks (WebSocket, companions, terminal output)
+│   ├── components/   # UI components
+│   │   ├── WindowBar.tsx         # Horizontal window list (like tmux)
+│   │   ├── OverviewDashboard.tsx # All panes grouped by status
+│   │   ├── WindowView.tsx        # Single window pane view
+│   │   ├── PaneCard.tsx          # Generic pane card (Claude + Process)
+│   │   └── ConnectionStatus.tsx
+│   ├── hooks/        # React hooks
+│   │   ├── useWindows.ts         # Window/pane state
+│   │   ├── usePaneTerminal.ts    # Terminal by paneId
+│   │   ├── useWebSocket.ts       # WebSocket connection
+│   │   ├── useCompanions.ts      # Companion stats (for XP display)
+│   │   └── useNotifications.ts   # Browser notifications
 │   └── styles/       # Tailwind CSS
 ├── shared/           # Shared types between server/client
-│   ├── types.ts      # TypeScript interfaces (Companion, Session, etc.)
+│   ├── types.ts      # TypeScript interfaces
 │   └── defaults.ts   # Configuration defaults
 └── hooks/            # Claude Code hook script
     └── claude-rpg-hook.sh
@@ -58,45 +113,41 @@ claude-rpg/
 
 ## Data Flow
 
-1. Claude Code runs in a git repo
-2. Hook script captures events (tool use, prompts, etc.)
-3. Hook adds `tmuxTarget` and `timestamp`, sends to server
-4. Server matches CWD to companion (auto-creates if new repo)
-5. Server finds/creates session within companion (by session ID)
-6. On new session: fetches Bitcoin face SVG, assigns English name
-7. Server detects special events (AskUserQuestion → waiting status)
-8. Server calculates XP based on event type
-9. Server broadcasts to WebSocket clients
-10. React UI updates in real-time (sessions, terminal output, questions)
+1. Server polls tmux every 1 second for all windows/panes
+2. Server detects Claude instances via process detection
+3. Claude Code hook captures events with `paneId` and `tmuxTarget`
+4. Server correlates hook events with panes by ID
+5. On new Claude session: assigns English name, fetches Bitcoin face
+6. Server detects AskUserQuestion → sets status to 'waiting'
+7. Server calculates XP and updates companion stats
+8. Server broadcasts updates via WebSocket
+9. React UI renders panes grouped by window or status
+10. User can answer questions, send prompts to any pane
 
-## Session Management
+## API Endpoints
 
-Sessions are tracked within companions and represent individual Claude Code instances:
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Server health check |
+| `/event` | POST | Receive events from hook |
+| `/api/windows` | GET | List all windows with panes |
+| `/api/panes/:id` | GET | Get single pane detail |
+| `/api/panes/:id/prompt` | POST | Send prompt to pane |
+| `/api/companions` | GET | List all companions (XP/stats) |
 
-```typescript
-interface Session {
-  id: string              // Claude session UUID
-  name: string            // English first name (deterministic from ID hash)
-  avatarSvg?: string      // Cached Bitcoin face SVG
-  status: SessionStatus   // idle | working | waiting | error
-  tmuxTarget?: string     // For terminal capture and prompt sending
-  pendingQuestion?: PendingQuestion  // When AskUserQuestion is active
-  lastError?: SessionError           // When status is 'error'
-  currentTool?: string
-  currentFile?: string
-  lastPrompt?: string     // Last user prompt (truncated for display)
-  recentFiles?: string[]  // Recently touched files (last 5 unique)
-  createdAt: number
-  lastActivity: number
-}
-```
+## WebSocket Messages
 
-**AskUserQuestion Handling:**
-- Detected from `PreToolUse` events with `tool: 'AskUserQuestion'`
-- Session status set to `waiting`
-- Question and options stored in `pendingQuestion`
-- UI displays clickable answer buttons + custom input field
-- Answering clears the question and resumes session
+**Server → Client:**
+- `connected` - Initial connection
+- `windows` - All windows/panes (polled every 1s)
+- `pane_update` - Single pane changed
+- `pane_removed` - Pane closed
+- `companions` - All companions on connect
+- `companion_update` - Single companion XP/stats changed
+- `event` - New Claude event
+- `xp_gain` - XP was awarded
+- `history` - Recent events on connect
+- `terminal_output` - Terminal content for a pane
 
 ## XP System
 
@@ -127,27 +178,6 @@ xpForLevel(n) = 100 * 1.5^(n-1)
 // Level 1: 100 XP, Level 10: 3,844 XP, Level 20: 221,644 XP
 ```
 
-## API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Server health check |
-| `/event` | POST | Receive events from hook |
-| `/api/companions` | GET | List all companions |
-| `/api/companions/:id/prompt` | POST | Send prompt to most recent session |
-| `/api/companions/:id/sessions/:sessionId/prompt` | POST | Send prompt to specific session |
-
-## WebSocket Messages
-
-**Server → Client:**
-- `connected` - Initial connection
-- `companions` - All companions on connect
-- `companion_update` - Single companion changed (includes sessions)
-- `event` - New Claude event
-- `xp_gain` - XP was awarded
-- `history` - Recent events on connect
-- `terminal_output` - Terminal content for a session (polled every 500ms)
-
 ## Configuration
 
 | Env Var | Default | Description |
@@ -160,7 +190,8 @@ xpForLevel(n) = 100 * 1.5^(n-1)
 
 | File | Purpose |
 |------|---------|
-| `~/.claude-rpg/data/companions.json` | Companion definitions + sessions + stats |
+| `~/.claude-rpg/data/companions.json` | Companion XP + stats |
+| `~/.claude-rpg/data/panes-cache.json` | Claude session cache (avatars) |
 | `~/.claude-rpg/data/events.jsonl` | Event history (append-only) |
 | `~/.claude-rpg/hooks/claude-rpg-hook.sh` | Installed hook script |
 | `~/.claude/settings.json` | Claude Code hook configuration |
@@ -181,6 +212,33 @@ npm run typecheck
 npm run build
 ```
 
+## Process Detection
+
+The server detects what's running in each pane:
+
+| Process Type | Detection |
+|-------------|-----------|
+| `claude` | `pane_current_command === 'claude'` OR child process includes 'claude' |
+| `shell` | bash/zsh/sh/fish with no children |
+| `process` | Shell with children, or non-shell process (node, python, etc.) |
+| `idle` | Fallback for undetected state |
+
+## UI Navigation
+
+1. **Overview** (default): All panes grouped by status (Needs Attention → Working → Idle)
+2. **Window View**: Click window in bar → see panes in that window
+3. **WindowBar**: Horizontal scrollable window list like tmux status bar
+4. **Pane Cards**: Claude panes show avatar, status, questions; other panes show process info
+
+## Mobile-First Design
+
+- Tailwind with custom RPG color palette
+- Touch-friendly tap targets (min 44px)
+- Pane cards with Bitcoin face avatars
+- Clickable answer buttons for AskUserQuestion
+- Terminal output per pane
+- Floating attention badge when panes need input
+
 ## Adding New Command XP
 
 Edit `server/xp.ts`:
@@ -193,22 +251,3 @@ if (cmd.includes('your-command')) {
 ```
 
 Then add the stat key to the `CompanionStats` interface in `shared/types.ts`.
-
-## Mobile-First Design
-
-- Tailwind with custom RPG color palette
-- Touch-friendly tap targets (min 44px)
-- Auto-resizing textarea for prompt input
-- Session cards with Bitcoin face avatars
-- Clickable answer buttons for AskUserQuestion
-- Terminal output per session
-- XP bar animations
-
-## Future Work
-
-- [ ] Voice input (Whisper)
-- [ ] Push notifications (PWA)
-- [ ] Level-up animations
-- [ ] Achievement system
-- [ ] tmux focus sync (web ↔ TUI)
-- [x] Session cleanup (remove stale sessions)

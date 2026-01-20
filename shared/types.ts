@@ -1,5 +1,68 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// COMPANION (Project)
+// TMUX PANE-CENTRIC MODEL (Primary entities - ephemeral, polled from tmux)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface TmuxWindow {
+  id: string              // "work:1" (session:window_index)
+  sessionName: string     // "work"
+  windowIndex: number     // 1
+  windowName: string      // "claude-rpg"
+  panes: TmuxPane[]
+}
+
+export type PaneProcessType = 'claude' | 'shell' | 'process' | 'idle'
+
+export interface PaneProcess {
+  type: PaneProcessType
+  command: string         // "claude", "bash", "node"
+  pid: number
+  claudeSession?: ClaudeSessionInfo  // only when type='claude'
+}
+
+export type SessionStatus = 'idle' | 'working' | 'waiting' | 'error'
+
+export interface PendingQuestion {
+  question: string
+  options: Array<{ label: string; description?: string }>
+  multiSelect: boolean
+  toolUseId: string
+  timestamp: number
+}
+
+export interface SessionError {
+  tool: string
+  message?: string
+  timestamp: number
+}
+
+export interface ClaudeSessionInfo {
+  id: string              // session UUID
+  name: string            // "Alice" (English name)
+  avatarSvg?: string      // Bitcoin face
+  status: SessionStatus
+  pendingQuestion?: PendingQuestion
+  lastError?: SessionError
+  currentTool?: string
+  currentFile?: string
+  lastPrompt?: string     // Last user prompt (truncated for display)
+  recentFiles?: string[]  // Recently touched files (last 5 unique)
+  createdAt: number
+  lastActivity: number
+}
+
+export interface TmuxPane {
+  id: string              // "%51" (unique pane ID)
+  target: string          // "work:2.0"
+  paneIndex: number       // 0
+  isActive: boolean       // active pane in window
+  process: PaneProcess
+  cwd: string
+  repo?: RepoInfo         // git detection
+  terminalContent?: string
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMPANION (Project) - for XP/stats persistence
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface Companion {
@@ -10,7 +73,6 @@ export interface Companion {
   experience: number
   totalExperience: number
   stats: CompanionStats
-  state: CompanionState
   createdAt: number
   lastActivity: number
 }
@@ -44,46 +106,6 @@ export interface CompanionStats {
     testnetDeploys: number
     mainnetDeploys: number
   }
-}
-
-export type SessionStatus = 'idle' | 'working' | 'waiting' | 'error'
-
-export interface PendingQuestion {
-  question: string
-  options: Array<{ label: string; description?: string }>
-  multiSelect: boolean
-  toolUseId: string
-  timestamp: number
-}
-
-export interface SessionError {
-  tool: string
-  message?: string
-  timestamp: number
-}
-
-export interface Session {
-  id: string                        // Claude session UUID
-  name: string                      // English first name (deterministic from ID)
-  avatarSvg?: string                // Cached Bitcoin face SVG
-  status: SessionStatus
-  tmuxTarget?: string
-  pendingQuestion?: PendingQuestion // When waiting for user input
-  lastError?: SessionError          // When status is 'error'
-  currentTool?: string
-  currentFile?: string
-  lastPrompt?: string               // Last user prompt (truncated for display)
-  recentFiles?: string[]            // Recently touched files (last 5 unique)
-  createdAt: number
-  lastActivity: number
-}
-
-export type CompanionStatus = 'idle' | 'working' | 'waiting' | 'attention' | 'offline'
-
-export interface CompanionState {
-  status: CompanionStatus           // Aggregate status from sessions
-  sessions: Session[]               // Active sessions in this repo
-  lastActivity: number
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -197,15 +219,17 @@ export function levelFromTotalXP(totalXP: number): { level: number; currentXP: n
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface TerminalOutput {
-  companionId: string
-  sessionId: string
-  tmuxTarget: string
+  paneId: string
+  target: string
   content: string
   timestamp: number
 }
 
 export type ServerMessage =
   | { type: 'connected' }
+  | { type: 'windows'; payload: TmuxWindow[] }
+  | { type: 'pane_update'; payload: TmuxPane }
+  | { type: 'pane_removed'; payload: { paneId: string } }
   | { type: 'companions'; payload: Companion[] }
   | { type: 'companion_update'; payload: Companion }
   | { type: 'event'; payload: ClaudeEvent }

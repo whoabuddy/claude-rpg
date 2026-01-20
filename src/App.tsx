@@ -1,46 +1,51 @@
-import { useState, useCallback } from 'react'
-import { Dashboard } from './components/Dashboard'
-import { CompanionList } from './components/CompanionList'
-import { CompanionDetail } from './components/CompanionDetail'
-import { PromptInput } from './components/PromptInput'
+import { useState, useCallback, useEffect } from 'react'
+import { WindowBar } from './components/WindowBar'
+import { OverviewDashboard } from './components/OverviewDashboard'
+import { WindowView } from './components/WindowView'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { useWebSocket } from './hooks/useWebSocket'
-import { useCompanions, sendPromptToSession } from './hooks/useCompanions'
-import { useNotifications, useSessionNotifications } from './hooks/useNotifications'
+import { useWindows, sendPromptToPane } from './hooks/useWindows'
+import { initTerminalCache } from './hooks/usePaneTerminal'
+import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
 
-type ViewMode = 'dashboard' | 'detail'
+type ViewMode = 'overview' | 'window'
+
+// Initialize terminal cache once
+initTerminalCache()
 
 export default function App() {
-  const { connected, events } = useWebSocket()
-  const { companions, selectedId, setSelectedId } = useCompanions(events)
-  const [viewMode, setViewMode] = useState<ViewMode>('dashboard')
+  const { connected } = useWebSocket()
+  const {
+    windows,
+    selectedWindowId,
+    setSelectedWindowId,
+    selectedWindow,
+    attentionPanes,
+  } = useWindows()
+  const [viewMode, setViewMode] = useState<ViewMode>('overview')
   const [notificationsDismissed, setNotificationsDismissed] = useState(false)
-  const selectedCompanion = companions.find(c => c.id === selectedId)
 
   // Notifications
   const { permission, requestPermission, notify } = useNotifications()
 
-  // Track session status changes and send notifications
-  useSessionNotifications({
-    companions,
+  // Track pane status changes and send notifications
+  usePaneNotifications({
+    windows,
     enabled: permission === 'granted',
     notify,
   })
 
-  const handleSendPromptToSession = useCallback(
-    async (companionId: string, sessionId: string, prompt: string) => {
-      await sendPromptToSession(companionId, sessionId, prompt)
+  const handleSendPrompt = useCallback(
+    async (paneId: string, prompt: string) => {
+      await sendPromptToPane(paneId, prompt)
     },
     []
   )
 
-  const handleSendPromptFromDetail = useCallback(
-    async (sessionId: string, prompt: string) => {
-      if (!selectedCompanion) return
-      await sendPromptToSession(selectedCompanion.id, sessionId, prompt)
-    },
-    [selectedCompanion]
-  )
+  const handleWindowSelect = useCallback((windowId: string) => {
+    setSelectedWindowId(windowId)
+    setViewMode('window')
+  }, [setSelectedWindowId])
 
   const showNotificationBanner = permission === 'default' && !notificationsDismissed
 
@@ -76,68 +81,66 @@ export default function App() {
           {/* View Toggle */}
           <div className="flex bg-rpg-card rounded border border-rpg-border">
             <button
-              onClick={() => setViewMode('dashboard')}
+              onClick={() => setViewMode('overview')}
               className={`px-3 py-1 text-xs transition-colors ${
-                viewMode === 'dashboard'
+                viewMode === 'overview'
                   ? 'bg-rpg-accent text-rpg-bg font-medium'
                   : 'text-rpg-idle hover:text-white'
               }`}
             >
-              Dashboard
+              Overview
             </button>
             <button
-              onClick={() => setViewMode('detail')}
+              onClick={() => setViewMode('window')}
               className={`px-3 py-1 text-xs transition-colors ${
-                viewMode === 'detail'
+                viewMode === 'window'
                   ? 'bg-rpg-accent text-rpg-bg font-medium'
                   : 'text-rpg-idle hover:text-white'
               }`}
             >
-              Detail
+              Window
             </button>
           </div>
           <ConnectionStatus connected={connected} />
         </div>
       </header>
 
+      {/* Window Bar - shown in window mode or when there are multiple windows */}
+      {(viewMode === 'window' || windows.length > 1) && (
+        <WindowBar
+          windows={windows}
+          selectedId={selectedWindowId}
+          onSelect={handleWindowSelect}
+        />
+      )}
+
       {/* Main content */}
-      {viewMode === 'dashboard' ? (
-        <main className="flex-1 overflow-y-auto">
-          <Dashboard
-            companions={companions}
-            onSendPrompt={handleSendPromptToSession}
+      <main className="flex-1 overflow-y-auto">
+        {viewMode === 'overview' ? (
+          <OverviewDashboard
+            windows={windows}
+            onSendPrompt={handleSendPrompt}
           />
-        </main>
-      ) : (
-        <>
-          {/* Companion switcher - only in detail view */}
-          <CompanionList
-            companions={companions}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
+        ) : selectedWindow ? (
+          <WindowView
+            window={selectedWindow}
+            onSendPrompt={handleSendPrompt}
           />
+        ) : (
+          <div className="flex items-center justify-center h-full text-rpg-idle">
+            <p>Select a window from the bar above</p>
+          </div>
+        )}
+      </main>
 
-          <main className="flex-1 overflow-y-auto">
-            {selectedCompanion ? (
-              <CompanionDetail
-                companion={selectedCompanion}
-                onSendPrompt={handleSendPromptFromDetail}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-rpg-idle">
-                <p>No companions yet. Start Claude Code in a project!</p>
-              </div>
-            )}
-          </main>
-
-          {/* Prompt input - only in detail view */}
-          {selectedCompanion && (
-            <PromptInput
-              companion={selectedCompanion}
-              disabled={!connected}
-            />
-          )}
-        </>
+      {/* Attention indicator - floating badge when panes need attention */}
+      {viewMode !== 'overview' && attentionPanes.length > 0 && (
+        <button
+          onClick={() => setViewMode('overview')}
+          className="fixed bottom-4 right-4 px-4 py-2 bg-rpg-waiting text-rpg-bg rounded-full shadow-lg animate-pulse hover:bg-rpg-waiting/80 transition-colors"
+        >
+          {attentionPanes.length} need{attentionPanes.length === 1 ? 's' : ''} attention
+        </button>
       )}
     </div>
   )

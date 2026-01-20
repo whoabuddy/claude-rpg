@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { Companion, Session, SessionStatus } from '@shared/types'
+import type { SessionStatus, TmuxWindow, TmuxPane } from '@shared/types'
 
 type NotificationPermissionState = NotificationPermission | 'unsupported'
 
@@ -51,56 +51,55 @@ export function useNotifications(): UseNotificationsResult {
   return { permission, requestPermission, notify }
 }
 
-// Track session status changes for notifications
-interface SessionTracker {
-  companionId: string
-  companionName: string
-  sessionId: string
+// Track Claude pane status changes for notifications (pane-centric model)
+interface PaneTracker {
+  paneId: string
   sessionName: string
+  repoName?: string
   lastStatus: SessionStatus
 }
 
-interface UseSessionNotificationsOptions {
-  companions: Companion[]
+interface UsePaneNotificationsOptions {
+  windows: TmuxWindow[]
   enabled: boolean
   notify: (title: string, options?: NotificationOptions) => Notification | null
 }
 
-export function useSessionNotifications({
-  companions,
+export function usePaneNotifications({
+  windows,
   enabled,
   notify,
-}: UseSessionNotificationsOptions) {
-  // Track previous session statuses
-  const trackerRef = useRef<Map<string, SessionTracker>>(new Map())
+}: UsePaneNotificationsOptions) {
+  const trackerRef = useRef<Map<string, PaneTracker>>(new Map())
 
   useEffect(() => {
     if (!enabled) return
 
     const tracker = trackerRef.current
 
-    // Build current session map
-    const currentSessions = new Map<string, { session: Session; companion: Companion }>()
-    for (const companion of companions) {
-      for (const session of companion.state.sessions) {
-        const key = `${companion.id}:${session.id}`
-        currentSessions.set(key, { session, companion })
+    // Build current Claude pane map
+    const currentPanes = new Map<string, TmuxPane>()
+    for (const window of windows) {
+      for (const pane of window.panes) {
+        if (pane.process.type === 'claude' && pane.process.claudeSession) {
+          currentPanes.set(pane.id, pane)
+        }
       }
     }
 
     // Check for status transitions
-    for (const [key, { session, companion }] of currentSessions) {
-      const prev = tracker.get(key)
+    for (const [paneId, pane] of currentPanes) {
+      const session = pane.process.claudeSession!
+      const prev = tracker.get(paneId)
 
       if (prev) {
         // Status changed - check if needs notification
         if (prev.lastStatus !== session.status) {
-          // Notify on transition TO waiting or error
           if (session.status === 'waiting' && prev.lastStatus !== 'waiting') {
             const question = session.pendingQuestion?.question || 'needs input'
             notify(`${session.name} needs input`, {
-              body: `${companion.repo.name}: ${question}`,
-              tag: `session-${key}`,
+              body: `${pane.repo?.name || 'Unknown'}: ${question}`,
+              tag: `pane-${paneId}`,
               requireInteraction: true,
             })
           } else if (session.status === 'error' && prev.lastStatus !== 'error') {
@@ -108,35 +107,33 @@ export function useSessionNotifications({
               ? `Error in ${session.lastError.tool}`
               : 'encountered an error'
             notify(`${session.name} ${errorInfo}`, {
-              body: companion.repo.name,
-              tag: `session-${key}`,
+              body: pane.repo?.name || 'Unknown',
+              tag: `pane-${paneId}`,
               requireInteraction: true,
             })
           }
 
-          // Update tracked status
-          tracker.set(key, {
+          tracker.set(paneId, {
             ...prev,
             lastStatus: session.status,
           })
         }
       } else {
-        // New session - just track it, don't notify
-        tracker.set(key, {
-          companionId: companion.id,
-          companionName: companion.repo.name,
-          sessionId: session.id,
+        // New pane - just track it, don't notify
+        tracker.set(paneId, {
+          paneId,
           sessionName: session.name,
+          repoName: pane.repo?.name,
           lastStatus: session.status,
         })
       }
     }
 
-    // Clean up removed sessions from tracker
+    // Clean up removed panes from tracker
     for (const key of tracker.keys()) {
-      if (!currentSessions.has(key)) {
+      if (!currentPanes.has(key)) {
         tracker.delete(key)
       }
     }
-  }, [companions, enabled, notify])
+  }, [windows, enabled, notify])
 }

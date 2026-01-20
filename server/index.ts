@@ -8,19 +8,30 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import { DEFAULTS, expandPath } from '../shared/defaults.js'
 
-// Promisified exec for async operations
 const execAsync = promisify(exec)
+
 import type {
   ClaudeEvent,
   Companion,
   ServerMessage,
-  ClientMessage,
-  ApiResponse,
+  TmuxWindow,
+  TmuxPane,
   TerminalOutput,
+  ClaudeSessionInfo,
+  PreToolUseEvent,
 } from '../shared/types.js'
 import { processEvent } from './xp.js'
-import { findOrCreateCompanion, saveCompanions, loadCompanions, createSession, fetchBitcoinFace } from './companions.js'
-import type { Session, PendingQuestion, PreToolUseEvent } from '../shared/types.js'
+import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName } from './companions.js'
+import {
+  pollTmuxState,
+  updateClaudeSession,
+  getClaudeSession,
+  removeClaudeSession,
+  findPaneByTarget,
+  findPaneById,
+  getSessionCache,
+  setSessionCache,
+} from './tmux.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Configuration
@@ -29,6 +40,7 @@ import type { Session, PendingQuestion, PreToolUseEvent } from '../shared/types.
 const PORT = parseInt(process.env.CLAUDE_RPG_PORT || String(DEFAULTS.SERVER_PORT))
 const DATA_DIR = expandPath(process.env.CLAUDE_RPG_DATA_DIR || DEFAULTS.DATA_DIR)
 const EVENTS_FILE = join(DATA_DIR, DEFAULTS.EVENTS_FILE)
+const PANES_CACHE_FILE = join(DATA_DIR, 'panes-cache.json')
 
 // Ensure data directory exists
 if (!existsSync(DATA_DIR)) {
@@ -40,15 +52,51 @@ if (!existsSync(DATA_DIR)) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 let companions: Companion[] = loadCompanions(DATA_DIR)
+let windows: TmuxWindow[] = []
 const events: ClaudeEvent[] = []
 const clients = new Set<WebSocket>()
 const seenEventIds = new Set<string>()
 
-// Idle timeout tracking (companionId:sessionId -> timeout)
-const sessionIdleTimeouts = new Map<string, NodeJS.Timeout>()
-const IDLE_TIMEOUT_MS = 30000 // 30 seconds
-const SESSION_CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
-const SESSION_MAX_INACTIVE_MS = 30 * 60 * 1000 // 30 minutes
+// Polling intervals
+const TMUX_POLL_INTERVAL_MS = 1000 // 1 second
+const TERMINAL_ACTIVE_INTERVAL_MS = 500 // 500ms for active panes
+const TERMINAL_IDLE_INTERVAL_MS = 2000 // 2s for idle panes
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Pane Cache Persistence
+// ═══════════════════════════════════════════════════════════════════════════
+
+function loadPanesCache(): void {
+  if (!existsSync(PANES_CACHE_FILE)) return
+
+  try {
+    const content = readFileSync(PANES_CACHE_FILE, 'utf-8')
+    const data = JSON.parse(content)
+    if (data.sessions && typeof data.sessions === 'object') {
+      const cache = new Map<string, ClaudeSessionInfo>()
+      for (const [paneId, session] of Object.entries(data.sessions)) {
+        cache.set(paneId, session as ClaudeSessionInfo)
+      }
+      setSessionCache(cache)
+      console.log(`[claude-rpg] Loaded ${cache.size} cached Claude sessions`)
+    }
+  } catch (e) {
+    console.error('[claude-rpg] Error loading panes cache:', e)
+  }
+}
+
+function savePanesCache(): void {
+  try {
+    const cache = getSessionCache()
+    const sessions: Record<string, ClaudeSessionInfo> = {}
+    for (const [paneId, session] of cache) {
+      sessions[paneId] = session
+    }
+    writeFileSync(PANES_CACHE_FILE, JSON.stringify({ sessions }, null, 2))
+  } catch (e) {
+    console.error('[claude-rpg] Error saving panes cache:', e)
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WebSocket Broadcasting
@@ -64,15 +112,48 @@ function broadcast(message: ServerMessage) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Tmux Polling
+// ═══════════════════════════════════════════════════════════════════════════
+
+let previousPaneIds = new Set<string>()
+
+async function pollTmux(): Promise<void> {
+  const newWindows = await pollTmuxState()
+
+  // Detect removed panes
+  const currentPaneIds = new Set<string>()
+  for (const window of newWindows) {
+    for (const pane of window.panes) {
+      currentPaneIds.add(pane.id)
+    }
+  }
+
+  for (const paneId of previousPaneIds) {
+    if (!currentPaneIds.has(paneId)) {
+      // Pane was removed
+      removeClaudeSession(paneId)
+      broadcast({ type: 'pane_removed', payload: { paneId } })
+    }
+  }
+
+  previousPaneIds = currentPaneIds
+  windows = newWindows
+
+  // Broadcast windows update
+  broadcast({ type: 'windows', payload: windows })
+}
+
+// Start tmux polling
+setInterval(pollTmux, TMUX_POLL_INTERVAL_MS)
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Event Normalization (Claude Code hooks → internal format)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Events can come from Claude Code hooks (snake_case) or already-normalized format
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RawHookEvent = Record<string, any>
 
-function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
-  // Map hook event name to internal type
+function normalizeEvent(raw: RawHookEvent): ClaudeEvent & { paneId?: string } {
   const hookName = raw.hook_event_name || raw.hookType || ''
   const typeMap: Record<string, ClaudeEvent['type']> = {
     PreToolUse: 'pre_tool_use',
@@ -89,6 +170,7 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
   const cwd = raw.cwd || ''
   const timestamp = raw.timestamp || Date.now()
   const tmuxTarget = raw.tmuxTarget || undefined
+  const paneId = raw.paneId || undefined
 
   const base = { type, sessionId, cwd, timestamp, tmuxTarget }
 
@@ -99,11 +181,11 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
       tool: raw.tool_name || '',
       toolUseId: raw.tool_use_id || '',
       toolInput: raw.tool_input,
+      paneId,
     }
   }
 
   if (type === 'post_tool_use') {
-    // Determine success from tool_response
     const response = raw.tool_response as Record<string, unknown> | undefined
     const success = response ? !response.error : true
 
@@ -114,8 +196,9 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
       toolUseId: raw.tool_use_id || '',
       success,
       toolResponse: raw.tool_response,
-      toolInput: raw.tool_input, // Include for command detection
-    } as ClaudeEvent
+      toolInput: raw.tool_input,
+      paneId,
+    } as ClaudeEvent & { paneId?: string }
   }
 
   if (type === 'user_prompt_submit') {
@@ -123,6 +206,7 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
       ...base,
       type: 'user_prompt_submit',
       prompt: raw.prompt || '',
+      paneId,
     }
   }
 
@@ -131,6 +215,7 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
       ...base,
       type: 'notification',
       message: raw.message || '',
+      paneId,
     }
   }
 
@@ -138,6 +223,7 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
     return {
       ...base,
       type: 'stop',
+      paneId,
     }
   }
 
@@ -145,6 +231,7 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
     return {
       ...base,
       type: 'session_start',
+      paneId,
     }
   }
 
@@ -152,16 +239,17 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
     return {
       ...base,
       type: 'session_end',
+      paneId,
     }
   }
 
-  // Fallback to pre_tool_use for unknown event types
   return {
     ...base,
     type: 'pre_tool_use',
     tool: raw.tool_name || 'unknown',
     toolUseId: raw.tool_use_id || '',
     toolInput: raw.tool_input,
+    paneId,
   }
 }
 
@@ -170,10 +258,8 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function handleEvent(rawEvent: RawHookEvent) {
-  // Normalize the event from Claude Code hook format to internal format
   const event = normalizeEvent(rawEvent)
-  // Dedupe
-  const eventId = event.id || `${event.sessionId}-${event.timestamp}-${event.type}`
+  const eventId = `${event.sessionId}-${event.timestamp}-${event.type}`
   if (seenEventIds.has(eventId)) return
   seenEventIds.add(eventId)
 
@@ -183,64 +269,63 @@ async function handleEvent(rawEvent: RawHookEvent) {
     arr.slice(0, DEFAULTS.MAX_EVENTS).forEach(id => seenEventIds.delete(id))
   }
 
-  // Find or create companion from CWD
-  const companion = findOrCreateCompanion(companions, event.cwd)
-  if (companion) {
-    // Find or create session within companion
-    let session = companion.state.sessions.find(s => s.id === event.sessionId)
-    if (!session && event.sessionId) {
-      session = createSession(event.sessionId, event.tmuxTarget)
-      companion.state.sessions.push(session)
-      console.log(`[claude-rpg] New session "${session.name}" (${event.sessionId.slice(0, 8)}...) for ${companion.repo.name}`)
+  // Find pane by paneId or tmuxTarget
+  let pane: TmuxPane | undefined
+  if (event.paneId) {
+    pane = findPaneById(windows, event.paneId)
+  }
+  if (!pane && event.tmuxTarget) {
+    pane = findPaneByTarget(windows, event.tmuxTarget)
+  }
+
+  // Update Claude session in pane
+  if (pane && event.sessionId) {
+    let sessionInfo = getClaudeSession(pane.id)
+
+    if (!sessionInfo) {
+      // Create new Claude session
+      const name = getSessionName(event.sessionId)
+      sessionInfo = updateClaudeSession(pane.id, {
+        id: event.sessionId,
+        name,
+        status: 'idle',
+      })
 
       // Fetch Bitcoin face in background
-      fetchBitcoinFace(event.sessionId).then(svg => {
-        if (svg && session) {
-          session.avatarSvg = svg
-          saveCompanions(DATA_DIR, companions)
-          broadcast({ type: 'companion_update', payload: companion })
-        }
-      })
+      if (sessionInfo) {
+        fetchBitcoinFace(event.sessionId).then(svg => {
+          if (svg) {
+            updateClaudeSession(pane!.id, { avatarSvg: svg })
+            savePanesCache()
+            broadcast({ type: 'pane_update', payload: pane! })
+          }
+        })
+      }
     }
 
-    if (session) {
-      // Update session state
-      session.lastActivity = event.timestamp
-      if (event.tmuxTarget) {
-        session.tmuxTarget = event.tmuxTarget
-      }
-
-      // Update session status based on event type
+    if (sessionInfo) {
+      // Update session state based on event type
       if (event.type === 'pre_tool_use') {
         const preEvent = event as PreToolUseEvent
+        sessionInfo.status = 'working'
+        sessionInfo.lastError = undefined
+        sessionInfo.currentTool = preEvent.tool
 
-        // Cancel any pending idle timeout - session is actively working
-        const timeoutKey = `${companion.id}:${session.id}`
-        const existingTimeout = sessionIdleTimeouts.get(timeoutKey)
-        if (existingTimeout) {
-          clearTimeout(existingTimeout)
-          sessionIdleTimeouts.delete(timeoutKey)
-        }
-
-        session.status = 'working'
-        session.lastError = undefined // Clear any previous error
-        session.currentTool = preEvent.tool
         if (preEvent.toolInput) {
           const filePath = (preEvent.toolInput.file_path || preEvent.toolInput.path) as string | undefined
-          session.currentFile = filePath
+          sessionInfo.currentFile = filePath
 
-          // Track recent files for context (keep last 5 unique)
+          // Track recent files
           if (filePath && ['Read', 'Edit', 'Write'].includes(preEvent.tool)) {
             const fileName = filePath.split('/').pop() || filePath
-            if (!session.recentFiles) session.recentFiles = []
-            // Add to front, remove duplicates, keep 5
-            session.recentFiles = [fileName, ...session.recentFiles.filter(f => f !== fileName)].slice(0, 5)
+            if (!sessionInfo.recentFiles) sessionInfo.recentFiles = []
+            sessionInfo.recentFiles = [fileName, ...sessionInfo.recentFiles.filter(f => f !== fileName)].slice(0, 5)
           }
         }
 
-        // Detect AskUserQuestion - set waiting status
+        // Detect AskUserQuestion
         if (preEvent.tool === 'AskUserQuestion' && preEvent.toolInput) {
-          session.status = 'waiting'
+          sessionInfo.status = 'waiting'
           const input = preEvent.toolInput as Record<string, unknown>
           const questions = input.questions as Array<{
             question: string
@@ -249,8 +334,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
           }> | undefined
 
           if (questions && questions.length > 0) {
-            const q = questions[0] // Take first question for now
-            session.pendingQuestion = {
+            const q = questions[0]
+            sessionInfo.pendingQuestion = {
               question: q.question,
               options: q.options || [],
               multiSelect: q.multiSelect || false,
@@ -261,65 +346,54 @@ async function handleEvent(rawEvent: RawHookEvent) {
         }
       } else if (event.type === 'post_tool_use') {
         const postEvent = event as import('../shared/types.js').PostToolUseEvent
-        session.currentTool = undefined
-        session.currentFile = undefined
+        sessionInfo.currentTool = undefined
+        sessionInfo.currentFile = undefined
 
-        // Detect errors from tool response
         if (!postEvent.success) {
-          session.status = 'error'
-          session.lastError = {
+          sessionInfo.status = 'error'
+          sessionInfo.lastError = {
             tool: postEvent.tool,
             message: typeof postEvent.toolResponse === 'object' && postEvent.toolResponse !== null
               ? (postEvent.toolResponse as Record<string, unknown>).error as string
               : undefined,
             timestamp: event.timestamp,
           }
-          console.log(`[claude-rpg] Session "${session.name}" error in ${postEvent.tool}`)
-        } else if (session.pendingQuestion) {
-          // Clear pending question if AskUserQuestion completed
-          session.pendingQuestion = undefined
-          session.status = 'working'
-        } else if (session.status !== 'waiting') {
-          // Keep working status, but schedule idle timeout
-          session.lastError = undefined
-        }
-
-        // Schedule idle timeout after any tool completion
-        if (session.status === 'working') {
-          scheduleIdleTimeout(companion, session)
+        } else if (sessionInfo.pendingQuestion) {
+          sessionInfo.pendingQuestion = undefined
+          sessionInfo.status = 'working'
         }
       } else if (event.type === 'stop') {
-        session.status = 'idle'
-        session.currentTool = undefined
-        session.currentFile = undefined
-        session.pendingQuestion = undefined
+        sessionInfo.status = 'idle'
+        sessionInfo.currentTool = undefined
+        sessionInfo.currentFile = undefined
+        sessionInfo.pendingQuestion = undefined
       } else if (event.type === 'user_prompt_submit') {
-        session.status = 'working'
-        session.pendingQuestion = undefined
-        // Track last prompt for context
+        sessionInfo.status = 'working'
+        sessionInfo.pendingQuestion = undefined
         const promptEvent = event as import('../shared/types.js').UserPromptSubmitEvent
         if (promptEvent.prompt) {
-          // Truncate for display, keep first 100 chars
-          session.lastPrompt = promptEvent.prompt.length > 100
+          sessionInfo.lastPrompt = promptEvent.prompt.length > 100
             ? promptEvent.prompt.slice(0, 100) + '...'
             : promptEvent.prompt
         }
+      } else if (event.type === 'session_end') {
+        // Session ended - remove from cache
+        removeClaudeSession(pane.id)
       }
+
+      updateClaudeSession(pane.id, sessionInfo)
+      savePanesCache()
+      broadcast({ type: 'pane_update', payload: pane })
     }
+  }
 
-    // Update companion aggregate status
-    updateCompanionStatus(companion)
-
-    // Process event for XP and state updates
+  // Process XP for companion (by CWD → repo)
+  const companion = findOrCreateCompanion(companions, event.cwd)
+  if (companion) {
     const xpGain = processEvent(companion, event)
-
-    // Save companions if changed
     saveCompanions(DATA_DIR, companions)
-
-    // Broadcast companion update
     broadcast({ type: 'companion_update', payload: companion })
 
-    // Broadcast XP gain if any
     if (xpGain) {
       broadcast({ type: 'xp_gain', payload: xpGain })
     }
@@ -335,127 +409,17 @@ async function handleEvent(rawEvent: RawHookEvent) {
   broadcast({ type: 'event', payload: event })
 }
 
-// Schedule idle timeout for a session
-function scheduleIdleTimeout(companion: Companion, session: Session) {
-  const key = `${companion.id}:${session.id}`
-
-  // Clear existing timeout
-  const existing = sessionIdleTimeouts.get(key)
-  if (existing) clearTimeout(existing)
-
-  // Schedule new timeout
-  const timeout = setTimeout(() => {
-    // Only transition to idle if currently working (not waiting/error)
-    if (session.status === 'working') {
-      session.status = 'idle'
-      session.currentTool = undefined
-      session.currentFile = undefined
-      updateCompanionStatus(companion)
-      saveCompanions(DATA_DIR, companions)
-      broadcast({ type: 'companion_update', payload: companion })
-      console.log(`[claude-rpg] Session "${session.name}" idle timeout`)
-    }
-    sessionIdleTimeouts.delete(key)
-  }, IDLE_TIMEOUT_MS)
-
-  sessionIdleTimeouts.set(key, timeout)
-}
-
-// Check if a tmux pane exists
-async function tmuxPaneExists(target: string): Promise<boolean> {
-  if (!target) return false
-  try {
-    await execAsync(`tmux has-session -t "${target.split('.')[0]}" 2>/dev/null`)
-    return true
-  } catch {
-    return false
-  }
-}
-
-// Clean up stale sessions and fix stuck "working" status
-async function cleanupStaleSessions() {
-  const now = Date.now()
-  const staleActivityCutoff = now - SESSION_MAX_INACTIVE_MS // 30 minutes
-  const stuckWorkingCutoff = now - 5 * 60 * 1000 // 5 minutes without activity = stuck
-  let changed = false
-
-  for (const companion of companions) {
-    const before = companion.state.sessions.length
-    const validSessions: Session[] = []
-
-    for (const session of companion.state.sessions) {
-      // Check if tmux target still exists
-      const paneExists = await tmuxPaneExists(session.tmuxTarget || '')
-
-      if (!paneExists && session.tmuxTarget) {
-        // Pane doesn't exist - session is definitely gone
-        console.log(`[claude-rpg] Session "${session.name}" removed (tmux pane gone)`)
-        changed = true
-        continue
-      }
-
-      // Transition stuck "working" sessions to idle
-      if (session.status === 'working' && session.lastActivity < stuckWorkingCutoff) {
-        session.status = 'idle'
-        session.currentTool = undefined
-        session.currentFile = undefined
-        console.log(`[claude-rpg] Session "${session.name}" stuck working → idle`)
-        changed = true
-      }
-
-      // Keep session if: recent activity OR waiting for input
-      if (session.lastActivity > staleActivityCutoff || session.status === 'waiting') {
-        validSessions.push(session)
-      } else {
-        console.log(`[claude-rpg] Session "${session.name}" removed (stale)`)
-        changed = true
-      }
-    }
-
-    companion.state.sessions = validSessions
-
-    if (changed) {
-      updateCompanionStatus(companion)
-      broadcast({ type: 'companion_update', payload: companion })
-    }
-  }
-
-  if (changed) saveCompanions(DATA_DIR, companions)
-}
-
-// Update companion's aggregate status from sessions
-function updateCompanionStatus(companion: Companion) {
-  const sessions = companion.state.sessions
-  if (sessions.length === 0) {
-    companion.state.status = 'idle'
-    return
-  }
-
-  // Priority: waiting > working > idle
-  if (sessions.some(s => s.status === 'waiting')) {
-    companion.state.status = 'waiting'
-  } else if (sessions.some(s => s.status === 'working')) {
-    companion.state.status = 'working'
-  } else if (sessions.some(s => s.status === 'error')) {
-    companion.state.status = 'attention'
-  } else {
-    companion.state.status = 'idle'
-  }
-
-  companion.state.lastActivity = Math.max(...sessions.map(s => s.lastActivity))
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Capture
 // ═══════════════════════════════════════════════════════════════════════════
 
 const lastTerminalContent = new Map<string, string>()
+let lastTerminalCapture = 0
 
-async function captureTerminal(tmuxTarget: string): Promise<string | null> {
+async function captureTerminal(target: string): Promise<string | null> {
   try {
-    // Capture last 30 lines of the tmux pane
     const { stdout } = await execAsync(
-      `tmux capture-pane -p -t "${tmuxTarget}" -S -30 2>/dev/null || echo ""`,
+      `tmux capture-pane -p -t "${target}" -S -30 2>/dev/null || echo ""`,
       { timeout: 1000 }
     )
     return stdout.trim()
@@ -465,65 +429,61 @@ async function captureTerminal(tmuxTarget: string): Promise<string | null> {
 }
 
 async function broadcastTerminalUpdates() {
-  // Build map of tmux target -> most recent ACTIVE session (directly from companions)
-  // Only working/waiting sessions should receive terminal output
-  const targetToLatestSession = new Map<string, { sessionId: string; companionId: string; lastActivity: number }>()
+  const now = Date.now()
+  const timeSinceLast = now - lastTerminalCapture
 
-  for (const companion of companions) {
-    for (const session of companion.state.sessions) {
-      if (!session.tmuxTarget) continue
-      // Only broadcast to active sessions (working or waiting for input)
-      if (session.status !== 'working' && session.status !== 'waiting') continue
+  for (const window of windows) {
+    for (const pane of window.panes) {
+      // Determine capture rate based on pane activity
+      const isActive = pane.process.type === 'claude' &&
+        pane.process.claudeSession?.status === 'working' ||
+        pane.process.claudeSession?.status === 'waiting'
 
-      const existing = targetToLatestSession.get(session.tmuxTarget)
-      if (!existing || session.lastActivity > existing.lastActivity) {
-        targetToLatestSession.set(session.tmuxTarget, {
-          sessionId: session.id,
-          companionId: companion.id,
-          lastActivity: session.lastActivity,
-        })
+      const interval = isActive ? TERMINAL_ACTIVE_INTERVAL_MS : TERMINAL_IDLE_INTERVAL_MS
+
+      // Skip if not enough time has passed for this pane's rate
+      if (timeSinceLast < interval) continue
+
+      const content = await captureTerminal(pane.target)
+      if (content === null) continue
+
+      // Only broadcast if content changed
+      if (lastTerminalContent.get(pane.id) === content) continue
+      lastTerminalContent.set(pane.id, content)
+
+      // Update pane with terminal content
+      pane.terminalContent = content
+
+      const output: TerminalOutput = {
+        paneId: pane.id,
+        target: pane.target,
+        content,
+        timestamp: now,
       }
+
+      broadcast({ type: 'terminal_output', payload: output })
     }
   }
 
-  // Only broadcast to the most recent session for each tmux target
-  for (const [tmuxTarget, { sessionId, companionId }] of targetToLatestSession) {
-    const content = await captureTerminal(tmuxTarget)
-    if (content === null) continue
-
-    // Only broadcast if content changed
-    if (lastTerminalContent.get(tmuxTarget) === content) continue
-    lastTerminalContent.set(tmuxTarget, content)
-
-    const output: TerminalOutput = {
-      companionId,
-      sessionId,
-      tmuxTarget,
-      content,
-      timestamp: Date.now(),
-    }
-
-    broadcast({ type: 'terminal_output', payload: output })
-  }
+  lastTerminalCapture = now
 }
 
-// Capture terminal output every 500ms
+// Capture terminal output every 500ms (rate limiting handled per-pane)
 setInterval(broadcastTerminalUpdates, 500)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Tmux Prompt Helper
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function sendPromptToTmux(tmuxTarget: string, prompt: string): Promise<void> {
+async function sendPromptToTmux(target: string, prompt: string): Promise<void> {
   const tempFile = `/tmp/claude-rpg-prompt-${Date.now()}.txt`
   writeFileSync(tempFile, prompt)
 
   await execAsync(`tmux load-buffer ${tempFile}`)
-  await execAsync(`tmux paste-buffer -t ${tmuxTarget}`)
+  await execAsync(`tmux paste-buffer -t ${target}`)
   await new Promise(r => setTimeout(r, 100))
-  await execAsync(`tmux send-keys -t ${tmuxTarget} Enter`)
+  await execAsync(`tmux send-keys -t ${target} Enter`)
 
-  // Clean up temp file
   await unlink(tempFile).catch(() => {})
 }
 
@@ -545,7 +505,7 @@ function loadEventsFromFile() {
     try {
       const event = JSON.parse(line) as ClaudeEvent
       handleEvent(event)
-    } catch (e) {
+    } catch {
       // Skip malformed lines
     }
   }
@@ -555,7 +515,6 @@ function loadEventsFromFile() {
 
 function watchEventsFile() {
   if (!existsSync(EVENTS_FILE)) {
-    // Create empty file so watcher can start
     writeFileSync(EVENTS_FILE, '')
   }
 
@@ -573,7 +532,7 @@ function watchEventsFile() {
       try {
         const event = JSON.parse(line) as ClaudeEvent
         handleEvent(event)
-      } catch (e) {
+      } catch {
         // Skip malformed lines
       }
     }
@@ -603,7 +562,7 @@ const server = http.createServer(async (req, res) => {
   // Health check
   if (url.pathname === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, companions: companions.length }))
+    res.end(JSON.stringify({ ok: true, companions: companions.length, windows: windows.length }))
     return
   }
 
@@ -615,13 +574,10 @@ const server = http.createServer(async (req, res) => {
       try {
         const event = JSON.parse(body) as ClaudeEvent
         handleEvent(event)
-
-        // Also persist to file
         appendFileSync(EVENTS_FILE, JSON.stringify(event) + '\n')
-
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ ok: true }))
-      } catch (e) {
+      } catch {
         res.writeHead(400, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ ok: false, error: 'Invalid JSON' }))
       }
@@ -629,102 +585,73 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // List companions
+  // List windows with panes
+  if (url.pathname === '/api/windows' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, data: windows }))
+    return
+  }
+
+  // Get single pane
+  const paneMatch = url.pathname.match(/^\/api\/panes\/(%\d+)$/)
+  if (paneMatch && req.method === 'GET') {
+    const paneId = paneMatch[1]
+    const pane = findPaneById(windows, paneId)
+
+    if (!pane) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
+      return
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, data: pane }))
+    return
+  }
+
+  // Send prompt to pane
+  const panePromptMatch = url.pathname.match(/^\/api\/panes\/(%\d+)\/prompt$/)
+  if (panePromptMatch && req.method === 'POST') {
+    const paneId = panePromptMatch[1]
+    const pane = findPaneById(windows, paneId)
+
+    if (!pane) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
+      return
+    }
+
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', async () => {
+      try {
+        const { prompt } = JSON.parse(body)
+        await sendPromptToTmux(pane.target, prompt)
+
+        // Clear pending question if Claude pane
+        if (pane.process.claudeSession?.pendingQuestion) {
+          updateClaudeSession(pane.id, {
+            pendingQuestion: undefined,
+            status: 'working',
+          })
+          savePanesCache()
+          broadcast({ type: 'pane_update', payload: pane })
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true }))
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: String(e) }))
+      }
+    })
+    return
+  }
+
+  // List companions (for XP/stats)
   if (url.pathname === '/api/companions' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true, data: companions }))
-    return
-  }
-
-  // Send prompt to specific session
-  const sessionPromptMatch = url.pathname.match(/^\/api\/companions\/([^/]+)\/sessions\/([^/]+)\/prompt$/)
-  if (sessionPromptMatch && req.method === 'POST') {
-    const [, companionId, sessionId] = sessionPromptMatch
-    const companion = companions.find(c => c.id === companionId)
-
-    if (!companion) {
-      res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Companion not found' }))
-      return
-    }
-
-    const session = companion.state.sessions.find(s => s.id === sessionId)
-    if (!session) {
-      res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Session not found' }))
-      return
-    }
-
-    if (!session.tmuxTarget) {
-      res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'No tmux target for session' }))
-      return
-    }
-
-    let body = ''
-    req.on('data', chunk => body += chunk)
-    req.on('end', async () => {
-      try {
-        const { prompt } = JSON.parse(body)
-
-        await sendPromptToTmux(session.tmuxTarget!, prompt)
-
-        // Clear pending question after answering
-        if (session.pendingQuestion) {
-          session.pendingQuestion = undefined
-          session.status = 'working'
-          saveCompanions(DATA_DIR, companions)
-          broadcast({ type: 'companion_update', payload: companion })
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: true }))
-      } catch (e) {
-        res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: String(e) }))
-      }
-    })
-    return
-  }
-
-  // Send prompt to companion (uses most recent session)
-  const promptMatch = url.pathname.match(/^\/api\/companions\/([^/]+)\/prompt$/)
-  if (promptMatch && req.method === 'POST') {
-    const companionId = promptMatch[1]
-    const companion = companions.find(c => c.id === companionId)
-
-    if (!companion) {
-      res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Companion not found' }))
-      return
-    }
-
-    let body = ''
-    req.on('data', chunk => body += chunk)
-    req.on('end', async () => {
-      try {
-        const { prompt } = JSON.parse(body)
-
-        // Find tmux target from sessions (prefer most recent active)
-        const session = companion.state.sessions
-          .filter(s => s.tmuxTarget)
-          .sort((a, b) => b.lastActivity - a.lastActivity)[0]
-
-        if (!session?.tmuxTarget) {
-          res.writeHead(400, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: false, error: 'No tmux target found for companion' }))
-          return
-        }
-
-        await sendPromptToTmux(session.tmuxTarget, prompt)
-
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: true }))
-      } catch (e) {
-        res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: String(e) }))
-      }
-    })
     return
   }
 
@@ -745,16 +672,12 @@ wss.on('connection', (ws) => {
 
   // Send initial state
   ws.send(JSON.stringify({ type: 'connected' } satisfies ServerMessage))
+  ws.send(JSON.stringify({ type: 'windows', payload: windows } satisfies ServerMessage))
   ws.send(JSON.stringify({ type: 'companions', payload: companions } satisfies ServerMessage))
   ws.send(JSON.stringify({ type: 'history', payload: events.slice(-100) } satisfies ServerMessage))
 
-  ws.on('message', (data) => {
-    try {
-      const _message = JSON.parse(data.toString()) as ClientMessage
-      // TODO: Implement client message handling (subscribe, get_history)
-    } catch {
-      // Ignore malformed messages
-    }
+  ws.on('message', (_data) => {
+    // Handle client messages if needed
   })
 
   ws.on('close', () => {
@@ -767,17 +690,12 @@ wss.on('connection', (ws) => {
 // Start Server
 // ═══════════════════════════════════════════════════════════════════════════
 
+loadPanesCache()
 loadEventsFromFile()
 watchEventsFile()
 
-// Run cleanup immediately to fix sessions loaded from history
-cleanupStaleSessions().catch(e => console.error('[claude-rpg] Cleanup error:', e))
-
-// Start session cleanup interval
-setInterval(() => {
-  cleanupStaleSessions().catch(e => console.error('[claude-rpg] Cleanup error:', e))
-}, SESSION_CLEANUP_INTERVAL_MS)
-console.log(`[claude-rpg] Session cleanup scheduled every ${SESSION_CLEANUP_INTERVAL_MS / 1000 / 60} minutes`)
+// Initial tmux poll
+pollTmux().catch(e => console.error('[claude-rpg] Initial poll error:', e))
 
 server.listen(PORT, () => {
   console.log(`[claude-rpg] Server running on port ${PORT}`)

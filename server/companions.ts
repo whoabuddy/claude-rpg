@@ -3,10 +3,10 @@ import { execSync } from 'child_process'
 import { join, basename } from 'path'
 import { randomUUID, createHash } from 'crypto'
 import { DEFAULTS } from '../shared/defaults.js'
-import type { Companion, RepoInfo, CompanionStats, CompanionState, Session } from '../shared/types.js'
+import type { Companion, RepoInfo, CompanionStats } from '../shared/types.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
-// English First Names (for sessions)
+// English First Names (for Claude sessions)
 // ═══════════════════════════════════════════════════════════════════════════
 
 const ENGLISH_NAMES = [
@@ -54,18 +54,6 @@ export async function fetchBitcoinFace(sessionId: string): Promise<string | unde
     console.error(`[claude-rpg] Error fetching Bitcoin face for ${sessionId}:`, e)
   }
   return undefined
-}
-
-// Create a new session
-export function createSession(sessionId: string, tmuxTarget?: string): Session {
-  return {
-    id: sessionId,
-    name: getSessionName(sessionId),
-    status: 'idle',
-    tmuxTarget,
-    createdAt: Date.now(),
-    lastActivity: Date.now(),
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -154,14 +142,6 @@ function createDefaultStats(): CompanionStats {
   }
 }
 
-function createDefaultState(): CompanionState {
-  return {
-    status: 'idle',
-    sessions: [],
-    lastActivity: Date.now(),
-  }
-}
-
 export function findOrCreateCompanion(companions: Companion[], cwd: string): Companion | null {
   // Find existing companion by repo path
   const existing = companions.find(c => c.repo.path === cwd)
@@ -191,7 +171,6 @@ export function findOrCreateCompanion(companions: Companion[], cwd: string): Com
     experience: 0,
     totalExperience: 0,
     stats: createDefaultStats(),
-    state: createDefaultState(),
     createdAt: Date.now(),
     lastActivity: Date.now(),
   }

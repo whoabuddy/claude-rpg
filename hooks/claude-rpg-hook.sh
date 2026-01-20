@@ -63,10 +63,12 @@ get_timestamp_ms() {
 EVENT=$(cat)
 HOOK_TYPE="${1:-unknown}"
 
-# Get tmux target if available
+# Get tmux target and pane ID if available
 TMUX_TARGET=""
+PANE_ID=""
 if [[ -n "$TMUX" ]]; then
-  TMUX_TARGET=$(tmux display-message -p '#S:#W.#P' 2>/dev/null || echo "")
+  TMUX_TARGET=$(tmux display-message -p '#S:#I.#P' 2>/dev/null || echo "")
+  PANE_ID=$(tmux display-message -p '#{pane_id}' 2>/dev/null || echo "")
 fi
 
 # Generate timestamp
@@ -77,10 +79,12 @@ ENHANCED=$("$JQ" -c \
   --arg hook "$HOOK_TYPE" \
   --arg ts "$TIMESTAMP" \
   --arg tmux "$TMUX_TARGET" \
+  --arg pane "$PANE_ID" \
   '. + {
     hookType: $hook,
     timestamp: ($ts | tonumber),
-    tmuxTarget: (if $tmux == "" then null else $tmux end)
+    tmuxTarget: (if $tmux == "" then null else $tmux end),
+    paneId: (if $pane == "" then null else $pane end)
   }' <<< "$EVENT")
 
 # Persist to file (always)
