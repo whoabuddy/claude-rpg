@@ -1,13 +1,40 @@
-import type { Companion } from '@shared/types'
+import { useState, useEffect, useRef } from 'react'
+import type { Companion, TerminalOutput } from '@shared/types'
 import { xpForLevel } from '@shared/types'
 
 interface CompanionDetailProps {
   companion: Companion
 }
 
+function useTerminalOutput(companionId: string) {
+  const [content, setContent] = useState<string>('')
+
+  useEffect(() => {
+    const handleOutput = (e: CustomEvent<TerminalOutput>) => {
+      if (e.detail.companionId === companionId) {
+        setContent(e.detail.content)
+      }
+    }
+
+    window.addEventListener('terminal_output', handleOutput as EventListener)
+    return () => window.removeEventListener('terminal_output', handleOutput as EventListener)
+  }, [companionId])
+
+  return content
+}
+
 export function CompanionDetail({ companion }: CompanionDetailProps) {
   const xpNeeded = xpForLevel(companion.level)
   const xpPercent = (companion.experience / xpNeeded) * 100
+  const terminalContent = useTerminalOutput(companion.id)
+  const terminalRef = useRef<HTMLPreElement>(null)
+
+  // Auto-scroll terminal to bottom when content changes
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight
+    }
+  }, [terminalContent])
 
   return (
     <div className="p-4 space-y-4">
@@ -76,20 +103,15 @@ export function CompanionDetail({ companion }: CompanionDetailProps) {
         </div>
       </div>
 
-      {/* Tool Usage */}
+      {/* Terminal Output */}
       <div className="bg-rpg-card rounded-lg p-4 border border-rpg-border">
-        <h3 className="text-sm font-medium text-rpg-idle mb-3">Top Tools</h3>
-        <div className="space-y-2">
-          {Object.entries(companion.stats.toolsUsed)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 5)
-            .map(([tool, count]) => (
-              <div key={tool} className="flex justify-between text-sm">
-                <span>{tool}</span>
-                <span className="text-rpg-idle">{count}</span>
-              </div>
-            ))}
-        </div>
+        <h3 className="text-sm font-medium text-rpg-idle mb-3">Terminal</h3>
+        <pre
+          ref={terminalRef}
+          className="bg-black/50 rounded p-3 text-xs font-mono text-green-400 overflow-auto max-h-48 whitespace-pre-wrap"
+        >
+          {terminalContent || <span className="text-rpg-idle/50">Waiting for activity...</span>}
+        </pre>
       </div>
     </div>
   )

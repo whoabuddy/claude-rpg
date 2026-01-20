@@ -10,6 +10,7 @@ import type {
   ServerMessage,
   ClientMessage,
   ApiResponse,
+  TerminalOutput,
 } from '../shared/types.js'
 import { processEvent, detectCommandXP } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions } from './companions.js'
@@ -164,6 +165,11 @@ function handleEvent(rawEvent: RawHookEvent) {
   // Find or create companion from CWD
   const companion = findOrCreateCompanion(companions, event.cwd)
   if (companion) {
+    // Track tmux target for terminal capture
+    if (event.tmuxTarget) {
+      companionTmuxTargets.set(companion.id, event.tmuxTarget)
+    }
+
     // Process event for XP and state updates
     const xpGain = processEvent(companion, event)
 
@@ -188,6 +194,54 @@ function handleEvent(rawEvent: RawHookEvent) {
   // Broadcast event
   broadcast({ type: 'event', payload: event })
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Terminal Capture
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Track tmux targets per companion
+const companionTmuxTargets = new Map<string, string>()
+const lastTerminalContent = new Map<string, string>()
+
+async function captureTerminal(companionId: string, tmuxTarget: string): Promise<string | null> {
+  try {
+    const { exec } = await import('child_process')
+    const { promisify } = await import('util')
+    const execAsync = promisify(exec)
+
+    // Capture last 30 lines of the tmux pane
+    const { stdout } = await execAsync(
+      `tmux capture-pane -p -t "${tmuxTarget}" -S -30 2>/dev/null || echo ""`,
+      { timeout: 1000 }
+    )
+    return stdout.trim()
+  } catch (e) {
+    return null
+  }
+}
+
+async function broadcastTerminalUpdates() {
+  for (const [companionId, tmuxTarget] of companionTmuxTargets) {
+    const content = await captureTerminal(companionId, tmuxTarget)
+    if (content === null) continue
+
+    // Only broadcast if content changed
+    if (lastTerminalContent.get(companionId) === content) continue
+    lastTerminalContent.set(companionId, content)
+
+    const output: TerminalOutput = {
+      companionId,
+      tmuxTarget,
+      content,
+      timestamp: Date.now(),
+    }
+
+    broadcast({ type: 'terminal_output', payload: output })
+  }
+}
+
+// Capture terminal output every 500ms
+setInterval(broadcastTerminalUpdates, 500)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // File Watching

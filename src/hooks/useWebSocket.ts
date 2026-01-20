@@ -33,6 +33,26 @@ export function useWebSocket() {
           case 'history':
             setEvents(message.payload)
             break
+
+          case 'companion_update':
+            // Dispatch custom event for useCompanions hook
+            window.dispatchEvent(new CustomEvent('companion_update', { detail: message.payload }))
+            break
+
+          case 'companions':
+            // Dispatch for initial load
+            window.dispatchEvent(new CustomEvent('companions_init', { detail: message.payload }))
+            break
+
+          case 'xp_gain':
+            // Dispatch for XP animations/notifications
+            window.dispatchEvent(new CustomEvent('xp_gain', { detail: message.payload }))
+            break
+
+          case 'terminal_output':
+            // Dispatch terminal output for display
+            window.dispatchEvent(new CustomEvent('terminal_output', { detail: message.payload }))
+            break
         }
       } catch (e) {
         console.error('[claude-rpg] Error parsing message:', e)

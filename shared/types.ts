@@ -156,6 +156,13 @@ export function levelFromTotalXP(totalXP: number): { level: number; currentXP: n
 // WEBSOCKET MESSAGES
 // ═══════════════════════════════════════════════════════════════════════════
 
+export interface TerminalOutput {
+  companionId: string
+  tmuxTarget: string
+  content: string
+  timestamp: number
+}
+
 export type ServerMessage =
   | { type: 'connected' }
   | { type: 'companions'; payload: Companion[] }
@@ -163,6 +170,7 @@ export type ServerMessage =
   | { type: 'event'; payload: ClaudeEvent }
   | { type: 'xp_gain'; payload: XPGain }
   | { type: 'history'; payload: ClaudeEvent[] }
+  | { type: 'terminal_output'; payload: TerminalOutput }
 
 export type ClientMessage =
   | { type: 'subscribe' }
