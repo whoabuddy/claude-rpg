@@ -105,15 +105,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Window Bar - shown in window mode or when there are multiple windows */}
-      {(viewMode === 'window' || windows.length > 1) && (
-        <WindowBar
-          windows={windows}
-          selectedId={selectedWindowId}
-          onSelect={handleWindowSelect}
-        />
-      )}
-
       {/* Main content */}
       <main className="flex-1 overflow-y-auto">
         {viewMode === 'overview' ? (
@@ -128,16 +119,25 @@ export default function App() {
           />
         ) : (
           <div className="flex items-center justify-center h-full text-rpg-idle">
-            <p>Select a window from the bar above</p>
+            <p>Select a window from the bar below</p>
           </div>
         )}
       </main>
+
+      {/* Window Bar - at bottom, only in window mode (like tmux status bar) */}
+      {viewMode === 'window' && (
+        <WindowBar
+          windows={windows}
+          selectedId={selectedWindowId}
+          onSelect={setSelectedWindowId}
+        />
+      )}
 
       {/* Attention indicator - floating badge when panes need attention */}
       {viewMode !== 'overview' && attentionPanes.length > 0 && (
         <button
           onClick={() => setViewMode('overview')}
-          className="fixed bottom-4 right-4 px-4 py-2 bg-rpg-waiting text-rpg-bg rounded-full shadow-lg animate-pulse hover:bg-rpg-waiting/80 transition-colors"
+          className="fixed bottom-16 right-4 px-4 py-2 bg-rpg-waiting text-rpg-bg rounded-full shadow-lg animate-pulse hover:bg-rpg-waiting/80 transition-colors"
         >
           {attentionPanes.length} need{attentionPanes.length === 1 ? 's' : ''} attention
         </button>

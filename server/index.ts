@@ -414,7 +414,6 @@ async function handleEvent(rawEvent: RawHookEvent) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const lastTerminalContent = new Map<string, string>()
-let lastTerminalCapture = 0
 
 async function captureTerminal(target: string): Promise<string | null> {
   try {
@@ -428,21 +427,23 @@ async function captureTerminal(target: string): Promise<string | null> {
   }
 }
 
+// Track last capture time per pane for rate limiting
+const lastPaneCapture = new Map<string, number>()
+
 async function broadcastTerminalUpdates() {
   const now = Date.now()
-  const timeSinceLast = now - lastTerminalCapture
 
   for (const window of windows) {
     for (const pane of window.panes) {
-      // Determine capture rate based on pane activity
-      const isActive = pane.process.type === 'claude' &&
-        pane.process.claudeSession?.status === 'working' ||
-        pane.process.claudeSession?.status === 'waiting'
+      // Determine capture rate based on pane type
+      // All Claude panes get fast capture, others get slow
+      const isClaudPane = pane.process.type === 'claude'
+      const interval = isClaudPane ? TERMINAL_ACTIVE_INTERVAL_MS : TERMINAL_IDLE_INTERVAL_MS
 
-      const interval = isActive ? TERMINAL_ACTIVE_INTERVAL_MS : TERMINAL_IDLE_INTERVAL_MS
-
-      // Skip if not enough time has passed for this pane's rate
-      if (timeSinceLast < interval) continue
+      // Check per-pane rate limiting
+      const lastCapture = lastPaneCapture.get(pane.id) || 0
+      if (now - lastCapture < interval) continue
+      lastPaneCapture.set(pane.id, now)
 
       const content = await captureTerminal(pane.target)
       if (content === null) continue
@@ -464,8 +465,6 @@ async function broadcastTerminalUpdates() {
       broadcast({ type: 'terminal_output', payload: output })
     }
   }
-
-  lastTerminalCapture = now
 }
 
 // Capture terminal output every 500ms (rate limiting handled per-pane)

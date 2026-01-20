@@ -127,7 +127,9 @@ const ClaudePaneCard = memo(function ClaudePaneCard({ pane, window, session, onS
             <div className="flex items-center gap-2 mb-1">
               <span className="font-medium text-sm">{session.name}</span>
               {pane.repo && (
-                <span className="text-xs text-rpg-idle/70">{pane.repo.name}</span>
+                <span className="text-xs text-rpg-accent">
+                  {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
+                </span>
               )}
               <StatusIndicator status={session.status} />
             </div>
@@ -314,7 +316,9 @@ const ProcessPaneCard = memo(function ProcessPaneCard({ pane, window, compact }:
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm">{pane.process.command}</span>
               {pane.repo && (
-                <span className="text-xs text-rpg-idle/50">{pane.repo.name}</span>
+                <span className="text-xs text-rpg-accent">
+                  {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
+                </span>
               )}
             </div>
             <div className="text-xs text-rpg-idle/50 truncate">
