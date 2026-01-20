@@ -20,13 +20,19 @@ npm run setup
 ```
 Claude Code → Hook Script → Server → WebSocket → React UI
                               ↓
-                         companions.json (XP, stats)
+                         companions.json (projects + sessions)
                          events.jsonl (history)
+                              ↓
+                         Bitcoin Faces API (avatar SVGs)
 ```
 
 ### Key Concepts
 
-- **Companion** = Git repo = Project with RPG progression
+- **Companion** = Git repo = Project with RPG progression (level, XP, stats)
+- **Session** = Unit of work = Individual Claude Code session within a project
+  - Gets an English first name (deterministic from session ID)
+  - Gets a Bitcoin face avatar from bitcoinfaces.xyz
+  - Tracks status: idle, working, waiting (for user input), error
 - **CWD** from Claude events → maps to repo → maps to companion
 - **XP** from Claude tools + git commands + dev commands (tests, builds, deploys)
 
@@ -35,16 +41,16 @@ Claude Code → Hook Script → Server → WebSocket → React UI
 ```
 claude-rpg/
 ├── server/           # Node.js WebSocket server
-│   ├── index.ts      # Main server, event processing
-│   ├── companions.ts # Companion CRUD, git repo detection
+│   ├── index.ts      # Main server, event processing, session management
+│   ├── companions.ts # Companion/session CRUD, git repo detection, Bitcoin faces
 │   ├── xp.ts         # XP calculation, command detection
 │   └── cli.ts        # CLI for setup and running
 ├── src/              # React + Tailwind frontend
-│   ├── components/   # UI components
+│   ├── components/   # UI components (CompanionDetail, SessionCard, etc.)
 │   ├── hooks/        # React hooks (WebSocket, companions)
 │   └── styles/       # Tailwind CSS
 ├── shared/           # Shared types between server/client
-│   ├── types.ts      # TypeScript interfaces
+│   ├── types.ts      # TypeScript interfaces (Companion, Session, etc.)
 │   └── defaults.ts   # Configuration defaults
 └── hooks/            # Claude Code hook script
     └── claude-rpg-hook.sh
@@ -56,9 +62,38 @@ claude-rpg/
 2. Hook script captures events (tool use, prompts, etc.)
 3. Hook adds `tmuxTarget` and `timestamp`, sends to server
 4. Server matches CWD to companion (auto-creates if new repo)
-5. Server calculates XP based on event type
-6. Server broadcasts to WebSocket clients
-7. React UI updates in real-time
+5. Server finds/creates session within companion (by session ID)
+6. On new session: fetches Bitcoin face SVG, assigns English name
+7. Server detects special events (AskUserQuestion → waiting status)
+8. Server calculates XP based on event type
+9. Server broadcasts to WebSocket clients
+10. React UI updates in real-time (sessions, terminal output, questions)
+
+## Session Management
+
+Sessions are tracked within companions and represent individual Claude Code instances:
+
+```typescript
+interface Session {
+  id: string              // Claude session UUID
+  name: string            // English first name (deterministic from ID hash)
+  avatarSvg?: string      // Cached Bitcoin face SVG
+  status: SessionStatus   // idle | working | waiting | error
+  tmuxTarget?: string     // For terminal capture and prompt sending
+  pendingQuestion?: PendingQuestion  // When AskUserQuestion is active
+  currentTool?: string
+  currentFile?: string
+  createdAt: number
+  lastActivity: number
+}
+```
+
+**AskUserQuestion Handling:**
+- Detected from `PreToolUse` events with `tool: 'AskUserQuestion'`
+- Session status set to `waiting`
+- Question and options stored in `pendingQuestion`
+- UI displays clickable answer buttons + custom input field
+- Answering clears the question and resumes session
 
 ## XP System
 
@@ -95,17 +130,19 @@ xpForLevel(n) = 100 * 1.5^(n-1)
 | `/health` | GET | Server health check |
 | `/event` | POST | Receive events from hook |
 | `/api/companions` | GET | List all companions |
-| `/api/companions/:id/prompt` | POST | Send prompt to companion |
+| `/api/companions/:id/prompt` | POST | Send prompt to most recent session |
+| `/api/companions/:id/sessions/:sessionId/prompt` | POST | Send prompt to specific session |
 
 ## WebSocket Messages
 
 **Server → Client:**
 - `connected` - Initial connection
 - `companions` - All companions on connect
-- `companion_update` - Single companion changed
+- `companion_update` - Single companion changed (includes sessions)
 - `event` - New Claude event
 - `xp_gain` - XP was awarded
 - `history` - Recent events on connect
+- `terminal_output` - Terminal content for a session (polled every 500ms)
 
 ## Configuration
 
@@ -119,7 +156,7 @@ xpForLevel(n) = 100 * 1.5^(n-1)
 
 | File | Purpose |
 |------|---------|
-| `~/.claude-rpg/data/companions.json` | Companion definitions + stats |
+| `~/.claude-rpg/data/companions.json` | Companion definitions + sessions + stats |
 | `~/.claude-rpg/data/events.jsonl` | Event history (append-only) |
 | `~/.claude-rpg/hooks/claude-rpg-hook.sh` | Installed hook script |
 | `~/.claude/settings.json` | Claude Code hook configuration |
@@ -158,7 +195,9 @@ Then add the stat key to the `CompanionStats` interface in `shared/types.ts`.
 - Tailwind with custom RPG color palette
 - Touch-friendly tap targets (min 44px)
 - Auto-resizing textarea for prompt input
-- Responsive companion chips with status indicators
+- Session cards with Bitcoin face avatars
+- Clickable answer buttons for AskUserQuestion
+- Terminal output per session
 - XP bar animations
 
 ## Future Work
@@ -168,3 +207,4 @@ Then add the stat key to the `CompanionStats` interface in `shared/types.ts`.
 - [ ] Level-up animations
 - [ ] Achievement system
 - [ ] tmux focus sync (web ↔ TUI)
+- [ ] Session cleanup (remove stale sessions)
