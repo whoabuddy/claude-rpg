@@ -196,10 +196,9 @@ function awardXP(companion: Companion, amount: number, type: string, description
   companion.experience += amount
   companion.totalExperience += amount
 
-  // Check for level up
-  const xpNeeded = xpForLevel(companion.level)
-  while (companion.experience >= xpNeeded) {
-    companion.experience -= xpNeeded
+  // Check for level up - recalculate xpNeeded each iteration for multi-level ups
+  while (companion.experience >= xpForLevel(companion.level)) {
+    companion.experience -= xpForLevel(companion.level)
     companion.level++
     console.log(`[claude-rpg] ${companion.name} leveled up to ${companion.level}!`)
   }

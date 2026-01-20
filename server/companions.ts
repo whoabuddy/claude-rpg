@@ -143,6 +143,7 @@ function createDefaultStats(): CompanionStats {
       testsRun: 0,
       buildsRun: 0,
       deploysRun: 0,
+      lintsRun: 0,
     },
     blockchain: {
       clarinetChecks: 0,

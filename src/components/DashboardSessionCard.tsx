@@ -1,5 +1,38 @@
-import { useState, useEffect, useRef } from 'react'
-import type { Companion, Session, TerminalOutput } from '@shared/types'
+import { useState, useEffect, useRef, useMemo, memo } from 'react'
+import type { Companion, Session } from '@shared/types'
+import { useTerminalOutput } from '../hooks/useTerminalOutput'
+
+// Constants
+const TERMINAL_PREVIEW_LINES = 15
+
+// Move static style objects to module scope to avoid recreation on every render
+const statusColors = {
+  idle: 'border-rpg-idle/50',
+  working: 'border-rpg-working',
+  waiting: 'border-rpg-waiting',
+  error: 'border-rpg-error',
+} as const
+
+const statusBgColors = {
+  idle: 'bg-rpg-card',
+  working: 'bg-rpg-card',
+  waiting: 'bg-rpg-waiting/10',
+  error: 'bg-rpg-error/10',
+} as const
+
+const indicatorColors = {
+  idle: 'bg-rpg-idle',
+  working: 'bg-rpg-working',
+  waiting: 'bg-rpg-waiting',
+  error: 'bg-rpg-error',
+} as const
+
+const indicatorLabels = {
+  idle: 'Idle',
+  working: 'Working',
+  waiting: 'Waiting',
+  error: 'Error',
+} as const
 
 interface DashboardSessionCardProps {
   session: Session
@@ -7,26 +40,7 @@ interface DashboardSessionCardProps {
   onSendPrompt: (companionId: string, sessionId: string, prompt: string) => void
 }
 
-function useTerminalOutput(sessionId: string | null) {
-  const [content, setContent] = useState<string>('')
-
-  useEffect(() => {
-    if (!sessionId) return
-
-    const handleOutput = (e: CustomEvent<TerminalOutput>) => {
-      if (e.detail.sessionId === sessionId) {
-        setContent(e.detail.content)
-      }
-    }
-
-    window.addEventListener('terminal_output', handleOutput as EventListener)
-    return () => window.removeEventListener('terminal_output', handleOutput as EventListener)
-  }, [sessionId])
-
-  return content
-}
-
-export function DashboardSessionCard({ session, companion, onSendPrompt }: DashboardSessionCardProps) {
+export const DashboardSessionCard = memo(function DashboardSessionCard({ session, companion, onSendPrompt }: DashboardSessionCardProps) {
   const [answerInput, setAnswerInput] = useState('')
   const [expanded, setExpanded] = useState(false)
   const terminalContent = useTerminalOutput(session.id)
@@ -48,24 +62,11 @@ export function DashboardSessionCard({ session, companion, onSendPrompt }: Dashb
     setAnswerInput('')
   }
 
-  // Get last 15 lines of terminal for preview
-  const terminalPreview = terminalContent
-    ? terminalContent.split('\n').slice(-15).join('\n')
-    : ''
-
-  const statusColors = {
-    idle: 'border-rpg-idle/50',
-    working: 'border-rpg-working',
-    waiting: 'border-rpg-waiting',
-    error: 'border-rpg-error',
-  }
-
-  const statusBgColors = {
-    idle: 'bg-rpg-card',
-    working: 'bg-rpg-card',
-    waiting: 'bg-rpg-waiting/10',
-    error: 'bg-rpg-error/10',
-  }
+  // Memoize terminal preview computation
+  const terminalPreview = useMemo(
+    () => terminalContent?.split('\n').slice(-TERMINAL_PREVIEW_LINES).join('\n') || '',
+    [terminalContent]
+  )
 
   return (
     <div
@@ -237,31 +238,17 @@ export function DashboardSessionCard({ session, companion, onSendPrompt }: Dashb
       )}
     </div>
   )
-}
+})
 
 function StatusIndicator({ status }: { status: string }) {
-  const colors = {
-    idle: 'bg-rpg-idle',
-    working: 'bg-rpg-working',
-    waiting: 'bg-rpg-waiting',
-    error: 'bg-rpg-error',
-  }
-
-  const labels = {
-    idle: 'Idle',
-    working: 'Working',
-    waiting: 'Waiting',
-    error: 'Error',
-  }
-
   return (
     <div className="flex items-center gap-1">
       <div
-        className={`w-2 h-2 rounded-full ${colors[status as keyof typeof colors] || colors.idle} ${
+        className={`w-2 h-2 rounded-full ${indicatorColors[status as keyof typeof indicatorColors] || indicatorColors.idle} ${
           status === 'working' ? 'animate-pulse' : ''
         }`}
       />
-      <span className="text-xs text-rpg-idle/70">{labels[status as keyof typeof labels] || status}</span>
+      <span className="text-xs text-rpg-idle/70">{indicatorLabels[status as keyof typeof indicatorLabels] || status}</span>
     </div>
   )
 }

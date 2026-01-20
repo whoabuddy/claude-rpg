@@ -1,29 +1,21 @@
 import { useState, useEffect, useRef } from 'react'
-import type { Companion, TerminalOutput, Session } from '@shared/types'
+import type { Companion, Session } from '@shared/types'
 import { xpForLevel } from '@shared/types'
+import { useTerminalOutput } from '../hooks/useTerminalOutput'
+
+// Move static style objects to module scope
+const statusIndicatorColors = {
+  idle: 'bg-rpg-idle',
+  working: 'bg-rpg-working',
+  waiting: 'bg-rpg-waiting',
+  error: 'bg-rpg-error',
+  attention: 'bg-rpg-error',
+  offline: 'bg-rpg-idle/50',
+} as const
 
 interface CompanionDetailProps {
   companion: Companion
   onSendPrompt?: (sessionId: string, prompt: string) => void
-}
-
-function useTerminalOutput(sessionId: string | null) {
-  const [content, setContent] = useState<string>('')
-
-  useEffect(() => {
-    if (!sessionId) return
-
-    const handleOutput = (e: CustomEvent<TerminalOutput>) => {
-      if (e.detail.sessionId === sessionId) {
-        setContent(e.detail.content)
-      }
-    }
-
-    window.addEventListener('terminal_output', handleOutput as EventListener)
-    return () => window.removeEventListener('terminal_output', handleOutput as EventListener)
-  }, [sessionId])
-
-  return content
 }
 
 export function CompanionDetail({ companion, onSendPrompt }: CompanionDetailProps) {
@@ -250,18 +242,9 @@ function SessionCard({ session, isSelected, onSelect, onSendPrompt }: SessionCar
 }
 
 function StatusIndicator({ status }: { status: string }) {
-  const colors = {
-    idle: 'bg-rpg-idle',
-    working: 'bg-rpg-working',
-    waiting: 'bg-rpg-waiting',
-    error: 'bg-rpg-error',
-    attention: 'bg-rpg-error',
-    offline: 'bg-rpg-idle/50',
-  }
-
   return (
     <div
-      className={`w-2 h-2 rounded-full ${colors[status as keyof typeof colors] || colors.idle} ${
+      className={`w-2 h-2 rounded-full ${statusIndicatorColors[status as keyof typeof statusIndicatorColors] || statusIndicatorColors.idle} ${
         status === 'working' ? 'animate-pulse' : ''
       }`}
     />

@@ -36,6 +36,7 @@ export interface CompanionStats {
     testsRun: number
     buildsRun: number
     deploysRun: number
+    lintsRun: number
   }
   blockchain: {
     clarinetChecks: number
@@ -82,8 +83,6 @@ export type CompanionStatus = 'idle' | 'working' | 'waiting' | 'attention' | 'of
 export interface CompanionState {
   status: CompanionStatus           // Aggregate status from sessions
   sessions: Session[]               // Active sessions in this repo
-  currentTool?: string              // Legacy, for backward compat
-  currentFile?: string
   lastActivity: number
 }
 
@@ -142,13 +141,22 @@ export interface NotificationEvent extends BaseEvent {
   message: string
 }
 
+export interface SessionStartEvent extends BaseEvent {
+  type: 'session_start'
+}
+
+export interface SessionEndEvent extends BaseEvent {
+  type: 'session_end'
+}
+
 export type ClaudeEvent =
   | PreToolUseEvent
   | PostToolUseEvent
   | StopEvent
   | UserPromptSubmitEvent
   | NotificationEvent
-  | BaseEvent
+  | SessionStartEvent
+  | SessionEndEvent
 
 // ═══════════════════════════════════════════════════════════════════════════
 // XP SYSTEM
@@ -217,13 +225,4 @@ export interface ApiResponse<T = unknown> {
   ok: boolean
   data?: T
   error?: string
-}
-
-export interface SendPromptRequest {
-  prompt: string
-}
-
-export interface CreateCompanionRequest {
-  name: string
-  repoPath: string
 }

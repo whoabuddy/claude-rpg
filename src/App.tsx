@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Dashboard } from './components/Dashboard'
 import { CompanionList } from './components/CompanionList'
 import { CompanionDetail } from './components/CompanionDetail'
@@ -27,14 +27,20 @@ export default function App() {
     notify,
   })
 
-  const handleSendPromptToSession = async (companionId: string, sessionId: string, prompt: string) => {
-    await sendPromptToSession(companionId, sessionId, prompt)
-  }
+  const handleSendPromptToSession = useCallback(
+    async (companionId: string, sessionId: string, prompt: string) => {
+      await sendPromptToSession(companionId, sessionId, prompt)
+    },
+    []
+  )
 
-  const handleSendPromptFromDetail = async (sessionId: string, prompt: string) => {
-    if (!selectedCompanion) return
-    await sendPromptToSession(selectedCompanion.id, sessionId, prompt)
-  }
+  const handleSendPromptFromDetail = useCallback(
+    async (sessionId: string, prompt: string) => {
+      if (!selectedCompanion) return
+      await sendPromptToSession(selectedCompanion.id, sessionId, prompt)
+    },
+    [selectedCompanion]
+  )
 
   const showNotificationBanner = permission === 'default' && !notificationsDismissed
 

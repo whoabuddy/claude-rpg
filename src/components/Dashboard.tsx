@@ -1,3 +1,4 @@
+import { useMemo, memo } from 'react'
 import type { Companion, Session } from '@shared/types'
 import { DashboardSessionCard } from './DashboardSessionCard'
 
@@ -11,31 +12,42 @@ interface SessionWithCompanion extends Session {
 }
 
 export function Dashboard({ companions, onSendPrompt }: DashboardProps) {
-  // Flatten all sessions with companion context
-  const allSessions: SessionWithCompanion[] = companions.flatMap(companion =>
-    companion.state.sessions.map(session => ({
-      ...session,
-      companion,
-    }))
-  )
+  // Memoize session grouping and sorting - expensive computation
+  const { waiting, error, working, idle, allSessions } = useMemo(() => {
+    // Flatten all sessions with companion context
+    const allSessions: SessionWithCompanion[] = companions.flatMap(companion =>
+      companion.state.sessions.map(session => ({
+        ...session,
+        companion,
+      }))
+    )
 
-  // Group by status priority: waiting > error > working > idle
-  const waiting = allSessions.filter(s => s.status === 'waiting')
-  const error = allSessions.filter(s => s.status === 'error')
-  const working = allSessions.filter(s => s.status === 'working')
-  const idle = allSessions.filter(s => s.status === 'idle')
+    // Group by status priority: waiting > error > working > idle
+    const waiting = allSessions.filter(s => s.status === 'waiting')
+    const error = allSessions.filter(s => s.status === 'error')
+    const working = allSessions.filter(s => s.status === 'working')
+    const idle = allSessions.filter(s => s.status === 'idle')
 
-  // Sort each group by lastActivity (most recent first)
-  const sortByActivity = (a: SessionWithCompanion, b: SessionWithCompanion) =>
-    b.lastActivity - a.lastActivity
+    // Sort each group by lastActivity (most recent first)
+    const sortByActivity = (a: SessionWithCompanion, b: SessionWithCompanion) =>
+      b.lastActivity - a.lastActivity
 
-  waiting.sort(sortByActivity)
-  error.sort(sortByActivity)
-  working.sort(sortByActivity)
-  idle.sort(sortByActivity)
+    waiting.sort(sortByActivity)
+    error.sort(sortByActivity)
+    working.sort(sortByActivity)
+    idle.sort(sortByActivity)
+
+    return { waiting, error, working, idle, allSessions }
+  }, [companions])
 
   const hasAnySessions = allSessions.length > 0
   const needsAttention = waiting.length + error.length
+
+  // Memoize combined sessions array
+  const needsAttentionSessions = useMemo(
+    () => [...waiting, ...error],
+    [waiting, error]
+  )
 
   return (
     <div className="p-4 space-y-6">
@@ -65,11 +77,10 @@ export function Dashboard({ companions, onSendPrompt }: DashboardProps) {
       ) : (
         <>
           {/* Needs Attention (waiting + error) */}
-          {(waiting.length > 0 || error.length > 0) && (
+          {needsAttentionSessions.length > 0 && (
             <SessionGroup
               title="Needs Attention"
-              count={needsAttention}
-              sessions={[...waiting, ...error]}
+              sessions={needsAttentionSessions}
               onSendPrompt={onSendPrompt}
               variant="attention"
             />
@@ -79,7 +90,6 @@ export function Dashboard({ companions, onSendPrompt }: DashboardProps) {
           {working.length > 0 && (
             <SessionGroup
               title="Working"
-              count={working.length}
               sessions={working}
               onSendPrompt={onSendPrompt}
               variant="working"
@@ -90,7 +100,6 @@ export function Dashboard({ companions, onSendPrompt }: DashboardProps) {
           {idle.length > 0 && (
             <SessionGroup
               title="Idle"
-              count={idle.length}
               sessions={idle}
               onSendPrompt={onSendPrompt}
               variant="idle"
@@ -102,25 +111,25 @@ export function Dashboard({ companions, onSendPrompt }: DashboardProps) {
   )
 }
 
+// Move variant styles to module scope to avoid recreation on every render
+const variantStyles = {
+  attention: 'text-rpg-waiting',
+  working: 'text-rpg-working',
+  idle: 'text-rpg-idle',
+} as const
+
 interface SessionGroupProps {
   title: string
-  count: number
   sessions: SessionWithCompanion[]
   onSendPrompt: (companionId: string, sessionId: string, prompt: string) => void
   variant: 'attention' | 'working' | 'idle'
 }
 
-function SessionGroup({ title, count, sessions, onSendPrompt, variant }: SessionGroupProps) {
-  const variantStyles = {
-    attention: 'text-rpg-waiting',
-    working: 'text-rpg-working',
-    idle: 'text-rpg-idle',
-  }
-
+const SessionGroup = memo(function SessionGroup({ title, sessions, onSendPrompt, variant }: SessionGroupProps) {
   return (
     <div>
       <h3 className={`text-sm font-medium mb-3 ${variantStyles[variant]}`}>
-        {title} ({count})
+        {title} ({sessions.length})
       </h3>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {sessions.map(session => (
@@ -134,4 +143,4 @@ function SessionGroup({ title, count, sessions, onSendPrompt, variant }: Session
       </div>
     </div>
   )
-}
+})

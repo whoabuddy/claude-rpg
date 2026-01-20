@@ -2,8 +2,14 @@ import http from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
 import { watch } from 'chokidar'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from 'fs'
+import { unlink } from 'fs/promises'
 import { join } from 'path'
+import { exec } from 'child_process'
+import { promisify } from 'util'
 import { DEFAULTS, expandPath } from '../shared/defaults.js'
+
+// Promisified exec for async operations
+const execAsync = promisify(exec)
 import type {
   ClaudeEvent,
   Companion,
@@ -12,7 +18,7 @@ import type {
   ApiResponse,
   TerminalOutput,
 } from '../shared/types.js'
-import { processEvent, detectCommandXP } from './xp.js'
+import { processEvent } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions, createSession, fetchBitcoinFace } from './companions.js'
 import type { Session, PendingQuestion, PreToolUseEvent } from '../shared/types.js'
 
@@ -135,7 +141,28 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
     }
   }
 
-  return base as ClaudeEvent
+  if (type === 'session_start') {
+    return {
+      ...base,
+      type: 'session_start',
+    }
+  }
+
+  if (type === 'session_end') {
+    return {
+      ...base,
+      type: 'session_end',
+    }
+  }
+
+  // Fallback to pre_tool_use for unknown event types
+  return {
+    ...base,
+    type: 'pre_tool_use',
+    tool: raw.tool_name || 'unknown',
+    toolUseId: raw.tool_use_id || '',
+    toolInput: raw.tool_input,
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -338,9 +365,6 @@ function scheduleIdleTimeout(companion: Companion, session: Session) {
 async function tmuxPaneExists(target: string): Promise<boolean> {
   if (!target) return false
   try {
-    const { exec } = await import('child_process')
-    const { promisify } = await import('util')
-    const execAsync = promisify(exec)
     await execAsync(`tmux has-session -t "${target.split('.')[0]}" 2>/dev/null`)
     return true
   } catch {
@@ -351,7 +375,7 @@ async function tmuxPaneExists(target: string): Promise<boolean> {
 // Clean up stale sessions and fix stuck "working" status
 async function cleanupStaleSessions() {
   const now = Date.now()
-  const staleActivityCutoff = now - SESSION_MAX_INACTIVE_MS // 2 hours
+  const staleActivityCutoff = now - SESSION_MAX_INACTIVE_MS // 30 minutes
   const stuckWorkingCutoff = now - 5 * 60 * 1000 // 5 minutes without activity = stuck
   let changed = false
 
@@ -429,17 +453,13 @@ const lastTerminalContent = new Map<string, string>()
 
 async function captureTerminal(tmuxTarget: string): Promise<string | null> {
   try {
-    const { exec } = await import('child_process')
-    const { promisify } = await import('util')
-    const execAsync = promisify(exec)
-
     // Capture last 30 lines of the tmux pane
     const { stdout } = await execAsync(
       `tmux capture-pane -p -t "${tmuxTarget}" -S -30 2>/dev/null || echo ""`,
       { timeout: 1000 }
     )
     return stdout.trim()
-  } catch (e) {
+  } catch {
     return null
   }
 }
@@ -489,6 +509,23 @@ async function broadcastTerminalUpdates() {
 
 // Capture terminal output every 500ms
 setInterval(broadcastTerminalUpdates, 500)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Tmux Prompt Helper
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function sendPromptToTmux(tmuxTarget: string, prompt: string): Promise<void> {
+  const tempFile = `/tmp/claude-rpg-prompt-${Date.now()}.txt`
+  writeFileSync(tempFile, prompt)
+
+  await execAsync(`tmux load-buffer ${tempFile}`)
+  await execAsync(`tmux paste-buffer -t ${tmuxTarget}`)
+  await new Promise(r => setTimeout(r, 100))
+  await execAsync(`tmux send-keys -t ${tmuxTarget} Enter`)
+
+  // Clean up temp file
+  await unlink(tempFile).catch(() => {})
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // File Watching
@@ -630,22 +667,7 @@ const server = http.createServer(async (req, res) => {
       try {
         const { prompt } = JSON.parse(body)
 
-        // Send to tmux via load-buffer/paste-buffer
-        const { exec } = await import('child_process')
-        const { promisify } = await import('util')
-        const execAsync = promisify(exec)
-
-        const tempFile = `/tmp/claude-rpg-prompt-${Date.now()}.txt`
-        writeFileSync(tempFile, prompt)
-
-        await execAsync(`tmux load-buffer ${tempFile}`)
-        await execAsync(`tmux paste-buffer -t ${session.tmuxTarget}`)
-        await new Promise(r => setTimeout(r, 100))
-        await execAsync(`tmux send-keys -t ${session.tmuxTarget} Enter`)
-
-        // Clean up temp file
-        const { unlink } = await import('fs/promises')
-        await unlink(tempFile).catch(() => {})
+        await sendPromptToTmux(session.tmuxTarget!, prompt)
 
         // Clear pending question after answering
         if (session.pendingQuestion) {
@@ -694,22 +716,7 @@ const server = http.createServer(async (req, res) => {
           return
         }
 
-        // Send to tmux via load-buffer/paste-buffer
-        const { exec } = await import('child_process')
-        const { promisify } = await import('util')
-        const execAsync = promisify(exec)
-
-        const tempFile = `/tmp/claude-rpg-prompt-${Date.now()}.txt`
-        writeFileSync(tempFile, prompt)
-
-        await execAsync(`tmux load-buffer ${tempFile}`)
-        await execAsync(`tmux paste-buffer -t ${session.tmuxTarget}`)
-        await new Promise(r => setTimeout(r, 100))
-        await execAsync(`tmux send-keys -t ${session.tmuxTarget} Enter`)
-
-        // Clean up temp file
-        const { unlink } = await import('fs/promises')
-        await unlink(tempFile).catch(() => {})
+        await sendPromptToTmux(session.tmuxTarget, prompt)
 
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ ok: true }))
@@ -743,9 +750,9 @@ wss.on('connection', (ws) => {
 
   ws.on('message', (data) => {
     try {
-      const message = JSON.parse(data.toString()) as ClientMessage
-      // Handle client messages if needed
-    } catch (e) {
+      const _message = JSON.parse(data.toString()) as ClientMessage
+      // TODO: Implement client message handling (subscribe, get_history)
+    } catch {
       // Ignore malformed messages
     }
   })
