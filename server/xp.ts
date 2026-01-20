@@ -183,9 +183,9 @@ function processPostToolUse(companion: Companion, event: PostToolUseEvent): XPGa
 
   // Check for special commands in Bash
   if (event.tool === 'Bash' && event.success) {
-    // Get command from event
-    const toolInput = (event as unknown as { toolInput?: { command?: string } }).toolInput
-    const command = toolInput?.command || ''
+    // Get command from event (toolInput is added during normalization)
+    const eventWithInput = event as PostToolUseEvent & { toolInput?: { command?: string } }
+    const command = eventWithInput.toolInput?.command || ''
 
     const commandXP = detectCommandXP(command)
     if (commandXP) {

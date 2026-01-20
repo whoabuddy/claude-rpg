@@ -14,6 +14,7 @@ export default defineConfig({
   },
   server: {
     port: CLIENT_PORT,
+    host: true,  // Expose on LAN
     proxy: {
       '/api': {
         target: `http://localhost:${SERVER_PORT}`,

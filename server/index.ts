@@ -50,10 +50,106 @@ function broadcast(message: ServerMessage) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Event Normalization (Claude Code hooks → internal format)
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface RawHookEvent {
+  hook_event_name?: string
+  hookType?: string
+  session_id?: string
+  sessionId?: string
+  tool_name?: string
+  tool_input?: Record<string, unknown>
+  tool_use_id?: string
+  tool_response?: unknown
+  cwd?: string
+  timestamp?: number
+  tmuxTarget?: string
+  prompt?: string
+  message?: string
+  [key: string]: unknown
+}
+
+function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
+  // Map hook event name to internal type
+  const hookName = raw.hook_event_name || raw.hookType || ''
+  const typeMap: Record<string, ClaudeEvent['type']> = {
+    PreToolUse: 'pre_tool_use',
+    PostToolUse: 'post_tool_use',
+    Stop: 'stop',
+    UserPromptSubmit: 'user_prompt_submit',
+    Notification: 'notification',
+    SessionStart: 'session_start',
+    SessionEnd: 'session_end',
+  }
+
+  const type = typeMap[hookName] || 'pre_tool_use'
+  const sessionId = raw.session_id || raw.sessionId || ''
+  const cwd = raw.cwd || ''
+  const timestamp = raw.timestamp || Date.now()
+  const tmuxTarget = raw.tmuxTarget || undefined
+
+  const base = { type, sessionId, cwd, timestamp, tmuxTarget }
+
+  if (type === 'pre_tool_use') {
+    return {
+      ...base,
+      type: 'pre_tool_use',
+      tool: raw.tool_name || '',
+      toolUseId: raw.tool_use_id || '',
+      toolInput: raw.tool_input,
+    }
+  }
+
+  if (type === 'post_tool_use') {
+    // Determine success from tool_response
+    const response = raw.tool_response as Record<string, unknown> | undefined
+    const success = response ? !response.error : true
+
+    return {
+      ...base,
+      type: 'post_tool_use',
+      tool: raw.tool_name || '',
+      toolUseId: raw.tool_use_id || '',
+      success,
+      toolResponse: raw.tool_response,
+      toolInput: raw.tool_input, // Include for command detection
+    } as ClaudeEvent
+  }
+
+  if (type === 'user_prompt_submit') {
+    return {
+      ...base,
+      type: 'user_prompt_submit',
+      prompt: raw.prompt || '',
+    }
+  }
+
+  if (type === 'notification') {
+    return {
+      ...base,
+      type: 'notification',
+      message: raw.message || '',
+    }
+  }
+
+  if (type === 'stop') {
+    return {
+      ...base,
+      type: 'stop',
+    }
+  }
+
+  return base as ClaudeEvent
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Event Processing
 // ═══════════════════════════════════════════════════════════════════════════
 
-function handleEvent(event: ClaudeEvent) {
+function handleEvent(rawEvent: RawHookEvent) {
+  // Normalize the event from Claude Code hook format to internal format
+  const event = normalizeEvent(rawEvent)
   // Dedupe
   const eventId = event.id || `${event.sessionId}-${event.timestamp}-${event.type}`
   if (seenEventIds.has(eventId)) return
