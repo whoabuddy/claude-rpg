@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, copyFileSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, copyFileSync, readFileSync, writeFileSync, chmodSync } from 'fs'
 import { join, dirname } from 'path'
 import { homedir } from 'os'
 import { fileURLToPath } from 'url'
@@ -12,7 +12,7 @@ const CLAUDE_SETTINGS_PATH = join(homedir(), '.claude', 'settings.json')
 const HOOK_SOURCE = join(__dirname, '..', 'hooks', 'claude-rpg-hook.sh')
 const HOOK_DEST = join(homedir(), '.claude-rpg', 'hooks', 'claude-rpg-hook.sh')
 
-function setup() {
+async function setup() {
   console.log('Setting up Claude RPG...\n')
 
   // 1. Create directories
@@ -30,7 +30,6 @@ function setup() {
   copyFileSync(HOOK_SOURCE, HOOK_DEST)
 
   // Make executable
-  const { chmodSync } = await import('fs')
   chmodSync(HOOK_DEST, 0o755)
   console.log(`  ✓ ${HOOK_DEST}`)
 
@@ -114,8 +113,8 @@ async function main() {
 
     case 'start':
     case undefined:
-      // Start server
-      const { default: startServer } = await import('./index.js')
+      // Start server (index.ts auto-starts when imported)
+      await import('./index.js')
       break
 
     case '--help':

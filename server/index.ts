@@ -38,6 +38,12 @@ const events: ClaudeEvent[] = []
 const clients = new Set<WebSocket>()
 const seenEventIds = new Set<string>()
 
+// Idle timeout tracking (companionId:sessionId -> timeout)
+const sessionIdleTimeouts = new Map<string, NodeJS.Timeout>()
+const IDLE_TIMEOUT_MS = 30000 // 30 seconds
+const SESSION_CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+const SESSION_MAX_INACTIVE_MS = 30 * 60 * 1000 // 30 minutes
+
 // ═══════════════════════════════════════════════════════════════════════════
 // WebSocket Broadcasting
 // ═══════════════════════════════════════════════════════════════════════════
@@ -55,22 +61,9 @@ function broadcast(message: ServerMessage) {
 // Event Normalization (Claude Code hooks → internal format)
 // ═══════════════════════════════════════════════════════════════════════════
 
-interface RawHookEvent {
-  hook_event_name?: string
-  hookType?: string
-  session_id?: string
-  sessionId?: string
-  tool_name?: string
-  tool_input?: Record<string, unknown>
-  tool_use_id?: string
-  tool_response?: unknown
-  cwd?: string
-  timestamp?: number
-  tmuxTarget?: string
-  prompt?: string
-  message?: string
-  [key: string]: unknown
-}
+// Events can come from Claude Code hooks (snake_case) or already-normalized format
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RawHookEvent = Record<string, any>
 
 function normalizeEvent(raw: RawHookEvent): ClaudeEvent {
   // Map hook event name to internal type
@@ -188,17 +181,34 @@ async function handleEvent(rawEvent: RawHookEvent) {
       session.lastActivity = event.timestamp
       if (event.tmuxTarget) {
         session.tmuxTarget = event.tmuxTarget
-        // Track for terminal capture (by session ID now)
-        sessionTmuxTargets.set(session.id, { companionId: companion.id, tmuxTarget: event.tmuxTarget })
       }
 
       // Update session status based on event type
       if (event.type === 'pre_tool_use') {
         const preEvent = event as PreToolUseEvent
+
+        // Cancel any pending idle timeout - session is actively working
+        const timeoutKey = `${companion.id}:${session.id}`
+        const existingTimeout = sessionIdleTimeouts.get(timeoutKey)
+        if (existingTimeout) {
+          clearTimeout(existingTimeout)
+          sessionIdleTimeouts.delete(timeoutKey)
+        }
+
         session.status = 'working'
+        session.lastError = undefined // Clear any previous error
         session.currentTool = preEvent.tool
         if (preEvent.toolInput) {
-          session.currentFile = (preEvent.toolInput.file_path || preEvent.toolInput.path) as string | undefined
+          const filePath = (preEvent.toolInput.file_path || preEvent.toolInput.path) as string | undefined
+          session.currentFile = filePath
+
+          // Track recent files for context (keep last 5 unique)
+          if (filePath && ['Read', 'Edit', 'Write'].includes(preEvent.tool)) {
+            const fileName = filePath.split('/').pop() || filePath
+            if (!session.recentFiles) session.recentFiles = []
+            // Add to front, remove duplicates, keep 5
+            session.recentFiles = [fileName, ...session.recentFiles.filter(f => f !== fileName)].slice(0, 5)
+          }
         }
 
         // Detect AskUserQuestion - set waiting status
@@ -223,12 +233,33 @@ async function handleEvent(rawEvent: RawHookEvent) {
           }
         }
       } else if (event.type === 'post_tool_use') {
+        const postEvent = event as import('../shared/types.js').PostToolUseEvent
         session.currentTool = undefined
         session.currentFile = undefined
-        // Clear pending question if AskUserQuestion completed
-        if (session.pendingQuestion) {
+
+        // Detect errors from tool response
+        if (!postEvent.success) {
+          session.status = 'error'
+          session.lastError = {
+            tool: postEvent.tool,
+            message: typeof postEvent.toolResponse === 'object' && postEvent.toolResponse !== null
+              ? (postEvent.toolResponse as Record<string, unknown>).error as string
+              : undefined,
+            timestamp: event.timestamp,
+          }
+          console.log(`[claude-rpg] Session "${session.name}" error in ${postEvent.tool}`)
+        } else if (session.pendingQuestion) {
+          // Clear pending question if AskUserQuestion completed
           session.pendingQuestion = undefined
           session.status = 'working'
+        } else if (session.status !== 'waiting') {
+          // Keep working status, but schedule idle timeout
+          session.lastError = undefined
+        }
+
+        // Schedule idle timeout after any tool completion
+        if (session.status === 'working') {
+          scheduleIdleTimeout(companion, session)
         }
       } else if (event.type === 'stop') {
         session.status = 'idle'
@@ -238,6 +269,14 @@ async function handleEvent(rawEvent: RawHookEvent) {
       } else if (event.type === 'user_prompt_submit') {
         session.status = 'working'
         session.pendingQuestion = undefined
+        // Track last prompt for context
+        const promptEvent = event as import('../shared/types.js').UserPromptSubmitEvent
+        if (promptEvent.prompt) {
+          // Truncate for display, keep first 100 chars
+          session.lastPrompt = promptEvent.prompt.length > 100
+            ? promptEvent.prompt.slice(0, 100) + '...'
+            : promptEvent.prompt
+        }
       }
     }
 
@@ -269,6 +308,97 @@ async function handleEvent(rawEvent: RawHookEvent) {
   broadcast({ type: 'event', payload: event })
 }
 
+// Schedule idle timeout for a session
+function scheduleIdleTimeout(companion: Companion, session: Session) {
+  const key = `${companion.id}:${session.id}`
+
+  // Clear existing timeout
+  const existing = sessionIdleTimeouts.get(key)
+  if (existing) clearTimeout(existing)
+
+  // Schedule new timeout
+  const timeout = setTimeout(() => {
+    // Only transition to idle if currently working (not waiting/error)
+    if (session.status === 'working') {
+      session.status = 'idle'
+      session.currentTool = undefined
+      session.currentFile = undefined
+      updateCompanionStatus(companion)
+      saveCompanions(DATA_DIR, companions)
+      broadcast({ type: 'companion_update', payload: companion })
+      console.log(`[claude-rpg] Session "${session.name}" idle timeout`)
+    }
+    sessionIdleTimeouts.delete(key)
+  }, IDLE_TIMEOUT_MS)
+
+  sessionIdleTimeouts.set(key, timeout)
+}
+
+// Check if a tmux pane exists
+async function tmuxPaneExists(target: string): Promise<boolean> {
+  if (!target) return false
+  try {
+    const { exec } = await import('child_process')
+    const { promisify } = await import('util')
+    const execAsync = promisify(exec)
+    await execAsync(`tmux has-session -t "${target.split('.')[0]}" 2>/dev/null`)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Clean up stale sessions and fix stuck "working" status
+async function cleanupStaleSessions() {
+  const now = Date.now()
+  const staleActivityCutoff = now - SESSION_MAX_INACTIVE_MS // 2 hours
+  const stuckWorkingCutoff = now - 5 * 60 * 1000 // 5 minutes without activity = stuck
+  let changed = false
+
+  for (const companion of companions) {
+    const before = companion.state.sessions.length
+    const validSessions: Session[] = []
+
+    for (const session of companion.state.sessions) {
+      // Check if tmux target still exists
+      const paneExists = await tmuxPaneExists(session.tmuxTarget || '')
+
+      if (!paneExists && session.tmuxTarget) {
+        // Pane doesn't exist - session is definitely gone
+        console.log(`[claude-rpg] Session "${session.name}" removed (tmux pane gone)`)
+        changed = true
+        continue
+      }
+
+      // Transition stuck "working" sessions to idle
+      if (session.status === 'working' && session.lastActivity < stuckWorkingCutoff) {
+        session.status = 'idle'
+        session.currentTool = undefined
+        session.currentFile = undefined
+        console.log(`[claude-rpg] Session "${session.name}" stuck working → idle`)
+        changed = true
+      }
+
+      // Keep session if: recent activity OR waiting for input
+      if (session.lastActivity > staleActivityCutoff || session.status === 'waiting') {
+        validSessions.push(session)
+      } else {
+        console.log(`[claude-rpg] Session "${session.name}" removed (stale)`)
+        changed = true
+      }
+    }
+
+    companion.state.sessions = validSessions
+
+    if (changed) {
+      updateCompanionStatus(companion)
+      broadcast({ type: 'companion_update', payload: companion })
+    }
+  }
+
+  if (changed) saveCompanions(DATA_DIR, companions)
+}
+
 // Update companion's aggregate status from sessions
 function updateCompanionStatus(companion: Companion) {
   const sessions = companion.state.sessions
@@ -295,8 +425,6 @@ function updateCompanionStatus(companion: Companion) {
 // Terminal Capture
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Track tmux targets per session (sessionId -> { companionId, tmuxTarget })
-const sessionTmuxTargets = new Map<string, { companionId: string; tmuxTarget: string }>()
 const lastTerminalContent = new Map<string, string>()
 
 async function captureTerminal(tmuxTarget: string): Promise<string | null> {
@@ -317,14 +445,35 @@ async function captureTerminal(tmuxTarget: string): Promise<string | null> {
 }
 
 async function broadcastTerminalUpdates() {
-  for (const [sessionId, { companionId, tmuxTarget }] of sessionTmuxTargets) {
+  // Build map of tmux target -> most recent ACTIVE session (directly from companions)
+  // Only working/waiting sessions should receive terminal output
+  const targetToLatestSession = new Map<string, { sessionId: string; companionId: string; lastActivity: number }>()
+
+  for (const companion of companions) {
+    for (const session of companion.state.sessions) {
+      if (!session.tmuxTarget) continue
+      // Only broadcast to active sessions (working or waiting for input)
+      if (session.status !== 'working' && session.status !== 'waiting') continue
+
+      const existing = targetToLatestSession.get(session.tmuxTarget)
+      if (!existing || session.lastActivity > existing.lastActivity) {
+        targetToLatestSession.set(session.tmuxTarget, {
+          sessionId: session.id,
+          companionId: companion.id,
+          lastActivity: session.lastActivity,
+        })
+      }
+    }
+  }
+
+  // Only broadcast to the most recent session for each tmux target
+  for (const [tmuxTarget, { sessionId, companionId }] of targetToLatestSession) {
     const content = await captureTerminal(tmuxTarget)
     if (content === null) continue
 
     // Only broadcast if content changed
-    const cacheKey = `${companionId}:${sessionId}`
-    if (lastTerminalContent.get(cacheKey) === content) continue
-    lastTerminalContent.set(cacheKey, content)
+    if (lastTerminalContent.get(tmuxTarget) === content) continue
+    lastTerminalContent.set(tmuxTarget, content)
 
     const output: TerminalOutput = {
       companionId,
@@ -613,6 +762,15 @@ wss.on('connection', (ws) => {
 
 loadEventsFromFile()
 watchEventsFile()
+
+// Run cleanup immediately to fix sessions loaded from history
+cleanupStaleSessions().catch(e => console.error('[claude-rpg] Cleanup error:', e))
+
+// Start session cleanup interval
+setInterval(() => {
+  cleanupStaleSessions().catch(e => console.error('[claude-rpg] Cleanup error:', e))
+}, SESSION_CLEANUP_INTERVAL_MS)
+console.log(`[claude-rpg] Session cleanup scheduled every ${SESSION_CLEANUP_INTERVAL_MS / 1000 / 60} minutes`)
 
 server.listen(PORT, () => {
   console.log(`[claude-rpg] Server running on port ${PORT}`)

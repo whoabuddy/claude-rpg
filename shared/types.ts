@@ -55,6 +55,12 @@ export interface PendingQuestion {
   timestamp: number
 }
 
+export interface SessionError {
+  tool: string
+  message?: string
+  timestamp: number
+}
+
 export interface Session {
   id: string                        // Claude session UUID
   name: string                      // English first name (deterministic from ID)
@@ -62,8 +68,11 @@ export interface Session {
   status: SessionStatus
   tmuxTarget?: string
   pendingQuestion?: PendingQuestion // When waiting for user input
+  lastError?: SessionError          // When status is 'error'
   currentTool?: string
   currentFile?: string
+  lastPrompt?: string               // Last user prompt (truncated for display)
+  recentFiles?: string[]            // Recently touched files (last 5 unique)
   createdAt: number
   lastActivity: number
 }
