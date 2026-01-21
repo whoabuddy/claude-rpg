@@ -428,7 +428,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
         sessionInfo.pendingQuestion = undefined
       } else if (event.type === 'user_prompt_submit') {
         sessionInfo.status = 'working'
-        sessionInfo.pendingQuestion = undefined
+        // Don't clear pendingQuestion here - multi-question flows need it
+        // It gets cleared on post_tool_use when AskUserQuestion completes
         const promptEvent = event as import('../shared/types.js').UserPromptSubmitEvent
         if (promptEvent.prompt) {
           sessionInfo.lastPrompt = promptEvent.prompt.length > 100
@@ -770,12 +771,31 @@ const server = http.createServer(async (req, res) => {
         const { prompt } = JSON.parse(body)
         await sendPromptToTmux(pane.target, prompt)
 
-        // Clear pending question if Claude pane
+        // Handle pending question - advance to next or clear if done
         if (pane.process.claudeSession?.pendingQuestion) {
-          updateClaudeSession(pane.id, {
-            pendingQuestion: undefined,
-            status: 'working',
-          })
+          const pq = pane.process.claudeSession.pendingQuestion
+          const nextIndex = pq.currentIndex + 1
+
+          if (nextIndex < pq.questions.length) {
+            // Advance to next question
+            const nextQ = pq.questions[nextIndex]
+            updateClaudeSession(pane.id, {
+              pendingQuestion: {
+                ...pq,
+                currentIndex: nextIndex,
+                question: nextQ.question,
+                options: nextQ.options,
+                multiSelect: nextQ.multiSelect,
+              },
+              status: 'waiting',
+            })
+          } else {
+            // All questions answered - clear and set to working
+            updateClaudeSession(pane.id, {
+              pendingQuestion: undefined,
+              status: 'working',
+            })
+          }
           savePanesCache()
           broadcast({ type: 'pane_update', payload: pane })
         }
