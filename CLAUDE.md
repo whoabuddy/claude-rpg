@@ -141,6 +141,7 @@ claude-rpg/
 | `/api/panes/:id` | GET | Get single pane detail |
 | `/api/panes/:id/prompt` | POST | Send prompt/input to pane |
 | `/api/panes/:id/signal` | POST | Send signal (e.g., SIGINT for Ctrl+C) |
+| `/api/panes/:id/dismiss` | POST | Dismiss waiting status (set to ready) |
 | `/api/companions` | GET | List all companions (XP/stats) |
 
 ## WebSocket Messages
