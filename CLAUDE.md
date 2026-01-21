@@ -98,35 +98,19 @@ StreakInfo {
 
 ```
 claude-rpg/
-├── server/           # Node.js WebSocket server
-│   ├── index.ts      # Main server, event processing, WebSocket
-│   ├── tmux.ts       # Tmux polling, process detection, session cache
-│   ├── companions.ts # Companion XP/stats, Bitcoin faces
-│   ├── competitions.ts # Streak tracking, leaderboard calculations
-│   ├── xp.ts         # XP calculation, command detection
-│   ├── utils.ts      # Shared utilities
-│   └── cli.ts        # CLI for setup and running
-├── src/              # React + Tailwind frontend
-│   ├── components/   # UI components
-│   │   ├── OverviewDashboard.tsx # All panes in stable order
-│   │   ├── CompetitionsPage.tsx  # Leaderboards and competitions
-│   │   ├── LeaderboardCard.tsx   # Single category leaderboard
-│   │   ├── PaneCard.tsx          # Expandable pane card (Claude + Process)
-│   │   └── ConnectionStatus.tsx  # WebSocket status indicator
-│   ├── hooks/        # React hooks
-│   │   ├── useWindows.ts         # Window/pane state with deep equality
-│   │   ├── usePaneTerminal.ts    # Terminal content by paneId
-│   │   ├── useWebSocket.ts       # WebSocket connection
-│   │   ├── useCompanions.ts      # Companion stats (for XP display)
-│   │   ├── useCompetitions.ts    # Competition leaderboards
-│   │   └── useNotifications.ts   # Browser notifications
+├── server/           # Node.js backend - WebSocket server, tmux polling, XP system
+├── src/              # React frontend
+│   ├── components/   # UI components (pane cards, dashboard, leaderboards, voice input)
+│   ├── hooks/        # React hooks (WebSocket, windows, notifications, voice)
 │   └── styles/       # Tailwind CSS
-├── shared/           # Shared types between server/client
-│   ├── types.ts      # TypeScript interfaces
-│   └── defaults.ts   # Configuration defaults
-└── hooks/            # Claude Code hook script
-    └── claude-rpg-hook.sh
+├── shared/           # Shared TypeScript types and defaults
+└── hooks/            # Claude Code hook script (claude-rpg-hook.sh)
 ```
+
+Key entry points:
+- `server/index.ts` - Main server, event processing, all API endpoints
+- `src/App.tsx` - React app root
+- `shared/types.ts` - All TypeScript interfaces
 
 ## Data Flow
 
