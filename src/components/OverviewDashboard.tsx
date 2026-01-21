@@ -122,6 +122,15 @@ export function OverviewDashboard({
     })
   }
 
+  const allCollapsed = windowGroups.length > 0 && collapsedWindows.size === windowGroups.length
+  const toggleAllWindows = () => {
+    if (allCollapsed) {
+      setCollapsedWindows(new Set())
+    } else {
+      setCollapsedWindows(new Set(windowGroups.map(g => g.window.id)))
+    }
+  }
+
   return (
     <div className="p-4 space-y-4">
       {/* Header */}
@@ -137,6 +146,15 @@ export function OverviewDashboard({
           )}
         </div>
         <div className="flex items-center gap-3">
+          {windowGroups.length > 1 && (
+            <button
+              onClick={toggleAllWindows}
+              className="px-2 py-1 text-xs rounded bg-rpg-card text-rpg-text-muted hover:text-rpg-text hover:bg-rpg-card-hover transition-colors"
+              title={allCollapsed ? 'Expand all windows' : 'Collapse all windows'}
+            >
+              {allCollapsed ? '▼ All' : '▲ All'}
+            </button>
+          )}
           <button
             onClick={onNavigateToCompetitions}
             className="px-2 py-1 text-xs rounded bg-rpg-card text-rpg-text-muted hover:text-rpg-accent hover:bg-rpg-card-hover transition-colors"

@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { SessionStatus, TmuxWindow, TmuxPane } from '@shared/types'
 
+const DEFAULT_ICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👹</text></svg>"
+
+function svgToDataUrl(svg: string): string {
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
 type NotificationPermissionState = NotificationPermission | 'unsupported'
 
 interface UseNotificationsResult {
@@ -36,7 +42,7 @@ export function useNotifications(): UseNotificationsResult {
     }
 
     const notification = new Notification(title, {
-      icon: '/favicon.ico',
+      icon: DEFAULT_ICON,
       ...options,
     })
 
@@ -99,6 +105,7 @@ export function usePaneNotifications({
           const prevStatus = prev.lastStatus as SessionStatus
 
           // P1: Needs attention (waiting/error)
+          const icon = session.avatarSvg ? svgToDataUrl(session.avatarSvg) : undefined
           if (session.status === 'waiting' && prevStatus !== 'waiting') {
             const pq = session.pendingQuestion
             const question = pq ? pq.questions[pq.currentIndex]?.question : 'needs input'
@@ -106,6 +113,7 @@ export function usePaneNotifications({
               body: `${pane.repo?.name || 'Unknown'}: ${question}`,
               tag: `pane-${paneId}`,
               requireInteraction: true,
+              icon,
             })
           } else if (session.status === 'error' && prevStatus !== 'error') {
             const errorInfo = session.lastError
@@ -115,6 +123,7 @@ export function usePaneNotifications({
               body: pane.repo?.name || 'Unknown',
               tag: `pane-${paneId}`,
               requireInteraction: true,
+              icon,
             })
           }
 
@@ -123,6 +132,7 @@ export function usePaneNotifications({
             notify(`${session.name} finished`, {
               body: `${pane.repo?.name || 'Task'} complete`,
               tag: `pane-${paneId}-done`,
+              icon,
             })
           }
 
