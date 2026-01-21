@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import type { PendingQuestion } from '@shared/types'
 
+// Helper for progress dot styling
+function getProgressDotClass(index: number, currentIndex: number): string {
+  if (index === currentIndex) return 'bg-rpg-accent'
+  if (index < currentIndex) return 'bg-rpg-success'
+  return 'bg-rpg-border'
+}
+
 interface QuestionInputProps {
   pendingQuestion: PendingQuestion
   onAnswer: (answer: string) => void
@@ -30,6 +37,7 @@ export const QuestionInput = memo(function QuestionInput({
     setFocusedIndex(0)
     setCustomAnswer('')
     setSelectedOptions(new Set())
+    buttonRefs.current = []
   }, [pendingQuestion.toolUseId, currentIndex])
 
   // Focus management
@@ -46,6 +54,9 @@ export const QuestionInput = memo(function QuestionInput({
 
   // Check if there's anything to submit
   const canSubmit = selectedOptions.size > 0 || customAnswer.trim().length > 0
+
+  // Check if focus is on a valid option button
+  const isOnOption = focusedIndex >= 0 && focusedIndex < options.length
 
   const toggleOption = useCallback((index: number) => {
     setSelectedOptions(prev => {
@@ -128,7 +139,7 @@ export const QuestionInput = memo(function QuestionInput({
         break
 
       case 'Enter':
-        if (focusedIndex >= 0 && focusedIndex < options.length) {
+        if (isOnOption) {
           e.preventDefault()
           handleOptionSelect(focusedIndex)
         }
@@ -136,7 +147,7 @@ export const QuestionInput = memo(function QuestionInput({
 
       case ' ':
         // Space for multi-select toggle (only on option buttons)
-        if (currentQuestion.multiSelect && focusedIndex >= 0 && focusedIndex < options.length) {
+        if (currentQuestion.multiSelect && isOnOption) {
           e.preventDefault()
           toggleOption(focusedIndex)
         }
@@ -148,7 +159,7 @@ export const QuestionInput = memo(function QuestionInput({
         }
         break
     }
-  }, [options.length, focusedIndex, currentQuestion.multiSelect, isCustomInputFocused, canSubmit, handleSubmit, handleOptionSelect, toggleOption])
+  }, [options.length, focusedIndex, currentQuestion.multiSelect, isCustomInputFocused, isOnOption, canSubmit, handleSubmit, handleOptionSelect, toggleOption])
 
   // Question progress indicator for multiple questions
   const showProgress = questions.length > 1
@@ -167,13 +178,7 @@ export const QuestionInput = memo(function QuestionInput({
             {questions.map((_, i) => (
               <div
                 key={i}
-                className={`w-2 h-2 rounded-full ${
-                  i === currentIndex
-                    ? 'bg-rpg-accent'
-                    : i < currentIndex
-                    ? 'bg-rpg-success'
-                    : 'bg-rpg-border'
-                }`}
+                className={`w-2 h-2 rounded-full ${getProgressDotClass(i, currentIndex)}`}
               />
             ))}
           </div>

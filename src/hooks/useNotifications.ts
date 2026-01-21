@@ -100,7 +100,8 @@ export function usePaneNotifications({
 
           // P1: Needs attention (waiting/error)
           if (session.status === 'waiting' && prevStatus !== 'waiting') {
-            const question = session.pendingQuestion?.question || 'needs input'
+            const pq = session.pendingQuestion
+            const question = pq ? pq.questions[pq.currentIndex]?.question : 'needs input'
             notify(`${session.name} needs input`, {
               body: `${pane.repo?.name || 'Unknown'}: ${question}`,
               tag: `pane-${paneId}`,

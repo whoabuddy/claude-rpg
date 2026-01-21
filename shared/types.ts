@@ -42,10 +42,6 @@ export interface PendingQuestion {
   // Tool tracking
   toolUseId: string
   timestamp: number
-  // Convenience accessors (derived from questions[currentIndex])
-  question: string
-  options: QuestionOption[]
-  multiSelect: boolean
 }
 
 export interface SessionError {

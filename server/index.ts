@@ -64,6 +64,7 @@ const seenEventIds = new Set<string>()
 const TMUX_POLL_INTERVAL_MS = 1000 // 1 second
 const TERMINAL_ACTIVE_INTERVAL_MS = 500 // 500ms for active panes
 const TERMINAL_IDLE_INTERVAL_MS = 2000 // 2s for idle panes
+const PASTE_SETTLE_MS = 100 // Delay after paste before sending Enter
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Pane Cache Persistence
@@ -338,16 +339,11 @@ async function handleEvent(rawEvent: RawHookEvent) {
               multiSelect: q.multiSelect || false,
             }))
 
-            const current = questions[0]
             sessionInfo.pendingQuestion = {
               questions,
               currentIndex: 0,
               toolUseId: preEvent.toolUseId,
               timestamp: event.timestamp,
-              // Convenience accessors for current question
-              question: current.question,
-              options: current.options,
-              multiSelect: current.multiSelect,
             }
           }
         }
@@ -357,6 +353,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
           sessionInfo.status = 'waiting'
 
           // Default TUI options for plan approval
+          // NOTE: These are fallback defaults that approximate Claude Code's TUI options.
+          // Update if Claude Code's plan approval flow changes.
           const defaultPlanOptions = [
             { label: 'Yes, clear context and manually bypass permission', description: 'Approve and reset context, bypass permissions manually' },
             { label: 'Yes, and manually approve edits', description: 'Approve but manually review each edit' },
@@ -391,10 +389,6 @@ async function handleEvent(rawEvent: RawHookEvent) {
             currentIndex: 0,
             toolUseId: preEvent.toolUseId,
             timestamp: event.timestamp,
-            // Convenience accessors
-            question: planQuestion.question,
-            options: planQuestion.options,
-            multiSelect: planQuestion.multiSelect,
           }
         }
 
@@ -623,7 +617,7 @@ async function sendPromptToTmux(target: string, prompt: string): Promise<void> {
 
   await execAsync(`tmux load-buffer ${tempFile}`)
   await execAsync(`tmux paste-buffer -t "${target}"`)
-  await new Promise(r => setTimeout(r, 100))
+  await new Promise(r => setTimeout(r, PASTE_SETTLE_MS))
   await execAsync(`tmux send-keys -t "${target}" Enter`)
 
   await unlink(tempFile).catch(() => {})
@@ -778,14 +772,10 @@ const server = http.createServer(async (req, res) => {
 
           if (nextIndex < pq.questions.length) {
             // Advance to next question
-            const nextQ = pq.questions[nextIndex]
             updateClaudeSession(pane.id, {
               pendingQuestion: {
                 ...pq,
                 currentIndex: nextIndex,
-                question: nextQ.question,
-                options: nextQ.options,
-                multiSelect: nextQ.multiSelect,
               },
               status: 'waiting',
             })

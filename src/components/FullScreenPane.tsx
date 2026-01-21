@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { TmuxPane, TmuxWindow } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
-import { STATUS_LABELS, STATUS_COLORS } from '../constants/status'
+import { STATUS_LABELS, getStatusColor } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
 
 interface FullScreenPaneProps {
@@ -38,7 +38,7 @@ export function FullScreenPane({
     : pane.process.typing ? 'typing' : pane.process.type
 
   const statusLabel = STATUS_LABELS[status] || status
-  const statusColor = STATUS_COLORS[status] || 'bg-rpg-idle'
+  const statusColor = getStatusColor(status)
 
   // Handle Escape key to close
   useEffect(() => {
