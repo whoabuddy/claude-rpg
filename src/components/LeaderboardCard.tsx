@@ -1,4 +1,4 @@
-import type { Competition, LeaderboardEntry, CompetitionCategory } from '@shared/types'
+import type { Competition, LeaderboardEntry } from '@shared/types'
 
 interface LeaderboardCardProps {
   competition: Competition | undefined
@@ -13,11 +13,11 @@ function TrophyIcon({ rank }: { rank: number }) {
     // Gold trophy
     return (
       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-        <path d="M12 15c-2.21 0-4-1.79-4-4V4h8v7c0 2.21-1.79 4-4 4z" fill="#FFD700" stroke="#DAA520" strokeWidth="1"/>
-        <path d="M8 4H5c0 2.5 1.5 4 3 4V4z" fill="#FFD700" stroke="#DAA520" strokeWidth="1"/>
-        <path d="M16 4h3c0 2.5-1.5 4-3 4V4z" fill="#FFD700" stroke="#DAA520" strokeWidth="1"/>
-        <path d="M9 15h6v2H9z" fill="#FFD700"/>
-        <path d="M7 17h10v3H7z" fill="#DAA520"/>
+        <path d="M12 15c-2.21 0-4-1.79-4-4V4h8v7c0 2.21-1.79 4-4 4z" className="fill-rpg-gold stroke-rpg-gold-dim" strokeWidth="1"/>
+        <path d="M8 4H5c0 2.5 1.5 4 3 4V4z" className="fill-rpg-gold stroke-rpg-gold-dim" strokeWidth="1"/>
+        <path d="M16 4h3c0 2.5-1.5 4-3 4V4z" className="fill-rpg-gold stroke-rpg-gold-dim" strokeWidth="1"/>
+        <path d="M9 15h6v2H9z" className="fill-rpg-gold"/>
+        <path d="M7 17h10v3H7z" className="fill-rpg-gold-dim"/>
       </svg>
     )
   }
@@ -25,8 +25,8 @@ function TrophyIcon({ rank }: { rank: number }) {
     // Silver medal
     return (
       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="8" fill="#C0C0C0" stroke="#A8A8A8" strokeWidth="1"/>
-        <text x="12" y="16" textAnchor="middle" fontSize="10" fill="#666" fontWeight="bold">2</text>
+        <circle cx="12" cy="12" r="8" className="fill-rpg-silver stroke-rpg-silver-dim" strokeWidth="1"/>
+        <text x="12" y="16" textAnchor="middle" fontSize="10" className="fill-rpg-text-dim" fontWeight="bold">2</text>
       </svg>
     )
   }
@@ -34,8 +34,8 @@ function TrophyIcon({ rank }: { rank: number }) {
     // Bronze medal
     return (
       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="8" fill="#CD7F32" stroke="#8B4513" strokeWidth="1"/>
-        <text x="12" y="16" textAnchor="middle" fontSize="10" fill="#4a2c0a" fontWeight="bold">3</text>
+        <circle cx="12" cy="12" r="8" className="fill-rpg-bronze stroke-rpg-bronze-dim" strokeWidth="1"/>
+        <text x="12" y="16" textAnchor="middle" fontSize="10" className="fill-rpg-bg" fontWeight="bold">3</text>
       </svg>
     )
   }
@@ -50,14 +50,14 @@ function getRankDisplay(rank: number): string | null {
 
 function getRankClass(rank: number): string {
   switch (rank) {
-    case 1: return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50'
-    case 2: return 'bg-gray-400/20 text-gray-300 border-gray-400/50'
-    case 3: return 'bg-orange-600/20 text-orange-400 border-orange-600/50'
-    default: return 'bg-rpg-card text-rpg-idle border-rpg-border/30'
+    case 1: return 'bg-rpg-gold/20 text-rpg-gold border-rpg-gold-dim'
+    case 2: return 'bg-rpg-silver/20 text-rpg-silver border-rpg-silver-dim'
+    case 3: return 'bg-rpg-bronze/20 text-rpg-bronze border-rpg-bronze-dim'
+    default: return 'bg-rpg-card text-rpg-text-muted border-rpg-border-dim'
   }
 }
 
-function formatValue(value: number, category: CompetitionCategory): string {
+function formatValue(value: number): string {
   if (value >= 1000000) {
     return (value / 1000000).toFixed(1) + 'M'
   }
@@ -67,14 +67,14 @@ function formatValue(value: number, category: CompetitionCategory): string {
   return value.toLocaleString()
 }
 
-function EntryRow({ entry, unit, category }: { entry: LeaderboardEntry; unit: string; category: CompetitionCategory }) {
+function EntryRow({ entry, unit }: { entry: LeaderboardEntry; unit: string }) {
   const isTopThree = entry.rank <= 3
   const rankText = getRankDisplay(entry.rank)
 
   return (
     <div
       className={`flex items-center gap-2 px-2 py-1.5 rounded transition-colors ${
-        isTopThree ? 'bg-rpg-card/50' : ''
+        isTopThree ? 'bg-rpg-card' : ''
       }`}
     >
       {/* Rank badge - trophy for top 3, number badge for others */}
@@ -85,22 +85,22 @@ function EntryRow({ entry, unit, category }: { entry: LeaderboardEntry; unit: st
       </span>
 
       {/* Name */}
-      <span className="flex-1 text-sm truncate text-rpg-text/90">
+      <span className="flex-1 text-sm truncate text-rpg-text">
         {entry.companionName}
       </span>
 
       {/* Streak indicator */}
       {entry.streak.current > 0 && (
-        <span className="text-xs text-rpg-waiting" title={`${entry.streak.current} day streak`}>
+        <span className="text-xs text-rpg-streak" title={`${entry.streak.current} day streak`}>
           {entry.streak.current}d
         </span>
       )}
 
       {/* Value */}
       <span className="text-sm font-mono text-rpg-accent tabular-nums">
-        {formatValue(entry.value, category)}
+        {formatValue(entry.value)}
       </span>
-      <span className="text-xs text-rpg-idle/60 w-10">
+      <span className="text-xs text-rpg-text-dim w-10">
         {unit}
       </span>
     </div>
@@ -117,23 +117,22 @@ export function LeaderboardCard({
   const filteredEntries = entries.filter(e => e.value > 0)
 
   return (
-    <div className="rounded-lg border border-rpg-border/50 bg-rpg-bg/50">
+    <div className="rounded-lg border border-rpg-border bg-rpg-bg-elevated">
       {/* Header */}
-      <div className="px-3 py-2 border-b border-rpg-border/30">
+      <div className="px-3 py-2 border-b border-rpg-border-dim">
         <h3 className="text-sm font-medium text-rpg-text">{title}</h3>
       </div>
 
       {/* Entries */}
       <div className="p-2 space-y-1">
         {filteredEntries.length === 0 ? (
-          <p className="text-center text-sm text-rpg-idle/60 py-4">{emptyMessage}</p>
+          <p className="text-center text-sm text-rpg-text-dim py-4">{emptyMessage}</p>
         ) : (
           filteredEntries.slice(0, 5).map(entry => (
             <EntryRow
               key={entry.companionId}
               entry={entry}
               unit={unit}
-              category={competition!.category}
             />
           ))
         )}
@@ -148,13 +147,12 @@ function FireIcon() {
     <svg className="w-3.5 h-3.5 inline-block" viewBox="0 0 24 24" fill="none">
       <path
         d="M12 2c0 4-3 6-3 10 0 3.31 2.69 6 6 6 1.66 0 3.16-.67 4.24-1.76C18.16 17.33 17 18.99 15 20c-4 2-8 0-9-4-.5-2 0-4 1-6 .5-1 1.5-3 2-4 1-2 3-4 3-4z"
-        fill="#FF6B35"
-        stroke="#FF4500"
+        className="fill-rpg-streak stroke-rpg-error"
         strokeWidth="1"
       />
       <path
         d="M12 22c-2.21 0-4-1.79-4-4 0-2 2-4 2-4s2 2 2 4c0 2.21-0 4 0 4z"
-        fill="#FFD93D"
+        className="fill-rpg-streak-inner"
       />
     </svg>
   )
@@ -172,9 +170,9 @@ export function StreakCard({ entries }: StreakCardProps) {
     .sort((a, b) => b.streak.current - a.streak.current)
 
   return (
-    <div className="rounded-lg border border-rpg-border/50 bg-rpg-bg/50">
+    <div className="rounded-lg border border-rpg-border bg-rpg-bg-elevated">
       {/* Header */}
-      <div className="px-3 py-2 border-b border-rpg-border/30 flex items-center gap-2">
+      <div className="px-3 py-2 border-b border-rpg-border-dim flex items-center gap-2">
         <FireIcon />
         <h3 className="text-sm font-medium text-rpg-text">Active Streaks</h3>
       </div>
@@ -182,7 +180,7 @@ export function StreakCard({ entries }: StreakCardProps) {
       {/* Entries */}
       <div className="p-2 space-y-1">
         {sortedEntries.length === 0 ? (
-          <p className="text-center text-sm text-rpg-idle/60 py-4">No active streaks</p>
+          <p className="text-center text-sm text-rpg-text-dim py-4">No active streaks</p>
         ) : (
           sortedEntries.slice(0, 5).map((entry, idx) => {
             const rank = idx + 1
@@ -191,7 +189,7 @@ export function StreakCard({ entries }: StreakCardProps) {
               <div
                 key={entry.companionId}
                 className={`flex items-center gap-2 px-2 py-1.5 rounded ${
-                  isTopThree ? 'bg-rpg-card/50' : ''
+                  isTopThree ? 'bg-rpg-card' : ''
                 }`}
               >
                 {/* Rank badge - trophy for top 3 */}
@@ -202,22 +200,22 @@ export function StreakCard({ entries }: StreakCardProps) {
                 </span>
 
                 {/* Name */}
-                <span className="flex-1 text-sm truncate text-rpg-text/90">
+                <span className="flex-1 text-sm truncate text-rpg-text">
                   {entry.companionName}
                 </span>
 
                 {/* Current streak with fire */}
-                <span className="flex items-center gap-1 text-sm font-mono text-rpg-waiting tabular-nums">
+                <span className="flex items-center gap-1 text-sm font-mono text-rpg-streak tabular-nums">
                   <FireIcon />
                   {entry.streak.current}
                 </span>
-                <span className="text-xs text-rpg-idle/60 w-10">
+                <span className="text-xs text-rpg-text-dim w-10">
                   days
                 </span>
 
                 {/* Longest streak badge */}
                 {entry.streak.longest > entry.streak.current && (
-                  <span className="text-xs text-rpg-idle/40" title="Best streak">
+                  <span className="text-xs text-rpg-text-dim" title="Best streak">
                     (best: {entry.streak.longest})
                   </span>
                 )}

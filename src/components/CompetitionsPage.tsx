@@ -38,7 +38,7 @@ export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPage
         <div className="flex items-center gap-3">
           <button
             onClick={onNavigateBack}
-            className="p-2 -ml-2 text-rpg-idle hover:text-rpg-text transition-colors"
+            className="p-2 -ml-2 text-rpg-text-muted hover:text-rpg-text transition-colors"
             title="Back to Dashboard"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,7 +59,7 @@ export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPage
             className={`flex-1 px-3 py-1.5 text-sm rounded transition-colors ${
               period === p
                 ? 'bg-rpg-accent text-rpg-bg font-medium'
-                : 'text-rpg-idle hover:text-rpg-text'
+                : 'text-rpg-text-muted hover:text-rpg-text'
             }`}
           >
             {PERIOD_LABELS[p]}
@@ -126,9 +126,9 @@ export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPage
 
       {/* Empty state */}
       {!loading && competitions.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 text-rpg-idle">
+        <div className="flex flex-col items-center justify-center py-12 text-rpg-text-muted">
           <p className="text-lg mb-2">No competition data yet</p>
-          <p className="text-sm text-rpg-idle/70">Start using Claude Code to earn XP and climb the leaderboards!</p>
+          <p className="text-sm text-rpg-text-dim">Start using Claude Code to earn XP and climb the leaderboards!</p>
         </div>
       )}
     </div>

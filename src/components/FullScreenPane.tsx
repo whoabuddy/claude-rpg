@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { TmuxPane, TmuxWindow, ClaudeSessionInfo } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
+import { STATUS_LABELS, STATUS_COLORS, getStatusColor } from '../constants/status'
 
 interface FullScreenPaneProps {
   pane: TmuxPane
@@ -11,26 +12,6 @@ interface FullScreenPaneProps {
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
   proMode: boolean
-}
-
-const statusLabels: Record<string, string> = {
-  idle: 'Ready',
-  typing: 'Active',
-  working: 'Working',
-  waiting: 'Waiting',
-  error: 'Error',
-  shell: 'Shell',
-  process: 'Running',
-}
-
-const statusColors: Record<string, string> = {
-  idle: 'bg-rpg-ready',
-  typing: 'bg-rpg-active',
-  working: 'bg-rpg-working',
-  waiting: 'bg-rpg-waiting',
-  error: 'bg-rpg-error',
-  shell: 'bg-rpg-ready',
-  process: 'bg-rpg-active',
 }
 
 export function FullScreenPane({
@@ -55,8 +36,8 @@ export function FullScreenPane({
     ? session.status
     : pane.process.typing ? 'typing' : pane.process.type
 
-  const statusLabel = statusLabels[status] || status
-  const statusColor = statusColors[status] || 'bg-rpg-ready'
+  const statusLabel = STATUS_LABELS[status] || status
+  const statusColor = STATUS_COLORS[status] || 'bg-rpg-idle'
 
   // Handle Escape key to close
   useEffect(() => {
@@ -116,7 +97,7 @@ export function FullScreenPane({
         {/* Close button */}
         <button
           onClick={onClose}
-          className="w-10 h-10 flex items-center justify-center rounded-lg bg-rpg-bg hover:bg-rpg-border transition-colors"
+          className="w-10 h-10 flex items-center justify-center rounded-lg bg-rpg-bg-elevated hover:bg-rpg-border transition-colors"
           title="Close (Escape)"
         >
           <span className="text-xl">←</span>
@@ -139,7 +120,7 @@ export function FullScreenPane({
             </div>
           )
         ) : (
-          <div className="w-10 h-10 rounded-full bg-rpg-bg flex items-center justify-center text-lg font-mono flex-shrink-0 text-rpg-idle">
+          <div className="w-10 h-10 rounded-full bg-rpg-bg-elevated flex items-center justify-center text-lg font-mono flex-shrink-0 text-rpg-text-muted">
             {pane.process.type === 'shell' ? '$' : '>'}
           </div>
         )}
@@ -157,7 +138,7 @@ export function FullScreenPane({
                 </span>
                 {pane.repo.branch && (
                   <>
-                    <span className="text-rpg-idle/50">:</span>
+                    <span className="text-rpg-text-dim">:</span>
                     <span className="text-rpg-working">{pane.repo.branch}</span>
                   </>
                 )}
@@ -173,7 +154,7 @@ export function FullScreenPane({
               </div>
             )}
           </div>
-          <div className="text-sm text-rpg-idle/70">
+          <div className="text-sm text-rpg-text-muted">
             {window.sessionName}:{window.windowName}
             {pane.repo?.upstream && (
               <span className="ml-2">
@@ -188,13 +169,13 @@ export function FullScreenPane({
           {status === 'waiting' && (
             <button
               onClick={handleDismiss}
-              className="px-2 py-1 text-xs bg-rpg-ready/30 hover:bg-rpg-ready/50 text-rpg-text/70 rounded transition-colors"
+              className="px-2 py-1 text-xs bg-rpg-idle/30 hover:bg-rpg-idle/50 text-rpg-text-muted rounded transition-colors"
               title="Dismiss waiting"
             >
               ✓
             </button>
           )}
-          <span className="text-sm text-rpg-idle/70">{statusLabel}</span>
+          <span className="text-sm text-rpg-text-muted">{statusLabel}</span>
           <div className={`w-3 h-3 rounded-full ${statusColor} ${
             status === 'working' || status === 'typing' || status === 'process' ? 'animate-pulse' : ''
           }`} />
@@ -204,7 +185,7 @@ export function FullScreenPane({
         {attentionCount > 0 && (
           <button
             onClick={onClose}
-            className="px-2 py-1 rounded bg-rpg-waiting/20 text-rpg-waiting text-sm font-medium animate-pulse"
+            className="px-2 py-1 rounded status-bg-waiting text-rpg-waiting text-sm font-medium animate-pulse"
             title="Other panes need attention"
           >
             {attentionCount} waiting
@@ -214,14 +195,14 @@ export function FullScreenPane({
 
       {/* Pending Question */}
       {isClaudePane && session?.pendingQuestion && (
-        <div className="px-4 py-3 bg-rpg-waiting/10 border-b border-rpg-waiting/30">
+        <div className="px-4 py-3 status-bg-waiting border-b border-rpg-waiting">
           <p className="text-sm font-medium mb-2">{session.pendingQuestion.question}</p>
           <div className="flex flex-wrap gap-2">
             {session.pendingQuestion.options.map((opt, i) => (
               <button
                 key={i}
                 onClick={() => handleAnswer(opt.label)}
-                className="px-3 py-2 text-sm bg-rpg-accent/20 hover:bg-rpg-accent/40 rounded border border-rpg-accent/50 transition-colors active:scale-95"
+                className="px-3 py-2 text-sm bg-rpg-accent/20 hover:bg-rpg-accent/40 rounded border border-rpg-accent transition-colors active:scale-95"
                 title={opt.description}
               >
                 {opt.label}
@@ -235,9 +216,9 @@ export function FullScreenPane({
       <div className="flex-1 overflow-hidden p-4">
         <pre
           ref={terminalRef}
-          className="h-full bg-rpg-bg/80 rounded-lg p-4 text-sm font-mono text-rpg-working overflow-auto whitespace-pre-wrap border border-rpg-border"
+          className="h-full bg-rpg-bg rounded-lg p-4 text-sm font-mono text-rpg-working overflow-auto whitespace-pre-wrap border border-rpg-border-dim"
         >
-          {terminalContent || <span className="text-rpg-idle/50">Waiting for activity...</span>}
+          {terminalContent || <span className="text-rpg-text-dim">Waiting for activity...</span>}
         </pre>
       </div>
 

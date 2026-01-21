@@ -1,26 +1,7 @@
 import { useState, useEffect, useRef, memo, useCallback } from 'react'
 import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, SessionStatus, RepoInfo } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
-
-// Status theme - applies to all panes
-const statusTheme = {
-  idle:    { border: 'border-rpg-ready/50',  bg: 'bg-rpg-card',       indicator: 'bg-rpg-ready' },
-  typing:  { border: 'border-rpg-active/70', bg: 'bg-rpg-active/5',   indicator: 'bg-rpg-active' },
-  working: { border: 'border-rpg-working',   bg: 'bg-rpg-card',       indicator: 'bg-rpg-working' },
-  waiting: { border: 'border-rpg-waiting',   bg: 'bg-rpg-waiting/10', indicator: 'bg-rpg-waiting' },
-  error:   { border: 'border-rpg-error',     bg: 'bg-rpg-error/10',   indicator: 'bg-rpg-error' },
-  process: { border: 'border-rpg-active/70', bg: 'bg-rpg-active/5',   indicator: 'bg-rpg-active' },
-} as const
-
-const statusLabels: Record<string, string> = {
-  idle: 'Ready',
-  typing: 'Active',
-  working: 'Working',
-  waiting: 'Waiting',
-  error: 'Error',
-  shell: 'Shell',
-  process: 'Running',
-}
+import { STATUS_LABELS, STATUS_THEME, getStatusTheme } from '../constants/status'
 
 interface PaneCardProps {
   pane: TmuxPane
@@ -48,8 +29,8 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     ? session.status
     : pane.process.typing ? 'typing' : pane.process.type
 
-  const theme = statusTheme[status as keyof typeof statusTheme] || statusTheme.idle
-  const statusLabel = statusLabels[status] || status
+  const theme = STATUS_THEME[status as keyof typeof STATUS_THEME] || STATUS_THEME.idle
+  const statusLabel = STATUS_LABELS[status] || status
 
   const toggleExpanded = useCallback(() => setExpanded(prev => !prev), [])
 
@@ -113,7 +94,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
   if (compact && !expanded) {
     return (
       <div
-        className={`rounded-lg border ${theme.border} bg-rpg-card/50 transition-all cursor-pointer hover:border-rpg-accent/50`}
+        className={`rounded-lg border ${theme.border} bg-rpg-card card-interactive cursor-pointer hover:border-rpg-accent`}
         onClick={toggleExpanded}
       >
         <div className="px-3 py-2 flex items-center gap-2">
@@ -123,30 +104,30 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
               C
             </div>
           ) : (
-            <div className="w-6 h-6 rounded bg-rpg-bg/50 flex items-center justify-center text-xs font-mono flex-shrink-0 text-rpg-idle">
+            <div className="w-6 h-6 rounded bg-rpg-bg-elevated flex items-center justify-center text-xs font-mono flex-shrink-0 text-rpg-text-muted">
               $
             </div>
           )}
 
           {/* Name */}
-          <span className="text-sm text-rpg-idle/80 truncate">
+          <span className="text-sm text-rpg-text-muted truncate">
             {isClaudePane && session ? session.name : pane.process.command}
           </span>
 
           {/* Repo badge */}
           {pane.repo && (
-            <span className="text-xs text-rpg-accent/60 truncate">
+            <span className="text-xs text-rpg-accent-dim truncate">
               {pane.repo.name}
             </span>
           )}
 
           {/* Status indicator - aligned right */}
           <div className="flex items-center gap-1.5 ml-auto">
-            <span className="text-xs text-rpg-idle/70">{statusLabel}</span>
+            <span className="text-xs text-rpg-text-muted">{statusLabel}</span>
             <div className={`w-2 h-2 rounded-full ${theme.indicator} ${
               status === 'working' || status === 'typing' || status === 'process' ? 'animate-pulse' : ''
             }`} />
-            <span className="text-rpg-idle/30 text-xs">▼</span>
+            <span className="text-rpg-text-dim text-xs">▼</span>
           </div>
         </div>
       </div>
@@ -154,7 +135,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
   }
 
   return (
-    <div className={`rounded-lg border-2 ${theme.border} ${theme.bg} transition-all`}>
+    <div className={`rounded-lg border-2 ${theme.border} ${theme.bg} ${theme.glow} transition-all`}>
       {/* Header - always visible */}
       <div className="p-3 cursor-pointer" onClick={toggleExpanded}>
         <div className="flex items-center gap-3">
@@ -175,7 +156,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
               </div>
             )
           ) : (
-            <div className={`w-8 h-8 rounded bg-rpg-bg/50 flex items-center justify-center text-sm font-mono flex-shrink-0 ${pane.process.typing ? 'text-rpg-accent' : 'text-rpg-idle'}`}>
+            <div className={`w-8 h-8 rounded bg-rpg-bg-elevated flex items-center justify-center text-sm font-mono flex-shrink-0 ${pane.process.typing ? 'text-rpg-accent' : 'text-rpg-text-muted'}`}>
               {pane.process.type === 'shell' ? '$' : '>'}
             </div>
           )}
@@ -202,7 +183,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
                   </span>
                   {pane.repo.branch && (
                     <>
-                      <span className="text-rpg-idle/50">:</span>
+                      <span className="text-rpg-text-dim">:</span>
                       <span className="text-rpg-working">{pane.repo.branch}</span>
                     </>
                   )}
@@ -224,13 +205,13 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
                 {status === 'waiting' && onDismissWaiting && (
                   <button
                     onClick={handleDismiss}
-                    className="px-1.5 py-0.5 text-xs bg-rpg-ready/30 hover:bg-rpg-ready/50 text-rpg-text/70 rounded transition-colors"
+                    className="px-1.5 py-0.5 text-xs bg-rpg-idle/30 hover:bg-rpg-idle/50 text-rpg-text-muted rounded transition-colors"
                     title="Dismiss - Claude is waiting for you to type"
                   >
                     ✓
                   </button>
                 )}
-                <span className="text-xs text-rpg-idle/70">{statusLabel}</span>
+                <span className="text-xs text-rpg-text-muted">{statusLabel}</span>
                 <div className={`w-2 h-2 rounded-full ${theme.indicator} ${
                   status === 'working' || status === 'typing' || status === 'process' ? 'animate-pulse' : ''
                 }`} />
@@ -238,12 +219,12 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
             </div>
 
             {/* Activity line */}
-            <div className="text-sm text-rpg-text/80 truncate">
+            <div className="text-sm text-rpg-text-muted truncate">
               {isClaudePane && session ? (
                 <ClaudeActivity session={session} />
               ) : (
-                <span className="text-rpg-idle/50">
-                  <span className="text-rpg-idle/30">Command:</span> {pane.cwd.split('/').slice(-2).join('/')}
+                <span className="text-rpg-text-dim">
+                  <span className="text-rpg-text-dim">cwd:</span> {pane.cwd.split('/').slice(-2).join('/')}
                 </span>
               )}
             </div>
@@ -254,7 +235,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
             {onRefreshPane && (
               <button
                 onClick={handleRefresh}
-                className="w-8 h-8 flex items-center justify-center text-rpg-idle/50 hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
+                className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
                 title="Refresh pane"
               >
                 ↻
@@ -263,13 +244,13 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
             {onExpandPane && (
               <button
                 onClick={handleExpand}
-                className="w-8 h-8 flex items-center justify-center text-rpg-idle/50 hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
+                className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
                 title="Full screen"
               >
                 ⛶
               </button>
             )}
-            <span className="text-rpg-idle/50 text-xs w-4 text-center">
+            <span className="text-rpg-text-dim text-xs w-4 text-center">
               {expanded ? '▲' : '▼'}
             </span>
           </div>
@@ -413,11 +394,11 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
 // Claude activity display
 const ClaudeActivity = memo(function ClaudeActivity({ session }: { session: ClaudeSessionInfo }) {
   if (session.lastPrompt) {
-    return <span><span className="text-rpg-idle/30">Prompt:</span> {session.lastPrompt}</span>
+    return <span><span className="text-rpg-text-dim">Prompt:</span> {session.lastPrompt}</span>
   }
   if (session.currentTool) {
     return (
-      <span className="text-rpg-idle">
+      <span className="text-rpg-text-muted">
         {session.currentTool}
         {session.currentFile && `: ${session.currentFile.split('/').pop()}`}
       </span>
@@ -429,7 +410,7 @@ const ClaudeActivity = memo(function ClaudeActivity({ session }: { session: Clau
   if (session.status === 'error' && session.lastError) {
     return <span className="text-rpg-error">Error in {session.lastError.tool}</span>
   }
-  return <span className="text-rpg-idle/50">Ready</span>
+  return <span className="text-rpg-text-dim">Ready</span>
 })
 
 // Pending question section
@@ -519,7 +500,7 @@ const GitHubLinks = memo(function GitHubLinks({ repo }: { repo: RepoInfo }) {
     <div className="flex flex-wrap items-center gap-2">
       {/* Fork info */}
       {repo.upstream && (
-        <span className="text-xs text-rpg-idle/70">
+        <span className="text-xs text-rpg-text-muted">
           ↳ fork of{' '}
           <a
             href={`https://github.com/${repo.upstream.org}/${repo.upstream.name}`}
@@ -542,7 +523,7 @@ const GitHubLinks = memo(function GitHubLinks({ repo }: { repo: RepoInfo }) {
             target="_blank"
             rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
-            className="px-2 py-1 text-xs bg-rpg-bg hover:bg-rpg-border rounded transition-colors"
+            className="px-2 py-1 text-xs bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors"
             title={link.label}
           >
             {link.icon}
@@ -569,9 +550,9 @@ const ExpandedTerminal = memo(function ExpandedTerminal({ content }: { content: 
   return (
     <pre
       ref={terminalRef}
-      className="bg-rpg-bg/80 rounded p-3 text-xs font-mono text-rpg-working overflow-auto max-h-64 whitespace-pre-wrap"
+      className="bg-rpg-bg rounded p-3 text-xs font-mono text-rpg-working overflow-auto max-h-64 whitespace-pre-wrap border border-rpg-border-dim"
     >
-      {content || <span className="text-rpg-idle/50">Waiting for activity...</span>}
+      {content || <span className="text-rpg-text-dim">Waiting for activity...</span>}
     </pre>
   )
 })

@@ -9,30 +9,44 @@ export default {
       colors: {
         // RPG color palette - warm earth tones with vibrant jewel accents
         'rpg': {
-          // Base surfaces (warm brown)
-          'bg': '#31291b',
-          'card': '#3a3125',
-          'border': '#5a4d3a',
+          // === SURFACE HIERARCHY (darker backgrounds for more contrast) ===
+          'bg': '#1a1612',
+          'bg-elevated': '#242019',
+          'card': '#2d2820',
+          'card-hover': '#3a342a',
+          'border': '#4a4238',
+          'border-dim': '#3a342a',
 
-          // Text hierarchy (cream/pale yellow)
-          'text': '#f7f9d7',
-          'text-dim': '#a09a7d',
+          // === TEXT HIERARCHY (brighter for readability) ===
+          'text': '#f5f5dc',
+          'text-muted': '#b8b0a0',
+          'text-dim': '#7a7264',
 
-          // Accent (warm amber)
-          'accent': '#e6a857',
+          // === ACCENTS ===
+          'accent': '#f0a848',
+          'accent-bright': '#ffc060',
           'accent-dim': '#c4915e',
 
-          // Semantic status colors
-          'xp': '#ffc94a',        // Bright gold for XP display
-          'success': '#4ecca3',   // Vibrant teal for success states
-          'error': '#ff6b6b',     // Coral red for errors
-          'working': '#5bcefa',   // Bright cyan - Claude actively processing
-          'waiting': '#ff9f43',   // Vivid orange - needs user input (highest urgency)
-          'active': '#f9ca24',    // Bright yellow-gold - user typing/activity
-          'ready': '#9b8b6e',     // Warm taupe - stable, calm
+          // === STATUS (semantic colors) ===
+          'xp': '#ffd54f',
+          'success': '#4ecca3',
+          'error': '#ff6b6b',
+          'working': '#5bcefa',
+          'waiting': '#ff9f43',
+          'active': '#f9ca24',
+          'idle': '#a09585',
 
-          // UI elements (aliases for semantic clarity)
-          'idle': '#9b8b6e',      // Alias for ready state
+          // === MEDALS (for leaderboard consistency) ===
+          'gold': '#ffd700',
+          'gold-dim': '#daa520',
+          'silver': '#c0c0c0',
+          'silver-dim': '#a8a8a8',
+          'bronze': '#cd7f32',
+          'bronze-dim': '#8b4513',
+
+          // === EFFECTS ===
+          'streak': '#ff6b35',
+          'streak-inner': '#ffd93d',
         },
       },
       fontFamily: {
@@ -42,6 +56,7 @@ export default {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'xp-gain': 'xpGain 0.6s ease-out',
         'level-up': 'levelUp 1s ease-out',
+        'glow-pulse': 'glowPulse 2s ease-in-out infinite',
       },
       keyframes: {
         xpGain: {
@@ -52,6 +67,10 @@ export default {
           '0%': { transform: 'scale(1)', filter: 'brightness(1)' },
           '50%': { transform: 'scale(1.1)', filter: 'brightness(1.5)' },
           '100%': { transform: 'scale(1)', filter: 'brightness(1)' },
+        },
+        glowPulse: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.6' },
         },
       },
     },

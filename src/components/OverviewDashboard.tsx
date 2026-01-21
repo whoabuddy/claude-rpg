@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, memo } from 'react'
 import type { TmuxWindow, TmuxPane } from '@shared/types'
 import { PaneCard } from './PaneCard'
 import { ConnectionStatus } from './ConnectionStatus'
@@ -127,11 +127,11 @@ export function OverviewDashboard({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-rpg-idle">
+          <span className="text-rpg-text-muted">
             {stats.windows} Window{stats.windows !== 1 ? 's' : ''} / {stats.total} Pane{stats.total !== 1 ? 's' : ''}
           </span>
           {attentionCount > 0 && (
-            <span className="px-2 py-0.5 rounded bg-rpg-waiting/20 text-rpg-waiting text-xs font-medium animate-pulse">
+            <span className="px-2 py-0.5 rounded status-bg-waiting text-rpg-waiting text-xs font-medium animate-pulse">
               {attentionCount} need{attentionCount !== 1 ? '' : 's'} attention
             </span>
           )}
@@ -139,7 +139,7 @@ export function OverviewDashboard({
         <div className="flex items-center gap-3">
           <button
             onClick={onNavigateToCompetitions}
-            className="px-2 py-1 text-xs rounded bg-rpg-card text-rpg-idle hover:text-rpg-accent hover:bg-rpg-card/80 transition-colors"
+            className="px-2 py-1 text-xs rounded bg-rpg-card text-rpg-text-muted hover:text-rpg-accent hover:bg-rpg-card-hover transition-colors"
             title="View Competitions"
           >
             Leaderboard
@@ -149,7 +149,7 @@ export function OverviewDashboard({
             className={`px-2 py-1 text-xs rounded transition-colors ${
               proMode
                 ? 'bg-rpg-accent/20 text-rpg-accent'
-                : 'bg-rpg-card text-rpg-idle hover:text-rpg-text'
+                : 'bg-rpg-card text-rpg-text-muted hover:text-rpg-text'
             }`}
             title={proMode ? "Show Bitcoin faces" : "Hide Bitcoin faces"}
           >
@@ -161,9 +161,9 @@ export function OverviewDashboard({
 
       {/* Empty state */}
       {windowGroups.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-rpg-idle">
+        <div className="flex flex-col items-center justify-center py-12 text-rpg-text-muted">
           <p className="text-lg mb-2">No tmux panes found</p>
-          <p className="text-sm text-rpg-idle/70">Start Claude Code in a tmux session to begin!</p>
+          <p className="text-sm text-rpg-text-dim">Start Claude Code in a tmux session to begin!</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -199,7 +199,7 @@ interface WindowSectionProps {
   onRefreshPane: (paneId: string) => void
 }
 
-function WindowSection({
+const WindowSection = memo(function WindowSection({
   group,
   collapsed,
   proMode,
@@ -213,16 +213,16 @@ function WindowSection({
   const hasAttention = group.attentionCount > 0
 
   return (
-    <div className={`rounded-lg border ${hasAttention ? 'border-rpg-waiting/50 bg-rpg-waiting/5' : 'border-rpg-border/50'}`}>
+    <div className={`rounded-lg border ${hasAttention ? 'border-rpg-waiting status-bg-waiting' : 'border-rpg-border'}`}>
       {/* Window header */}
       <button
         onClick={onToggleWindow}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors rounded-t-lg hover:bg-rpg-card/50"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors rounded-t-lg hover:bg-rpg-card-hover"
       >
-        <span className="w-6 h-6 flex items-center justify-center text-xs rounded bg-rpg-card text-rpg-idle font-mono">
+        <span className="w-6 h-6 flex items-center justify-center text-xs rounded bg-rpg-card text-rpg-text-muted font-mono">
           {group.window.windowIndex}
         </span>
-        <span className="font-medium text-sm text-rpg-text/90">
+        <span className="font-medium text-sm text-rpg-text">
           {group.window.windowName}
         </span>
         {group.primaryRepo && (
@@ -230,18 +230,18 @@ function WindowSection({
             {group.primaryRepo}
           </span>
         )}
-        <span className="text-xs text-rpg-idle/60">
+        <span className="text-xs text-rpg-text-dim">
           {group.window.sessionName}
         </span>
         {hasAttention && (
-          <span className="px-1.5 py-0.5 rounded bg-rpg-waiting/20 text-rpg-waiting text-xs">
+          <span className="px-1.5 py-0.5 rounded status-bg-waiting text-rpg-waiting text-xs">
             {group.attentionCount}
           </span>
         )}
-        <span className="text-xs text-rpg-idle/50 ml-auto">
+        <span className="text-xs text-rpg-text-dim ml-auto">
           {group.panes.length} pane{group.panes.length !== 1 ? 's' : ''}
         </span>
-        <span className="text-rpg-idle/50 text-xs">
+        <span className="text-rpg-text-dim text-xs">
           {collapsed ? '▶' : '▼'}
         </span>
       </button>
@@ -266,4 +266,4 @@ function WindowSection({
       )}
     </div>
   )
-}
+})
