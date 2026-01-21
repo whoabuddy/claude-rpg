@@ -69,18 +69,18 @@ ClaudeSessionInfo {
   id: string              // session UUID
   name: string            // "Alice" (English name)
   avatarSvg?: string      // Bitcoin face
-  status: 'ready' | 'typing' | 'working' | 'waiting' | 'error'
+  status: 'idle' | 'typing' | 'working' | 'waiting' | 'error'
   pendingQuestion?: PendingQuestion
   currentTool?: string    // Currently executing tool
   lastPrompt?: string     // Last user prompt
 }
 
-// Status meanings:
-// - ready: Task complete, awaiting new prompt
-// - typing: User activity detected in terminal
-// - working: Claude actively processing (tool use)
-// - waiting: Claude blocked on user input (question/permission) - has glow
-// - error: Tool failed, needs attention
+// Status values → Display labels:
+// - idle → "Ready": Task complete, awaiting new prompt
+// - typing → "Active": User activity detected in terminal
+// - working → "Working": Claude actively processing (tool use)
+// - waiting → "Waiting": Claude blocked on user input (question/permission) - has glow
+// - error → "Error": Tool failed, needs attention
 
 // Secondary (persisted for XP/stats)
 Companion {
