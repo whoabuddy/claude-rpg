@@ -32,11 +32,19 @@ function getStartOfWeek(date: Date): Date {
 }
 
 function isConsecutiveDay(date1: string, date2: string): boolean {
-  const d1 = new Date(date1)
-  const d2 = new Date(date2)
-  const diff = Math.abs(d1.getTime() - d2.getTime())
-  const oneDay = 24 * 60 * 60 * 1000
-  return diff <= oneDay && diff > 0
+  // Parse dates as YYYY-MM-DD strings and compare calendar days
+  const [y1, m1, d1] = date1.split('-').map(Number)
+  const [y2, m2, d2] = date2.split('-').map(Number)
+
+  // Create dates at noon to avoid timezone issues
+  const day1 = new Date(y1, m1 - 1, d1, 12, 0, 0)
+  const day2 = new Date(y2, m2 - 1, d2, 12, 0, 0)
+
+  // Calculate difference in days
+  const diffMs = Math.abs(day2.getTime() - day1.getTime())
+  const diffDays = Math.round(diffMs / (24 * 60 * 60 * 1000))
+
+  return diffDays === 1
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -94,6 +102,17 @@ export function isStreakActive(streak: StreakInfo): boolean {
   const yesterday = formatDate(Date.now() - 24 * 60 * 60 * 1000)
 
   return streak.lastActiveDate === today || streak.lastActiveDate === yesterday
+}
+
+// Get validated streak - returns streak with current=0 if stale
+export function getValidatedStreak(streak: StreakInfo): StreakInfo {
+  if (!isStreakActive(streak)) {
+    return {
+      ...streak,
+      current: 0, // Reset current but keep longest for history
+    }
+  }
+  return streak
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -195,12 +214,12 @@ export function calculateLeaderboard(
   category: CompetitionCategory,
   period: TimePeriod
 ): LeaderboardEntry[] {
-  // Calculate values for each companion
+  // Calculate values for each companion with validated streaks
   const entries = companions.map(companion => ({
     companionId: companion.id,
     companionName: companion.name,
     value: getCategoryValue(companion, events, category, period),
-    streak: companion.streak || createDefaultStreak(),
+    streak: getValidatedStreak(companion.streak || createDefaultStreak()),
   }))
 
   // Sort by value descending
@@ -256,13 +275,16 @@ export function getCompetition(
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function getStreakLeaderboard(companions: Companion[]): LeaderboardEntry[] {
-  const entries = companions.map(companion => ({
-    companionId: companion.id,
-    companionName: companion.name,
-    rank: 0,
-    value: companion.streak?.current || 0,
-    streak: companion.streak || createDefaultStreak(),
-  }))
+  const entries = companions.map(companion => {
+    const validatedStreak = getValidatedStreak(companion.streak || createDefaultStreak())
+    return {
+      companionId: companion.id,
+      companionName: companion.name,
+      rank: 0,
+      value: validatedStreak.current,
+      streak: validatedStreak,
+    }
+  })
 
   // Sort by current streak descending
   entries.sort((a, b) => b.value - a.value)
