@@ -69,9 +69,10 @@ ClaudeSessionInfo {
   id: string              // session UUID
   name: string            // "Alice" (English name)
   avatarSvg?: string      // Bitcoin face
-  status: 'idle' | 'working' | 'waiting' | 'error'
+  status: 'idle' | 'typing' | 'working' | 'waiting' | 'error'
   pendingQuestion?: PendingQuestion
-  // ... other Claude-specific fields
+  currentTool?: string    // Currently executing tool
+  lastPrompt?: string     // Last user prompt
 }
 
 // Secondary (persisted for XP/stats)
@@ -89,17 +90,16 @@ claude-rpg/
 │   ├── tmux.ts       # Tmux polling, process detection, session cache
 │   ├── companions.ts # Companion XP/stats, Bitcoin faces
 │   ├── xp.ts         # XP calculation, command detection
+│   ├── utils.ts      # Shared utilities
 │   └── cli.ts        # CLI for setup and running
 ├── src/              # React + Tailwind frontend
 │   ├── components/   # UI components
-│   │   ├── WindowBar.tsx         # Horizontal window list (like tmux)
-│   │   ├── OverviewDashboard.tsx # All panes grouped by status
-│   │   ├── WindowView.tsx        # Single window pane view
-│   │   ├── PaneCard.tsx          # Generic pane card (Claude + Process)
-│   │   └── ConnectionStatus.tsx
+│   │   ├── OverviewDashboard.tsx # All panes in stable order
+│   │   ├── PaneCard.tsx          # Expandable pane card (Claude + Process)
+│   │   └── ConnectionStatus.tsx  # WebSocket status indicator
 │   ├── hooks/        # React hooks
-│   │   ├── useWindows.ts         # Window/pane state
-│   │   ├── usePaneTerminal.ts    # Terminal by paneId
+│   │   ├── useWindows.ts         # Window/pane state with deep equality
+│   │   ├── usePaneTerminal.ts    # Terminal content by paneId
 │   │   ├── useWebSocket.ts       # WebSocket connection
 │   │   ├── useCompanions.ts      # Companion stats (for XP display)
 │   │   └── useNotifications.ts   # Browser notifications
@@ -132,7 +132,8 @@ claude-rpg/
 | `/event` | POST | Receive events from hook |
 | `/api/windows` | GET | List all windows with panes |
 | `/api/panes/:id` | GET | Get single pane detail |
-| `/api/panes/:id/prompt` | POST | Send prompt to pane |
+| `/api/panes/:id/prompt` | POST | Send prompt/input to pane |
+| `/api/panes/:id/signal` | POST | Send signal (e.g., SIGINT for Ctrl+C) |
 | `/api/companions` | GET | List all companions (XP/stats) |
 
 ## WebSocket Messages
@@ -225,10 +226,10 @@ The server detects what's running in each pane:
 
 ## UI Navigation
 
-1. **Overview** (default): All panes grouped by status (Needs Attention → Working → Idle)
-2. **Window View**: Click window in bar → see panes in that window
-3. **WindowBar**: Horizontal scrollable window list like tmux status bar
-4. **Pane Cards**: Claude panes show avatar, status, questions; other panes show process info
+- **Dashboard**: All panes displayed in stable order (by window/pane position)
+- **Pane Cards**: Expandable cards showing avatar, status, terminal output
+- **Interactions**: Tap to expand, send prompts, answer questions, Ctrl+C
+- **Auto-focus**: Text input focuses automatically when expanding a card
 
 ## Mobile-First Design
 
