@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { OverviewDashboard } from './components/OverviewDashboard'
+import { FullScreenPane } from './components/FullScreenPane'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting } from './hooks/useWindows'
 import { initTerminalCache } from './hooks/usePaneTerminal'
@@ -12,6 +13,7 @@ export default function App() {
   const { connected } = useWebSocket()
   const { windows, attentionPanes } = useWindows()
   const [notificationsDismissed, setNotificationsDismissed] = useState(false)
+  const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
   const [proMode, setProMode] = useState(() => {
     // Persist pro mode preference
     return localStorage.getItem('claude-rpg-pro-mode') === 'true'
@@ -56,6 +58,30 @@ export default function App() {
     })
   }, [])
 
+  const handleExpandPane = useCallback((paneId: string) => {
+    setFullscreenPaneId(paneId)
+  }, [])
+
+  const handleCloseFullscreen = useCallback(() => {
+    setFullscreenPaneId(null)
+  }, [])
+
+  // Find the fullscreen pane and its window
+  const fullscreenData = useMemo(() => {
+    if (!fullscreenPaneId) return null
+    for (const window of windows) {
+      const pane = window.panes.find(p => p.id === fullscreenPaneId)
+      if (pane) return { pane, window }
+    }
+    return null
+  }, [fullscreenPaneId, windows])
+
+  // Count attention panes excluding the fullscreen one
+  const otherAttentionCount = useMemo(() => {
+    if (!fullscreenPaneId) return 0
+    return attentionPanes.filter(p => p.id !== fullscreenPaneId).length
+  }, [attentionPanes, fullscreenPaneId])
+
   const showNotificationBanner = permission === 'default' && !notificationsDismissed
 
   return (
@@ -93,9 +119,24 @@ export default function App() {
           onSendPrompt={handleSendPrompt}
           onSendSignal={handleSendSignal}
           onDismissWaiting={handleDismissWaiting}
+          onExpandPane={handleExpandPane}
           onToggleProMode={handleToggleProMode}
         />
       </main>
+
+      {/* Full-screen pane overlay */}
+      {fullscreenData && (
+        <FullScreenPane
+          pane={fullscreenData.pane}
+          window={fullscreenData.window}
+          attentionCount={otherAttentionCount}
+          onClose={handleCloseFullscreen}
+          onSendPrompt={handleSendPrompt}
+          onSendSignal={handleSendSignal}
+          onDismissWaiting={handleDismissWaiting}
+          proMode={proMode}
+        />
+      )}
     </div>
   )
 }

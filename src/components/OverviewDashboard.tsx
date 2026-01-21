@@ -11,6 +11,7 @@ interface OverviewDashboardProps {
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
+  onExpandPane: (paneId: string) => void
   onToggleProMode: () => void
 }
 
@@ -62,6 +63,7 @@ export function OverviewDashboard({
   onSendPrompt,
   onSendSignal,
   onDismissWaiting,
+  onExpandPane,
   onToggleProMode,
 }: OverviewDashboardProps) {
   const [collapsedWindows, setCollapsedWindows] = useState<Set<string>>(new Set())
@@ -178,6 +180,7 @@ export function OverviewDashboard({
               onSendPrompt={onSendPrompt}
               onSendSignal={onSendSignal}
               onDismissWaiting={onDismissWaiting}
+              onExpandPane={onExpandPane}
             />
           ))}
         </div>
@@ -194,6 +197,7 @@ interface WindowSectionProps {
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
+  onExpandPane: (paneId: string) => void
 }
 
 function WindowSection({
@@ -204,6 +208,7 @@ function WindowSection({
   onSendPrompt,
   onSendSignal,
   onDismissWaiting,
+  onExpandPane,
 }: WindowSectionProps) {
   const hasAttention = group.attentionCount > 0
 
@@ -252,6 +257,7 @@ function WindowSection({
               onSendPrompt={onSendPrompt}
               onSendSignal={onSendSignal}
               onDismissWaiting={onDismissWaiting}
+              onExpandPane={onExpandPane}
               proMode={proMode}
             />
           ))}

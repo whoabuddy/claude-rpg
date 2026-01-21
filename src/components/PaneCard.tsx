@@ -28,11 +28,12 @@ interface PaneCardProps {
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting?: (paneId: string) => void
+  onExpandPane?: (paneId: string) => void
   proMode?: boolean
   compact?: boolean
 }
 
-export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, onDismissWaiting, proMode = false, compact = false }: PaneCardProps) {
+export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, proMode = false, compact = false }: PaneCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const terminalContent = usePaneTerminal(pane.id)
@@ -76,6 +77,11 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     e.stopPropagation()
     onDismissWaiting?.(pane.id)
   }, [onDismissWaiting, pane.id])
+
+  const handleExpand = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onExpandPane?.(pane.id)
+  }, [onExpandPane, pane.id])
 
   // Show input when: expanded AND (Claude not actively working OR non-Claude pane)
   // Allow input for idle, waiting, typing, error - only hide when working
@@ -220,9 +226,20 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
             </div>
           </div>
 
-          {/* Expand indicator */}
-          <div className="text-rpg-idle/50 text-xs flex-shrink-0">
-            {expanded ? '▲' : '▼'}
+          {/* Actions */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {onExpandPane && (
+              <button
+                onClick={handleExpand}
+                className="w-8 h-8 flex items-center justify-center text-rpg-idle/50 hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
+                title="Full screen"
+              >
+                ⛶
+              </button>
+            )}
+            <span className="text-rpg-idle/50 text-xs w-4 text-center">
+              {expanded ? '▲' : '▼'}
+            </span>
           </div>
         </div>
       </div>
