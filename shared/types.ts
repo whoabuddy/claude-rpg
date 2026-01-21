@@ -22,12 +22,30 @@ export interface PaneProcess {
 
 export type SessionStatus = 'idle' | 'typing' | 'working' | 'waiting' | 'error'
 
-export interface PendingQuestion {
+export interface QuestionOption {
+  label: string
+  description?: string
+}
+
+export interface Question {
   question: string
-  options: Array<{ label: string; description?: string }>
+  header?: string
+  options: QuestionOption[]
   multiSelect: boolean
+}
+
+export interface PendingQuestion {
+  // All questions from the tool
+  questions: Question[]
+  // Current question index (0-based)
+  currentIndex: number
+  // Tool tracking
   toolUseId: string
   timestamp: number
+  // Convenience accessors (derived from questions[currentIndex])
+  question: string
+  options: QuestionOption[]
+  multiSelect: boolean
 }
 
 export interface SessionError {

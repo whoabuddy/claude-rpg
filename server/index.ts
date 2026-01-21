@@ -322,20 +322,32 @@ async function handleEvent(rawEvent: RawHookEvent) {
         if (preEvent.tool === 'AskUserQuestion' && preEvent.toolInput) {
           sessionInfo.status = 'waiting'
           const input = preEvent.toolInput as Record<string, unknown>
-          const questions = input.questions as Array<{
+          const rawQuestions = input.questions as Array<{
             question: string
-            options: Array<{ label: string; description?: string }>
+            header?: string
+            options?: Array<{ label: string; description?: string }>
             multiSelect?: boolean
           }> | undefined
 
-          if (questions && questions.length > 0) {
-            const q = questions[0]
-            sessionInfo.pendingQuestion = {
+          if (rawQuestions && rawQuestions.length > 0) {
+            // Map all questions to our Question type
+            const questions = rawQuestions.map(q => ({
               question: q.question,
+              header: q.header,
               options: q.options || [],
               multiSelect: q.multiSelect || false,
+            }))
+
+            const current = questions[0]
+            sessionInfo.pendingQuestion = {
+              questions,
+              currentIndex: 0,
               toolUseId: preEvent.toolUseId,
               timestamp: event.timestamp,
+              // Convenience accessors for current question
+              question: current.question,
+              options: current.options,
+              multiSelect: current.multiSelect,
             }
           }
         }
@@ -343,15 +355,46 @@ async function handleEvent(rawEvent: RawHookEvent) {
         // Detect ExitPlanMode (waiting for plan approval)
         if (preEvent.tool === 'ExitPlanMode') {
           sessionInfo.status = 'waiting'
-          sessionInfo.pendingQuestion = {
+
+          // Default TUI options for plan approval
+          const defaultPlanOptions = [
+            { label: 'Yes, clear context and manually bypass permission', description: 'Approve and reset context, bypass permissions manually' },
+            { label: 'Yes, and manually approve edits', description: 'Approve but manually review each edit' },
+            { label: 'Yes, and bypass permissions', description: 'Approve and auto-bypass permission prompts' },
+            { label: 'Yes, manually approve edits', description: 'Approve with manual edit approval' },
+          ]
+
+          // Try to read options from tool input if available
+          let options = defaultPlanOptions
+          if (preEvent.toolInput) {
+            const input = preEvent.toolInput as Record<string, unknown>
+            if (input.allowedPrompts && Array.isArray(input.allowedPrompts)) {
+              // Extract prompt-based options if provided
+              const prompts = input.allowedPrompts as Array<{ tool: string; prompt: string }>
+              if (prompts.length > 0) {
+                options = prompts.map(p => ({
+                  label: p.prompt,
+                  description: `Allow ${p.tool}: ${p.prompt}`,
+                }))
+              }
+            }
+          }
+
+          const planQuestion = {
             question: 'Plan complete - waiting for approval',
-            options: [
-              { label: 'Approve', description: 'Approve the plan and proceed' },
-              { label: 'Reject', description: 'Reject the plan' },
-            ],
+            options,
             multiSelect: false,
+          }
+
+          sessionInfo.pendingQuestion = {
+            questions: [planQuestion],
+            currentIndex: 0,
             toolUseId: preEvent.toolUseId,
             timestamp: event.timestamp,
+            // Convenience accessors
+            question: planQuestion.question,
+            options: planQuestion.options,
+            multiSelect: planQuestion.multiSelect,
           }
         }
 

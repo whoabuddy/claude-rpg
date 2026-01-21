@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, memo, useCallback } from 'react'
-import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, SessionStatus, RepoInfo } from '@shared/types'
+import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, RepoInfo } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
-import { STATUS_LABELS, STATUS_THEME, getStatusTheme } from '../constants/status'
+import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
+import { QuestionInput } from './QuestionInput'
 
 interface PaneCardProps {
   pane: TmuxPane
@@ -257,14 +258,6 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
         </div>
       </div>
 
-      {/* Pending Question (Claude only) - always visible when present */}
-      {isClaudePane && session?.pendingQuestion && (
-        <PendingQuestionSection
-          question={session.pendingQuestion}
-          onAnswer={handleAnswer}
-        />
-      )}
-
       {/* Error details (Claude only) */}
       {isClaudePane && session?.status === 'error' && session.lastError && !session.pendingQuestion && (
         <div className="px-3 pb-3">
@@ -290,9 +283,19 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
           {/* Terminal */}
           <ExpandedTerminal content={terminalContent} />
 
-          {/* Input section */}
+          {/* Input section - always at bottom */}
           <div className="space-y-2">
-            {showInput && (
+            {/* Pending question input */}
+            {isClaudePane && session?.pendingQuestion && (
+              <QuestionInput
+                pendingQuestion={session.pendingQuestion}
+                onAnswer={handleAnswer}
+                compact={true}
+              />
+            )}
+
+            {/* Regular input (when no pending question) */}
+            {showInput && !session?.pendingQuestion && (
               <>
                 <textarea
                   ref={inputRef}
@@ -348,6 +351,8 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
                 </div>
               </>
             )}
+
+            {/* Interrupt button (when working) */}
             {showCtrlC && (
               <button
                 onClick={handleCtrlC}
@@ -411,68 +416,6 @@ const ClaudeActivity = memo(function ClaudeActivity({ session }: { session: Clau
     return <span className="text-rpg-error">Error in {session.lastError.tool}</span>
   }
   return <span className="text-rpg-text-dim">Ready</span>
-})
-
-// Pending question section
-interface PendingQuestionSectionProps {
-  question: { question: string; options: Array<{ label: string; description?: string }> }
-  onAnswer: (answer: string) => void
-}
-
-const PendingQuestionSection = memo(function PendingQuestionSection({ question, onAnswer }: PendingQuestionSectionProps) {
-  const [customAnswer, setCustomAnswer] = useState('')
-
-  return (
-    <div className="px-3 pb-3">
-      <div className="p-3 bg-rpg-waiting/20 rounded border border-rpg-waiting/50">
-        <p className="text-sm font-medium mb-2">{question.question}</p>
-        <div className="flex flex-wrap gap-2">
-          {question.options.map((opt, i) => (
-            <button
-              key={i}
-              onClick={(e) => {
-                e.stopPropagation()
-                onAnswer(opt.label)
-              }}
-              className="px-3 py-2 text-sm bg-rpg-accent/20 hover:bg-rpg-accent/40 rounded border border-rpg-accent/50 transition-colors active:scale-95 min-h-[40px]"
-              title={opt.description}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <div className="mt-2 flex gap-2">
-          <input
-            type="text"
-            value={customAnswer}
-            onChange={(e) => setCustomAnswer(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && customAnswer.trim()) {
-                e.stopPropagation()
-                onAnswer(customAnswer.trim())
-                setCustomAnswer('')
-              }
-            }}
-            onClick={(e) => e.stopPropagation()}
-            placeholder="Or type custom answer..."
-            className="flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[40px]"
-          />
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              if (customAnswer.trim()) {
-                onAnswer(customAnswer.trim())
-                setCustomAnswer('')
-              }
-            }}
-            className="px-4 py-2 text-sm bg-rpg-accent/30 hover:bg-rpg-accent/50 rounded transition-colors active:scale-95 min-h-[40px]"
-          >
-            Send
-          </button>
-        </div>
-      </div>
-    </div>
-  )
 })
 
 // GitHub quick links

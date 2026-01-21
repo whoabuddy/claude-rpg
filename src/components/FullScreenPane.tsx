@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import type { TmuxPane, TmuxWindow, ClaudeSessionInfo } from '@shared/types'
+import type { TmuxPane, TmuxWindow } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
-import { STATUS_LABELS, STATUS_COLORS, getStatusColor } from '../constants/status'
+import { STATUS_LABELS, STATUS_COLORS } from '../constants/status'
+import { QuestionInput } from './QuestionInput'
 
 interface FullScreenPaneProps {
   pane: TmuxPane
@@ -193,25 +194,6 @@ export function FullScreenPane({
         )}
       </header>
 
-      {/* Pending Question */}
-      {isClaudePane && session?.pendingQuestion && (
-        <div className="px-4 py-3 status-bg-waiting border-b border-rpg-waiting">
-          <p className="text-sm font-medium mb-2">{session.pendingQuestion.question}</p>
-          <div className="flex flex-wrap gap-2">
-            {session.pendingQuestion.options.map((opt, i) => (
-              <button
-                key={i}
-                onClick={() => handleAnswer(opt.label)}
-                className="px-3 py-2 text-sm bg-rpg-accent/20 hover:bg-rpg-accent/40 rounded border border-rpg-accent transition-colors active:scale-95"
-                title={opt.description}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Terminal - takes remaining space */}
       <div className="flex-1 overflow-hidden p-4">
         <pre
@@ -222,53 +204,64 @@ export function FullScreenPane({
         </pre>
       </div>
 
-      {/* Input area */}
+      {/* Input area - always at bottom */}
       <div className="px-4 py-3 border-t border-rpg-border bg-rpg-card">
-        <div className="flex gap-2">
-          {showInput && (
-            <>
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    if (inputValue.trim()) {
-                      handleSend()
-                    } else {
-                      handleEnter()
-                    }
+        {/* Pending question input */}
+        {isClaudePane && session?.pendingQuestion && (
+          <QuestionInput
+            pendingQuestion={session.pendingQuestion}
+            onAnswer={handleAnswer}
+          />
+        )}
+
+        {/* Regular input (when no pending question) */}
+        {showInput && !session?.pendingQuestion && (
+          <div className="flex gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (inputValue.trim()) {
+                    handleSend()
+                  } else {
+                    handleEnter()
                   }
-                }}
-                placeholder={isClaudePane ? "Send prompt..." : "Send input..."}
-                className="flex-1 px-4 py-3 text-base bg-rpg-bg border border-rpg-border rounded-lg focus:border-rpg-accent outline-none"
-              />
-              <button
-                onClick={handleEnter}
-                className="px-4 py-3 bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle rounded-lg transition-colors active:scale-95"
-                title="Send Enter"
-              >
-                ⏎
-              </button>
-              <button
-                onClick={handleSend}
-                disabled={!inputValue.trim()}
-                className="px-6 py-3 bg-rpg-accent/30 hover:bg-rpg-accent/50 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95"
-              >
-                Send
-              </button>
-            </>
-          )}
-          {showCtrlC && (
+                }
+              }}
+              placeholder={isClaudePane ? "Send prompt..." : "Send input..."}
+              className="flex-1 px-4 py-3 text-base bg-rpg-bg border border-rpg-border rounded-lg focus:border-rpg-accent outline-none"
+            />
+            <button
+              onClick={handleEnter}
+              className="px-4 py-3 bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle rounded-lg transition-colors active:scale-95"
+              title="Send Enter"
+            >
+              ⏎
+            </button>
+            <button
+              onClick={handleSend}
+              disabled={!inputValue.trim()}
+              className="px-6 py-3 bg-rpg-accent/30 hover:bg-rpg-accent/50 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95"
+            >
+              Send
+            </button>
+          </div>
+        )}
+
+        {/* Interrupt button (when working) */}
+        {showCtrlC && (
+          <div className="flex">
             <button
               onClick={handleCtrlC}
               className="px-6 py-3 bg-rpg-error/20 hover:bg-rpg-error/40 text-rpg-error rounded-lg transition-colors active:scale-95 ml-auto"
             >
-              Ctrl+C
+              Interrupt
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
