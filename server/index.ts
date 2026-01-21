@@ -78,10 +78,9 @@ function loadPanesCache(): void {
         cache.set(paneId, session as ClaudeSessionInfo)
       }
       setSessionCache(cache)
-      console.log(`[claude-rpg] Loaded ${cache.size} cached Claude sessions`)
     }
-  } catch (e) {
-    console.error('[claude-rpg] Error loading panes cache:', e)
+  } catch {
+    // Ignore cache load errors
   }
 }
 
@@ -93,8 +92,8 @@ function savePanesCache(): void {
       sessions[paneId] = session
     }
     writeFileSync(PANES_CACHE_FILE, JSON.stringify({ sessions }, null, 2))
-  } catch (e) {
-    console.error('[claude-rpg] Error saving panes cache:', e)
+  } catch {
+    // Ignore cache save errors
   }
 }
 
@@ -351,14 +350,12 @@ async function handleEvent(rawEvent: RawHookEvent) {
             toolUseId: preEvent.toolUseId,
             timestamp: event.timestamp,
           }
-          console.log(`[claude-rpg] Plan mode complete in pane ${pane?.id}, waiting for approval`)
         }
 
         // Detect EnterPlanMode
         if (preEvent.tool === 'EnterPlanMode') {
           sessionInfo.status = 'working'
           sessionInfo.currentTool = 'Planning'
-          console.log(`[claude-rpg] Entered plan mode in pane ${pane?.id}`)
         }
       } else if (event.type === 'post_tool_use') {
         const postEvent = event as import('../shared/types.js').PostToolUseEvent
@@ -400,11 +397,9 @@ async function handleEvent(rawEvent: RawHookEvent) {
           if (notifEvent.message.includes('permission') || notifEvent.message.includes('waiting')) {
             sessionInfo.status = 'waiting'
           }
-          console.log(`[claude-rpg] Notification in pane ${pane?.id}: ${notifEvent.message}`)
         }
       } else if (event.type === 'subagent_stop') {
         // Subagent finished - main agent continues working
-        console.log(`[claude-rpg] Subagent stopped in pane ${pane?.id}`)
         // Don't change status - main agent is still running
       } else if (event.type === 'session_start') {
         // New or resumed session - reset to idle state
@@ -413,7 +408,6 @@ async function handleEvent(rawEvent: RawHookEvent) {
         sessionInfo.currentFile = undefined
         sessionInfo.pendingQuestion = undefined
         sessionInfo.lastError = undefined
-        console.log(`[claude-rpg] Session started/resumed in pane ${pane?.id}`)
       } else if (event.type === 'session_end') {
         // Session ended - remove from cache
         removeClaudeSession(pane.id)
@@ -427,7 +421,6 @@ async function handleEvent(rawEvent: RawHookEvent) {
         pane.process.claudeSession = updatedSession
       }
 
-      console.log(`[claude-rpg] Event ${event.type} → status: ${updatedSession?.status || 'unknown'} (pane ${pane.id})`)
       broadcast({ type: 'pane_update', payload: pane })
     }
   }
@@ -585,8 +578,6 @@ function loadEventsFromFile() {
   const content = readFileSync(EVENTS_FILE, 'utf-8')
   const lines = content.trim().split('\n').filter(Boolean)
 
-  console.log(`[claude-rpg] Loaded ${lines.length} events from file`)
-
   for (const line of lines) {
     try {
       const event = JSON.parse(line) as ClaudeEvent
@@ -623,8 +614,6 @@ function watchEventsFile() {
       }
     }
   })
-
-  console.log(`[claude-rpg] Watching ${EVENTS_FILE}`)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -734,6 +723,37 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // Send signal to pane (e.g., Ctrl+C)
+  const paneSignalMatch = url.pathname.match(/^\/api\/panes\/([^/]+)\/signal$/)
+  if (paneSignalMatch && req.method === 'POST') {
+    const paneId = decodeURIComponent(paneSignalMatch[1])
+    const pane = findPaneById(windows, paneId)
+
+    if (!pane) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
+      return
+    }
+
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', async () => {
+      try {
+        const { signal } = JSON.parse(body)
+        // Send Ctrl+C via tmux
+        if (signal === 'SIGINT') {
+          await execAsync(`tmux send-keys -t "${pane.target}" C-c`)
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true }))
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: String(e) }))
+      }
+    })
+    return
+  }
+
   // List companions (for XP/stats)
   if (url.pathname === '/api/companions' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -754,7 +774,6 @@ const wss = new WebSocketServer({ server })
 
 wss.on('connection', (ws) => {
   clients.add(ws)
-  console.log(`[claude-rpg] Client connected (${clients.size} total)`)
 
   // Send initial state
   ws.send(JSON.stringify({ type: 'connected' } satisfies ServerMessage))
@@ -768,7 +787,6 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     clients.delete(ws)
-    console.log(`[claude-rpg] Client disconnected (${clients.size} total)`)
   })
 })
 
@@ -784,7 +802,5 @@ watchEventsFile()
 pollTmux().catch(e => console.error('[claude-rpg] Initial poll error:', e))
 
 server.listen(PORT, () => {
-  console.log(`[claude-rpg] Server running on port ${PORT}`)
-  console.log(`[claude-rpg] Data directory: ${DATA_DIR}`)
-  console.log(`[claude-rpg] ${companions.length} companions loaded`)
+  console.log(`[claude-rpg] Server running on http://localhost:${PORT}`)
 })

@@ -105,8 +105,22 @@ export async function sendPromptToPane(paneId: string, prompt: string): Promise<
     })
     const data = await res.json()
     return data.ok
-  } catch (e) {
-    console.error('[claude-rpg] Error sending prompt to pane:', e)
+  } catch {
+    return false
+  }
+}
+
+// Helper to send signals (e.g., SIGINT for Ctrl+C) to a pane
+export async function sendSignalToPane(paneId: string, signal: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/api/panes/${encodeURIComponent(paneId)}/signal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signal }),
+    })
+    const data = await res.json()
+    return data.ok
+  } catch {
     return false
   }
 }

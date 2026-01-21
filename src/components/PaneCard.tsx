@@ -2,9 +2,7 @@ import { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react'
 import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, SessionStatus } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 
-const TERMINAL_PREVIEW_LINES = 15
-
-// Consolidated status theme for Claude sessions
+// Status theme - applies to all panes
 const statusTheme = {
   idle:    { border: 'border-rpg-idle/50',   bg: 'bg-rpg-card',       indicator: 'bg-rpg-idle' },
   typing:  { border: 'border-rpg-accent/70', bg: 'bg-rpg-accent/5',   indicator: 'bg-rpg-accent' },
@@ -13,51 +11,220 @@ const statusTheme = {
   error:   { border: 'border-rpg-error',     bg: 'bg-rpg-error/10',   indicator: 'bg-rpg-error' },
 } as const
 
-const indicatorLabels: Record<SessionStatus, string> = {
+const statusLabels: Record<string, string> = {
   idle: 'Idle',
-  typing: 'Typing',
+  typing: 'Active',
   working: 'Working',
   waiting: 'Waiting',
   error: 'Error',
+  shell: 'Shell',
+  process: 'Running',
 }
-
-// Process type colors for non-Claude panes
-const processColors = {
-  shell: 'border-rpg-idle/30',
-  process: 'border-blue-500/50',
-  idle: 'border-rpg-idle/20',
-} as const
 
 interface PaneCardProps {
   pane: TmuxPane
   window: TmuxWindow
   onSendPrompt: (paneId: string, prompt: string) => void
-  compact?: boolean
+  onSendSignal: (paneId: string, signal: string) => void
+  proMode?: boolean
 }
 
-export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, compact = false }: PaneCardProps) {
+export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, proMode = false }: PaneCardProps) {
+  const [expanded, setExpanded] = useState(false)
+  const [inputValue, setInputValue] = useState('')
+  const terminalContent = usePaneTerminal(pane.id)
+
   const isClaudePane = pane.process.type === 'claude'
-  const claudeSession = pane.process.claudeSession
+  const session = pane.process.claudeSession
 
-  if (isClaudePane && claudeSession) {
-    return (
-      <ClaudePaneCard
-        pane={pane}
-        window={window}
-        session={claudeSession}
-        onSendPrompt={onSendPrompt}
-        compact={compact}
-      />
-    )
-  }
+  // Determine status for theming
+  const status: string = isClaudePane && session
+    ? session.status
+    : pane.process.typing ? 'typing' : pane.process.type
 
-  return <ProcessPaneCard pane={pane} />
+  const theme = statusTheme[status as keyof typeof statusTheme] || statusTheme.idle
+  const statusLabel = statusLabels[status] || status
+
+  const toggleExpanded = useCallback(() => setExpanded(prev => !prev), [])
+
+  const handleSend = useCallback(() => {
+    if (inputValue.trim()) {
+      onSendPrompt(pane.id, inputValue.trim())
+      setInputValue('')
+    }
+  }, [onSendPrompt, pane.id, inputValue])
+
+  const handleCtrlC = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onSendSignal(pane.id, 'SIGINT')
+  }, [onSendSignal, pane.id])
+
+  // Show input when: expanded AND (idle Claude OR non-Claude pane)
+  const showInput = expanded && (
+    (isClaudePane && session?.status === 'idle') ||
+    !isClaudePane
+  )
+
+  // Show Ctrl+C when: expanded AND (working Claude OR running process)
+  const showCtrlC = expanded && (
+    (isClaudePane && session?.status === 'working') ||
+    (pane.process.type === 'process')
+  )
+
+  return (
+    <div className={`rounded-lg border-2 ${theme.border} ${theme.bg} transition-all`}>
+      {/* Compact Header - always visible */}
+      <div className="p-3 cursor-pointer" onClick={toggleExpanded}>
+        <div className="flex items-center gap-3">
+          {/* Avatar/Icon */}
+          {isClaudePane && session ? (
+            proMode ? (
+              <div className="w-8 h-8 rounded bg-rpg-accent/20 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                C
+              </div>
+            ) : session.avatarSvg ? (
+              <div
+                className="w-10 h-10 rounded-full overflow-hidden bg-rpg-bg flex-shrink-0"
+                dangerouslySetInnerHTML={{ __html: session.avatarSvg }}
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-rpg-accent/30 flex items-center justify-center text-base font-bold flex-shrink-0">
+                {session.name[0]}
+              </div>
+            )
+          ) : (
+            <div className={`w-8 h-8 rounded bg-rpg-bg/50 flex items-center justify-center text-sm font-mono flex-shrink-0 ${pane.process.typing ? 'text-rpg-accent' : 'text-rpg-idle'}`}>
+              {pane.process.type === 'shell' ? '$' : '>'}
+            </div>
+          )}
+
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              {/* Name/Command */}
+              {isClaudePane && session ? (
+                proMode ? (
+                  <span className="font-medium text-sm">Claude</span>
+                ) : (
+                  <span className="font-medium text-sm">{session.name}</span>
+                )
+              ) : (
+                <span className="font-mono text-sm">{pane.process.command}</span>
+              )}
+
+              {/* Repo */}
+              {pane.repo && (
+                <span className="text-xs text-rpg-accent truncate">
+                  {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
+                </span>
+              )}
+
+              {/* Status indicator */}
+              <div className="flex items-center gap-1 ml-auto">
+                <div className={`w-2 h-2 rounded-full ${theme.indicator} ${
+                  status === 'working' || status === 'typing' ? 'animate-pulse' : ''
+                }`} />
+                <span className="text-xs text-rpg-idle/70">{statusLabel}</span>
+              </div>
+            </div>
+
+            {/* Activity line */}
+            <div className="text-sm text-white/80 truncate">
+              {isClaudePane && session ? (
+                <ClaudeActivity session={session} />
+              ) : (
+                <span className="text-rpg-idle/50">
+                  <span className="text-rpg-idle/30">Command:</span> {pane.cwd.split('/').slice(-2).join('/')}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Expand indicator */}
+          <div className="text-rpg-idle/50 text-xs flex-shrink-0">
+            {expanded ? '▲' : '▼'}
+          </div>
+        </div>
+      </div>
+
+      {/* Pending Question (Claude only) - always visible when present */}
+      {isClaudePane && session?.pendingQuestion && (
+        <PendingQuestionSection
+          question={session.pendingQuestion}
+          onAnswer={(answer) => {
+            onSendPrompt(pane.id, answer)
+          }}
+        />
+      )}
+
+      {/* Error details (Claude only) */}
+      {isClaudePane && session?.status === 'error' && session.lastError && !session.pendingQuestion && (
+        <div className="px-3 pb-3">
+          <div className="p-3 bg-rpg-error/20 rounded border border-rpg-error/50">
+            <p className="text-sm">
+              <span className="font-medium">Tool:</span> {session.lastError.tool}
+            </p>
+            {session.lastError.message && (
+              <p className="text-sm text-rpg-error mt-1">{session.lastError.message}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Expanded Content */}
+      {expanded && (
+        <div className="px-3 pb-3 space-y-2">
+          {/* Terminal */}
+          <ExpandedTerminal content={terminalContent} />
+
+          {/* Input row */}
+          <div className="flex gap-2">
+            {showInput && (
+              <>
+                <input
+                  type="text"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.stopPropagation()
+                      handleSend()
+                    }
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder={isClaudePane ? "Send prompt..." : "Send input..."}
+                  className="flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[40px]"
+                />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleSend()
+                  }}
+                  className="px-4 py-2 text-sm bg-rpg-accent/30 hover:bg-rpg-accent/50 rounded transition-colors active:scale-95 min-h-[40px]"
+                >
+                  Send
+                </button>
+              </>
+            )}
+            {showCtrlC && (
+              <button
+                onClick={handleCtrlC}
+                className="px-4 py-2 text-sm bg-rpg-error/20 hover:bg-rpg-error/40 text-rpg-error rounded transition-colors active:scale-95 min-h-[40px] ml-auto"
+              >
+                Ctrl+C
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 })
 
-// Helper to get activity display text - extracted from nested ternary
-function getActivityDisplay(session: ClaudeSessionInfo): React.ReactNode {
+// Claude activity display
+function ClaudeActivity({ session }: { session: ClaudeSessionInfo }) {
   if (session.lastPrompt) {
-    return <span><span className="text-rpg-idle/50">Task:</span> {session.lastPrompt}</span>
+    return <span><span className="text-rpg-idle/30">Prompt:</span> {session.lastPrompt}</span>
   }
   if (session.currentTool) {
     return (
@@ -73,54 +240,73 @@ function getActivityDisplay(session: ClaudeSessionInfo): React.ReactNode {
   if (session.status === 'error' && session.lastError) {
     return <span className="text-rpg-error">Error in {session.lastError.tool}</span>
   }
-  return <span className="text-rpg-idle/50">No recent activity</span>
+  return <span className="text-rpg-idle/50">Ready</span>
 }
 
-// Memoized terminal preview component to prevent re-renders
-const TerminalPreview = memo(function TerminalPreview({
-  content,
-  lines = TERMINAL_PREVIEW_LINES,
-  className = ''
-}: {
-  content: string | undefined
-  lines?: number
-  className?: string
-}) {
-  const preview = useMemo(
-    () => content?.split('\n').slice(-lines).join('\n') || '',
-    [content, lines]
-  )
+// Pending question section
+interface PendingQuestionSectionProps {
+  question: { question: string; options: Array<{ label: string; description?: string }> }
+  onAnswer: (answer: string) => void
+}
 
-  const previewRef = useRef<HTMLPreElement>(null)
-
-  // Use requestAnimationFrame to avoid layout thrashing
-  useEffect(() => {
-    if (!previewRef.current) return
-    requestAnimationFrame(() => {
-      if (previewRef.current) {
-        previewRef.current.scrollTop = previewRef.current.scrollHeight
-      }
-    })
-  }, [preview])
-
-  if (!preview) return null
+const PendingQuestionSection = memo(function PendingQuestionSection({ question, onAnswer }: PendingQuestionSectionProps) {
+  const [customAnswer, setCustomAnswer] = useState('')
 
   return (
-    <pre
-      ref={previewRef}
-      className={`bg-black/30 rounded px-2 py-1.5 text-xs font-mono text-green-400/70 overflow-auto max-h-64 whitespace-pre-wrap ${className}`}
-    >
-      {preview}
-    </pre>
+    <div className="px-3 pb-3">
+      <div className="p-3 bg-rpg-waiting/20 rounded border border-rpg-waiting/50">
+        <p className="text-sm font-medium mb-2">{question.question}</p>
+        <div className="flex flex-wrap gap-2">
+          {question.options.map((opt, i) => (
+            <button
+              key={i}
+              onClick={(e) => {
+                e.stopPropagation()
+                onAnswer(opt.label)
+              }}
+              className="px-3 py-2 text-sm bg-rpg-accent/20 hover:bg-rpg-accent/40 rounded border border-rpg-accent/50 transition-colors active:scale-95 min-h-[40px]"
+              title={opt.description}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 flex gap-2">
+          <input
+            type="text"
+            value={customAnswer}
+            onChange={(e) => setCustomAnswer(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && customAnswer.trim()) {
+                e.stopPropagation()
+                onAnswer(customAnswer.trim())
+                setCustomAnswer('')
+              }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Or type custom answer..."
+            className="flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[40px]"
+          />
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              if (customAnswer.trim()) {
+                onAnswer(customAnswer.trim())
+                setCustomAnswer('')
+              }
+            }}
+            className="px-4 py-2 text-sm bg-rpg-accent/30 hover:bg-rpg-accent/50 rounded transition-colors active:scale-95 min-h-[40px]"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
   )
 })
 
-// Memoized expanded terminal component
-const ExpandedTerminal = memo(function ExpandedTerminal({
-  content
-}: {
-  content: string | undefined
-}) {
+// Expanded terminal view
+const ExpandedTerminal = memo(function ExpandedTerminal({ content }: { content: string | undefined }) {
   const terminalRef = useRef<HTMLPreElement>(null)
 
   useEffect(() => {
@@ -141,238 +327,3 @@ const ExpandedTerminal = memo(function ExpandedTerminal({
     </pre>
   )
 })
-
-// Claude-specific pane card
-interface ClaudePaneCardProps {
-  pane: TmuxPane
-  window: TmuxWindow
-  session: ClaudeSessionInfo
-  onSendPrompt: (paneId: string, prompt: string) => void
-  compact?: boolean
-}
-
-const ClaudePaneCard = memo(function ClaudePaneCard({ pane, session, onSendPrompt, compact }: ClaudePaneCardProps) {
-  const [answerInput, setAnswerInput] = useState('')
-  const [expanded, setExpanded] = useState(false)
-  const terminalContent = usePaneTerminal(pane.id)
-
-  const handleAnswer = useCallback((answer: string) => {
-    onSendPrompt(pane.id, answer)
-    setAnswerInput('')
-  }, [onSendPrompt, pane.id])
-
-  const toggleExpanded = useCallback(() => setExpanded(prev => !prev), [])
-
-  const theme = statusTheme[session.status]
-
-  return (
-    <div className={`rounded-lg border-2 ${theme.border} ${theme.bg} transition-all`}>
-      {/* Header */}
-      <div className="p-3 cursor-pointer" onClick={toggleExpanded}>
-        <div className="flex items-start gap-3">
-          {/* Bitcoin Face Avatar */}
-          {session.avatarSvg ? (
-            <div
-              className="w-10 h-10 rounded-full overflow-hidden bg-rpg-bg flex-shrink-0"
-              dangerouslySetInnerHTML={{ __html: session.avatarSvg }}
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-rpg-accent/30 flex items-center justify-center text-base font-bold flex-shrink-0">
-              {session.name[0]}
-            </div>
-          )}
-
-          {/* Session info */}
-          <div className="flex-1 min-w-0">
-            {/* Name + Project + Status */}
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-medium text-sm">{session.name}</span>
-              {pane.repo && (
-                <span className="text-xs text-rpg-accent">
-                  {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
-                </span>
-              )}
-              <StatusIndicator status={session.status} />
-            </div>
-
-            {/* Activity context */}
-            <div className="text-sm text-white/90 line-clamp-2">
-              {getActivityDisplay(session)}
-            </div>
-
-            {/* Recent files */}
-            {!compact && session.recentFiles && session.recentFiles.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-1.5">
-                {session.recentFiles.slice(0, 3).map((file, i) => (
-                  <span
-                    key={i}
-                    className="px-1.5 py-0.5 text-xs bg-rpg-bg/50 rounded text-rpg-idle/70 truncate max-w-[100px]"
-                    title={file}
-                  >
-                    {file}
-                  </span>
-                ))}
-                {session.recentFiles.length > 3 && (
-                  <span className="px-1.5 py-0.5 text-xs text-rpg-idle/50">
-                    +{session.recentFiles.length - 3}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Expand indicator */}
-          <div className="text-rpg-idle/50 text-xs flex-shrink-0">
-            {expanded ? '\u25B2' : '\u25BC'}
-          </div>
-        </div>
-
-        {/* Terminal preview */}
-        {!compact && !expanded && (
-          <div className="mt-2">
-            <TerminalPreview content={terminalContent} />
-          </div>
-        )}
-      </div>
-
-      {/* Pending Question */}
-      {session.pendingQuestion && (
-        <div className="px-3 pb-3">
-          <div className="p-3 bg-rpg-waiting/20 rounded border border-rpg-waiting/50">
-            <p className="text-sm font-medium mb-2">{session.pendingQuestion.question}</p>
-            <div className="flex flex-wrap gap-2">
-              {session.pendingQuestion.options.map((opt, i) => (
-                <button
-                  key={i}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleAnswer(opt.label)
-                  }}
-                  className="px-3 py-2.5 text-sm bg-rpg-accent/20 hover:bg-rpg-accent/40 rounded border border-rpg-accent/50 transition-colors active:scale-95 min-h-[44px]"
-                  title={opt.description}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            {/* Custom answer input */}
-            <div className="mt-2 flex gap-2">
-              <input
-                type="text"
-                value={answerInput}
-                onChange={(e) => setAnswerInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && answerInput.trim()) {
-                    e.stopPropagation()
-                    handleAnswer(answerInput.trim())
-                  }
-                }}
-                onClick={(e) => e.stopPropagation()}
-                placeholder="Or type custom answer..."
-                className="flex-1 px-3 py-2.5 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px]"
-              />
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (answerInput.trim()) handleAnswer(answerInput.trim())
-                }}
-                className="px-4 py-2.5 text-sm bg-rpg-accent/30 hover:bg-rpg-accent/50 rounded transition-colors active:scale-95 min-h-[44px]"
-              >
-                Send
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Error details */}
-      {session.status === 'error' && session.lastError && !session.pendingQuestion && (
-        <div className="px-3 pb-3">
-          <div className="p-3 bg-rpg-error/20 rounded border border-rpg-error/50">
-            <p className="text-sm">
-              <span className="font-medium">Tool:</span> {session.lastError.tool}
-            </p>
-            {session.lastError.message && (
-              <p className="text-sm text-rpg-error mt-1">{session.lastError.message}</p>
-            )}
-            <p className="text-xs text-rpg-idle/50 mt-2">
-              {new Date(session.lastError.timestamp).toLocaleTimeString()}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Expanded terminal */}
-      {expanded && (
-        <div className="px-3 pb-3">
-          <ExpandedTerminal content={terminalContent} />
-        </div>
-      )}
-    </div>
-  )
-})
-
-// Non-Claude process pane card - simple compact display, no expansion
-interface ProcessPaneCardProps {
-  pane: TmuxPane
-}
-
-const ProcessPaneCard = memo(function ProcessPaneCard({ pane }: ProcessPaneCardProps) {
-  const isTyping = pane.process.typing
-  const borderColor = isTyping
-    ? 'border-rpg-accent/50'
-    : (processColors[pane.process.type as keyof typeof processColors] || processColors.idle)
-
-  return (
-    <div className={`rounded-lg border ${borderColor} bg-rpg-card/50 transition-all p-3`}>
-      <div className="flex items-center gap-3">
-        {/* Process icon */}
-        <div className={`w-8 h-8 rounded bg-rpg-bg/50 flex items-center justify-center text-sm font-mono flex-shrink-0 ${isTyping ? 'text-rpg-accent' : 'text-rpg-idle'}`}>
-          {pane.process.type === 'shell' ? '$' : pane.process.type === 'process' ? '>' : '-'}
-        </div>
-
-        {/* Process info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-sm">{pane.process.command}</span>
-            {pane.repo && (
-              <span className="text-xs text-rpg-accent">
-                {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
-              </span>
-            )}
-            {isTyping && (
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-rpg-accent animate-pulse" />
-                <span className="text-xs text-rpg-accent/70">typing</span>
-              </div>
-            )}
-          </div>
-          <div className="text-xs text-rpg-idle/50 truncate">
-            {pane.cwd}
-          </div>
-        </div>
-
-        {/* Pane target */}
-        <div className="text-xs text-rpg-idle/30 font-mono flex-shrink-0">
-          {pane.target}
-        </div>
-      </div>
-    </div>
-  )
-})
-
-function StatusIndicator({ status }: { status: SessionStatus }) {
-  const theme = statusTheme[status] || statusTheme.idle
-  const label = indicatorLabels[status] || status
-
-  return (
-    <div className="flex items-center gap-1">
-      <div
-        className={`w-2 h-2 rounded-full ${theme.indicator} ${
-          status === 'working' || status === 'typing' ? 'animate-pulse' : ''
-        }`}
-      />
-      <span className="text-xs text-rpg-idle/70">{label}</span>
-    </div>
-  )
-}

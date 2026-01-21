@@ -51,12 +51,14 @@ export function useNotifications(): UseNotificationsResult {
   return { permission, requestPermission, notify }
 }
 
-// Track Claude pane status changes for notifications (pane-centric model)
+// Track pane status changes for notifications
 interface PaneTracker {
   paneId: string
-  sessionName: string
+  isClaudePane: boolean
+  sessionName?: string
   repoName?: string
-  lastStatus: SessionStatus
+  lastStatus: SessionStatus | 'active' | 'inactive'
+  command?: string
 }
 
 interface UsePaneNotificationsOptions {
@@ -77,32 +79,34 @@ export function usePaneNotifications({
 
     const tracker = trackerRef.current
 
-    // Build current Claude pane map
+    // Build current pane map (all panes, not just Claude)
     const currentPanes = new Map<string, TmuxPane>()
     for (const window of windows) {
       for (const pane of window.panes) {
-        if (pane.process.type === 'claude' && pane.process.claudeSession) {
-          currentPanes.set(pane.id, pane)
-        }
+        currentPanes.set(pane.id, pane)
       }
     }
 
     // Check for status transitions
     for (const [paneId, pane] of currentPanes) {
-      const session = pane.process.claudeSession!
+      const isClaudePane = pane.process.type === 'claude'
+      const session = pane.process.claudeSession
       const prev = tracker.get(paneId)
 
-      if (prev) {
-        // Status changed - check if needs notification
-        if (prev.lastStatus !== session.status) {
-          if (session.status === 'waiting' && prev.lastStatus !== 'waiting') {
+      if (isClaudePane && session) {
+        // Claude pane tracking
+        if (prev) {
+          const prevStatus = prev.lastStatus as SessionStatus
+
+          // P1: Needs attention (waiting/error)
+          if (session.status === 'waiting' && prevStatus !== 'waiting') {
             const question = session.pendingQuestion?.question || 'needs input'
             notify(`${session.name} needs input`, {
               body: `${pane.repo?.name || 'Unknown'}: ${question}`,
               tag: `pane-${paneId}`,
               requireInteraction: true,
             })
-          } else if (session.status === 'error' && prev.lastStatus !== 'error') {
+          } else if (session.status === 'error' && prevStatus !== 'error') {
             const errorInfo = session.lastError
               ? `Error in ${session.lastError.tool}`
               : 'encountered an error'
@@ -113,19 +117,56 @@ export function usePaneNotifications({
             })
           }
 
+          // P2: Working → Idle (task complete)
+          if (session.status === 'idle' && prevStatus === 'working') {
+            notify(`${session.name} finished`, {
+              body: `${pane.repo?.name || 'Task'} complete`,
+              tag: `pane-${paneId}-done`,
+            })
+          }
+
           tracker.set(paneId, {
             ...prev,
             lastStatus: session.status,
           })
+        } else {
+          // New Claude pane - just track it
+          tracker.set(paneId, {
+            paneId,
+            isClaudePane: true,
+            sessionName: session.name,
+            repoName: pane.repo?.name,
+            lastStatus: session.status,
+          })
         }
       } else {
-        // New pane - just track it, don't notify
-        tracker.set(paneId, {
-          paneId,
-          sessionName: session.name,
-          repoName: pane.repo?.name,
-          lastStatus: session.status,
-        })
+        // Non-Claude pane tracking
+        const isActive = pane.process.typing || pane.process.type === 'process'
+        const currentStatus = isActive ? 'active' : 'inactive'
+
+        if (prev) {
+          // P3: Terminal activity (inactive → active)
+          if (currentStatus === 'active' && prev.lastStatus === 'inactive') {
+            notify(`Activity in ${pane.process.command}`, {
+              body: pane.repo?.name || pane.cwd.split('/').slice(-2).join('/'),
+              tag: `pane-${paneId}-activity`,
+            })
+          }
+
+          tracker.set(paneId, {
+            ...prev,
+            lastStatus: currentStatus,
+          })
+        } else {
+          // New non-Claude pane - just track it
+          tracker.set(paneId, {
+            paneId,
+            isClaudePane: false,
+            repoName: pane.repo?.name,
+            lastStatus: currentStatus,
+            command: pane.process.command,
+          })
+        }
       }
     }
 

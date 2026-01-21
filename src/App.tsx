@@ -1,8 +1,7 @@
 import { useState, useCallback } from 'react'
 import { OverviewDashboard } from './components/OverviewDashboard'
-import { ConnectionStatus } from './components/ConnectionStatus'
 import { useWebSocket } from './hooks/useWebSocket'
-import { useWindows, sendPromptToPane } from './hooks/useWindows'
+import { useWindows, sendPromptToPane, sendSignalToPane } from './hooks/useWindows'
 import { initTerminalCache } from './hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
 
@@ -13,6 +12,10 @@ export default function App() {
   const { connected } = useWebSocket()
   const { windows, attentionPanes } = useWindows()
   const [notificationsDismissed, setNotificationsDismissed] = useState(false)
+  const [proMode, setProMode] = useState(() => {
+    // Persist pro mode preference
+    return localStorage.getItem('claude-rpg-pro-mode') === 'true'
+  })
 
   // Notifications
   const { permission, requestPermission, notify } = useNotifications()
@@ -30,6 +33,21 @@ export default function App() {
     },
     []
   )
+
+  const handleSendSignal = useCallback(
+    async (paneId: string, signal: string) => {
+      await sendSignalToPane(paneId, signal)
+    },
+    []
+  )
+
+  const handleToggleProMode = useCallback(() => {
+    setProMode(prev => {
+      const next = !prev
+      localStorage.setItem('claude-rpg-pro-mode', String(next))
+      return next
+    })
+  }, [])
 
   const showNotificationBanner = permission === 'default' && !notificationsDismissed
 
@@ -64,7 +82,10 @@ export default function App() {
           windows={windows}
           attentionCount={attentionPanes.length}
           connected={connected}
+          proMode={proMode}
           onSendPrompt={handleSendPrompt}
+          onSendSignal={handleSendSignal}
+          onToggleProMode={handleToggleProMode}
         />
       </main>
     </div>
