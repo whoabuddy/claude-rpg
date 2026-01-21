@@ -84,7 +84,13 @@ ClaudeSessionInfo {
 
 // Secondary (persisted for XP/stats)
 Companion {
-  id, name, repo, level, experience, stats
+  id, name, repo, level, experience, stats, streak
+}
+
+StreakInfo {
+  current: number      // Current consecutive days
+  longest: number      // All-time longest streak
+  lastActiveDate: string  // YYYY-MM-DD format
 }
 ```
 
@@ -96,12 +102,15 @@ claude-rpg/
 │   ├── index.ts      # Main server, event processing, WebSocket
 │   ├── tmux.ts       # Tmux polling, process detection, session cache
 │   ├── companions.ts # Companion XP/stats, Bitcoin faces
+│   ├── competitions.ts # Streak tracking, leaderboard calculations
 │   ├── xp.ts         # XP calculation, command detection
 │   ├── utils.ts      # Shared utilities
 │   └── cli.ts        # CLI for setup and running
 ├── src/              # React + Tailwind frontend
 │   ├── components/   # UI components
 │   │   ├── OverviewDashboard.tsx # All panes in stable order
+│   │   ├── CompetitionsPage.tsx  # Leaderboards and competitions
+│   │   ├── LeaderboardCard.tsx   # Single category leaderboard
 │   │   ├── PaneCard.tsx          # Expandable pane card (Claude + Process)
 │   │   └── ConnectionStatus.tsx  # WebSocket status indicator
 │   ├── hooks/        # React hooks
@@ -109,6 +118,7 @@ claude-rpg/
 │   │   ├── usePaneTerminal.ts    # Terminal content by paneId
 │   │   ├── useWebSocket.ts       # WebSocket connection
 │   │   ├── useCompanions.ts      # Companion stats (for XP display)
+│   │   ├── useCompetitions.ts    # Competition leaderboards
 │   │   └── useNotifications.ts   # Browser notifications
 │   └── styles/       # Tailwind CSS
 ├── shared/           # Shared types between server/client
@@ -142,7 +152,11 @@ claude-rpg/
 | `/api/panes/:id/prompt` | POST | Send prompt/input to pane |
 | `/api/panes/:id/signal` | POST | Send signal (e.g., SIGINT for Ctrl+C) |
 | `/api/panes/:id/dismiss` | POST | Dismiss waiting status (set to ready) |
+| `/api/panes/:id/refresh` | POST | Refresh pane (scroll to bottom, reset state) |
 | `/api/companions` | GET | List all companions (XP/stats) |
+| `/api/competitions` | GET | All categories, all time periods |
+| `/api/competitions/:category` | GET | Single category, optional `?period=` query |
+| `/api/competitions/streaks` | GET | All companion streaks |
 
 ## WebSocket Messages
 
@@ -153,6 +167,7 @@ claude-rpg/
 - `pane_removed` - Pane closed
 - `companions` - All companions on connect
 - `companion_update` - Single companion XP/stats changed
+- `competitions` - All competition leaderboards on connect
 - `event` - New Claude event
 - `xp_gain` - XP was awarded
 - `history` - Recent events on connect

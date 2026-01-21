@@ -1,10 +1,13 @@
 import { useState, useCallback, useMemo } from 'react'
 import { OverviewDashboard } from './components/OverviewDashboard'
 import { FullScreenPane } from './components/FullScreenPane'
+import { CompetitionsPage } from './components/CompetitionsPage'
 import { useWebSocket } from './hooks/useWebSocket'
-import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting } from './hooks/useWindows'
+import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refreshPane } from './hooks/useWindows'
 import { initTerminalCache } from './hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
+
+type ViewTab = 'dashboard' | 'competitions'
 
 // Initialize terminal cache once
 initTerminalCache()
@@ -14,6 +17,7 @@ export default function App() {
   const { windows, attentionPanes } = useWindows()
   const [notificationsDismissed, setNotificationsDismissed] = useState(false)
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<ViewTab>('dashboard')
   const [proMode, setProMode] = useState(() => {
     // Persist pro mode preference
     return localStorage.getItem('claude-rpg-pro-mode') === 'true'
@@ -50,6 +54,13 @@ export default function App() {
     []
   )
 
+  const handleRefreshPane = useCallback(
+    async (paneId: string) => {
+      await refreshPane(paneId)
+    },
+    []
+  )
+
   const handleToggleProMode = useCallback(() => {
     setProMode(prev => {
       const next = !prev
@@ -64,6 +75,14 @@ export default function App() {
 
   const handleCloseFullscreen = useCallback(() => {
     setFullscreenPaneId(null)
+  }, [])
+
+  const handleNavigateToCompetitions = useCallback(() => {
+    setActiveTab('competitions')
+  }, [])
+
+  const handleNavigateToDashboard = useCallback(() => {
+    setActiveTab('dashboard')
   }, [])
 
   // Find the fullscreen pane and its window
@@ -109,19 +128,28 @@ export default function App() {
         </div>
       )}
 
-      {/* Main content - Dashboard only */}
+      {/* Main content */}
       <main className="flex-1 overflow-y-auto">
-        <OverviewDashboard
-          windows={windows}
-          attentionCount={attentionPanes.length}
-          connected={connected}
-          proMode={proMode}
-          onSendPrompt={handleSendPrompt}
-          onSendSignal={handleSendSignal}
-          onDismissWaiting={handleDismissWaiting}
-          onExpandPane={handleExpandPane}
-          onToggleProMode={handleToggleProMode}
-        />
+        {activeTab === 'dashboard' ? (
+          <OverviewDashboard
+            windows={windows}
+            attentionCount={attentionPanes.length}
+            connected={connected}
+            proMode={proMode}
+            onSendPrompt={handleSendPrompt}
+            onSendSignal={handleSendSignal}
+            onDismissWaiting={handleDismissWaiting}
+            onExpandPane={handleExpandPane}
+            onRefreshPane={handleRefreshPane}
+            onToggleProMode={handleToggleProMode}
+            onNavigateToCompetitions={handleNavigateToCompetitions}
+          />
+        ) : (
+          <CompetitionsPage
+            connected={connected}
+            onNavigateBack={handleNavigateToDashboard}
+          />
+        )}
       </main>
 
       {/* Full-screen pane overlay */}

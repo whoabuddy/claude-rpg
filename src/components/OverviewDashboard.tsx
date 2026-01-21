@@ -12,7 +12,9 @@ interface OverviewDashboardProps {
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
   onExpandPane: (paneId: string) => void
+  onRefreshPane: (paneId: string) => void
   onToggleProMode: () => void
+  onNavigateToCompetitions: () => void
 }
 
 interface WindowGroup {
@@ -64,7 +66,9 @@ export function OverviewDashboard({
   onSendSignal,
   onDismissWaiting,
   onExpandPane,
+  onRefreshPane,
   onToggleProMode,
+  onNavigateToCompetitions,
 }: OverviewDashboardProps) {
   const [collapsedWindows, setCollapsedWindows] = useState<Set<string>>(new Set())
 
@@ -82,17 +86,7 @@ export function OverviewDashboard({
         if (pane.process.type === 'claude') claudeCount++
       }
 
-      // Sort panes: attention first, then Claude panes, then others
-      panes.sort((a, b) => {
-        const aAttention = needsAttention(a) ? 0 : 1
-        const bAttention = needsAttention(b) ? 0 : 1
-        if (aAttention !== bAttention) return aAttention - bAttention
-
-        const aClaude = a.process.type === 'claude' ? 0 : 1
-        const bClaude = b.process.type === 'claude' ? 0 : 1
-        return aClaude - bClaude
-      })
-
+      // Keep panes in natural tmux order - no sorting to avoid layout shift
       const windowAttention = panes.filter(needsAttention).length
 
       groups.push({
@@ -103,12 +97,8 @@ export function OverviewDashboard({
       })
     }
 
-    // Sort windows: those with attention first, then by window index
-    groups.sort((a, b) => {
-      if (a.attentionCount > 0 && b.attentionCount === 0) return -1
-      if (b.attentionCount > 0 && a.attentionCount === 0) return 1
-      return a.window.windowIndex - b.window.windowIndex
-    })
+    // Keep windows in stable order by index - no sorting by attention to avoid layout shift
+    groups.sort((a, b) => a.window.windowIndex - b.window.windowIndex)
 
     return {
       windowGroups: groups,
@@ -148,6 +138,13 @@ export function OverviewDashboard({
         </div>
         <div className="flex items-center gap-3">
           <button
+            onClick={onNavigateToCompetitions}
+            className="px-2 py-1 text-xs rounded bg-rpg-card text-rpg-idle hover:text-rpg-accent hover:bg-rpg-card/80 transition-colors"
+            title="View Competitions"
+          >
+            Leaderboard
+          </button>
+          <button
             onClick={onToggleProMode}
             className={`px-2 py-1 text-xs rounded transition-colors ${
               proMode
@@ -156,7 +153,7 @@ export function OverviewDashboard({
             }`}
             title={proMode ? "Show Bitcoin faces" : "Hide Bitcoin faces"}
           >
-            {proMode ? 'Pro' : '😎'}
+            {proMode ? 'Pro' : 'RPG'}
           </button>
           <ConnectionStatus connected={connected} />
         </div>
@@ -181,6 +178,7 @@ export function OverviewDashboard({
               onSendSignal={onSendSignal}
               onDismissWaiting={onDismissWaiting}
               onExpandPane={onExpandPane}
+              onRefreshPane={onRefreshPane}
             />
           ))}
         </div>
@@ -198,6 +196,7 @@ interface WindowSectionProps {
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
   onExpandPane: (paneId: string) => void
+  onRefreshPane: (paneId: string) => void
 }
 
 function WindowSection({
@@ -209,6 +208,7 @@ function WindowSection({
   onSendSignal,
   onDismissWaiting,
   onExpandPane,
+  onRefreshPane,
 }: WindowSectionProps) {
   const hasAttention = group.attentionCount > 0
 
@@ -258,6 +258,7 @@ function WindowSection({
               onSendSignal={onSendSignal}
               onDismissWaiting={onDismissWaiting}
               onExpandPane={onExpandPane}
+              onRefreshPane={onRefreshPane}
               proMode={proMode}
             />
           ))}

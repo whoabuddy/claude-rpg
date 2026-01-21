@@ -19,9 +19,12 @@ import type {
   TerminalOutput,
   ClaudeSessionInfo,
   PreToolUseEvent,
+  CompetitionCategory,
+  TimePeriod,
 } from '../shared/types.js'
 import { processEvent } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName } from './companions.js'
+import { getAllCompetitions, getCompetition, getStreakLeaderboard, updateStreak } from './competitions.js'
 import {
   pollTmuxState,
   updateClaudeSession,
@@ -429,6 +432,13 @@ async function handleEvent(rawEvent: RawHookEvent) {
   const companion = findOrCreateCompanion(companions, event.cwd)
   if (companion) {
     const xpGain = processEvent(companion, event)
+
+    // Update streak on activity (only for live events, not historical replay)
+    if (!isLoadingHistoricalEvents) {
+      const activityDate = new Date(event.timestamp).toISOString().slice(0, 10)
+      companion.streak = updateStreak(companion.streak, activityDate)
+    }
+
     saveCompanions(DATA_DIR, companions)
     broadcast({ type: 'companion_update', payload: companion })
 
@@ -578,12 +588,16 @@ async function sendPromptToTmux(target: string, prompt: string): Promise<void> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 let lastFileSize = 0
+let isLoadingHistoricalEvents = false
 
 function loadEventsFromFile() {
   if (!existsSync(EVENTS_FILE)) return
 
   const content = readFileSync(EVENTS_FILE, 'utf-8')
   const lines = content.trim().split('\n').filter(Boolean)
+
+  // Mark that we're loading historical events (skip streak updates)
+  isLoadingHistoricalEvents = true
 
   for (const line of lines) {
     try {
@@ -594,6 +608,7 @@ function loadEventsFromFile() {
     }
   }
 
+  isLoadingHistoricalEvents = false
   lastFileSize = content.length
 }
 
@@ -791,10 +806,108 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // Refresh pane (scroll to bottom, reset state, refresh terminal)
+  const paneRefreshMatch = url.pathname.match(/^\/api\/panes\/([^/]+)\/refresh$/)
+  if (paneRefreshMatch && req.method === 'POST') {
+    const paneId = decodeURIComponent(paneRefreshMatch[1])
+    const pane = findPaneById(windows, paneId)
+
+    if (!pane) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
+      return
+    }
+
+    try {
+      // Scroll tmux pane to bottom to show latest content
+      await execAsync(`tmux copy-mode -t "${pane.target}" \\; send-keys -t "${pane.target}" q`)
+      await new Promise(r => setTimeout(r, 50))
+
+      // Reset Claude session state if present
+      if (pane.process.claudeSession) {
+        const updated = updateClaudeSession(pane.id, {
+          pendingQuestion: undefined,
+          status: 'idle',
+          currentTool: undefined,
+          currentFile: undefined,
+          lastError: undefined,
+        })
+        if (updated) {
+          pane.process.claudeSession = updated
+          savePanesCache()
+        }
+      }
+
+      // Clear typing state
+      pane.process.typing = false
+
+      // Force fresh terminal capture
+      const content = await captureTerminal(pane.target)
+      if (content !== null) {
+        lastTerminalContent.set(pane.id, content)
+        pane.terminalContent = content
+        const output: TerminalOutput = {
+          paneId: pane.id,
+          target: pane.target,
+          content,
+          timestamp: Date.now(),
+        }
+        broadcast({ type: 'terminal_output', payload: output })
+      }
+
+      broadcast({ type: 'pane_update', payload: pane })
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true }))
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: String(e) }))
+    }
+    return
+  }
+
   // List companions (for XP/stats)
   if (url.pathname === '/api/companions' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true, data: companions }))
+    return
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Competition Endpoints
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Get all competitions (all categories, all periods)
+  if (url.pathname === '/api/competitions' && req.method === 'GET') {
+    const competitions = getAllCompetitions(companions, events)
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, data: competitions }))
+    return
+  }
+
+  // Get streaks leaderboard
+  if (url.pathname === '/api/competitions/streaks' && req.method === 'GET') {
+    const entries = getStreakLeaderboard(companions)
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, data: entries }))
+    return
+  }
+
+  // Get single category competition
+  const competitionMatch = url.pathname.match(/^\/api\/competitions\/([^/]+)$/)
+  if (competitionMatch && req.method === 'GET') {
+    const category = competitionMatch[1] as CompetitionCategory
+    const validCategories = ['xp', 'commits', 'tests', 'tools', 'prompts']
+    if (!validCategories.includes(category)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'Invalid category' }))
+      return
+    }
+
+    const period = (url.searchParams.get('period') || 'all') as TimePeriod
+    const competition = getCompetition(companions, events, category, period)
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, data: competition }))
     return
   }
 
@@ -816,6 +929,7 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'connected' } satisfies ServerMessage))
   ws.send(JSON.stringify({ type: 'windows', payload: windows } satisfies ServerMessage))
   ws.send(JSON.stringify({ type: 'companions', payload: companions } satisfies ServerMessage))
+  ws.send(JSON.stringify({ type: 'competitions', payload: getAllCompetitions(companions, events) } satisfies ServerMessage))
   ws.send(JSON.stringify({ type: 'history', payload: events.slice(-100) } satisfies ServerMessage))
 
   // Send current terminal content for all panes

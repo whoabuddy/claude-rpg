@@ -29,15 +29,16 @@ interface PaneCardProps {
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting?: (paneId: string) => void
   onExpandPane?: (paneId: string) => void
+  onRefreshPane?: (paneId: string) => void
   proMode?: boolean
   compact?: boolean
 }
 
-export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, proMode = false, compact = false }: PaneCardProps) {
+export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, proMode = false, compact = false }: PaneCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const terminalContent = usePaneTerminal(pane.id)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const isClaudePane = pane.process.type === 'claude'
   const session = pane.process.claudeSession
@@ -82,6 +83,11 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     e.stopPropagation()
     onExpandPane?.(pane.id)
   }, [onExpandPane, pane.id])
+
+  const handleRefresh = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onRefreshPane?.(pane.id)
+  }, [onRefreshPane, pane.id])
 
   // Show input when: expanded AND (Claude not actively working OR non-Claude pane)
   // Allow input for idle, waiting, typing, error - only hide when working
@@ -245,6 +251,15 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
 
           {/* Actions */}
           <div className="flex items-center gap-1 flex-shrink-0">
+            {onRefreshPane && (
+              <button
+                onClick={handleRefresh}
+                className="w-8 h-8 flex items-center justify-center text-rpg-idle/50 hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
+                title="Refresh pane"
+              >
+                ↻
+              </button>
+            )}
             {onExpandPane && (
               <button
                 onClick={handleExpand}
@@ -294,54 +309,70 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
           {/* Terminal */}
           <ExpandedTerminal content={terminalContent} />
 
-          {/* Input row */}
-          <div className="flex gap-2">
+          {/* Input section */}
+          <div className="space-y-2">
             {showInput && (
               <>
-                <input
+                <textarea
                   ref={inputRef}
-                  type="text"
                   value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
+                  onChange={(e) => {
+                    setInputValue(e.target.value)
+                    // Auto-resize textarea
+                    e.target.style.height = 'auto'
+                    e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
                       e.stopPropagation()
                       if (inputValue.trim()) {
                         handleSend()
+                        // Reset height after sending
+                        if (inputRef.current) {
+                          inputRef.current.style.height = 'auto'
+                        }
                       } else {
                         onSendPrompt(pane.id, '') // Just Enter
                       }
                     }
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  placeholder={isClaudePane ? "Send prompt..." : "Send input..."}
-                  className="flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[40px]"
+                  placeholder={isClaudePane ? "Send prompt... (Shift+Enter for newline)" : "Send input..."}
+                  className="w-full px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none"
+                  rows={1}
                 />
-                <button
-                  onClick={handleEnter}
-                  className="px-3 py-2 text-sm bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle rounded transition-colors active:scale-95 min-h-[40px]"
-                  title="Send Enter (accept suggestion)"
-                >
-                  ⏎
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleSend()
-                  }}
-                  disabled={!inputValue.trim()}
-                  className="px-4 py-2 text-sm bg-rpg-accent/30 hover:bg-rpg-accent/50 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors active:scale-95 min-h-[40px]"
-                >
-                  Send
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleEnter}
+                    className="flex-1 sm:flex-none px-3 py-2 text-sm bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle rounded transition-colors active:scale-95 min-h-[44px]"
+                    title="Send Enter (accept suggestion)"
+                  >
+                    ⏎ Enter
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleSend()
+                      // Reset height after sending
+                      if (inputRef.current) {
+                        inputRef.current.style.height = 'auto'
+                      }
+                    }}
+                    disabled={!inputValue.trim()}
+                    className="flex-1 sm:flex-none px-4 py-2 text-sm bg-rpg-accent/30 hover:bg-rpg-accent/50 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors active:scale-95 min-h-[44px]"
+                  >
+                    Send
+                  </button>
+                </div>
               </>
             )}
             {showCtrlC && (
               <button
                 onClick={handleCtrlC}
-                className="px-4 py-2 text-sm bg-rpg-error/20 hover:bg-rpg-error/40 text-rpg-error rounded transition-colors active:scale-95 min-h-[40px] ml-auto"
+                className="w-full px-4 py-2 text-sm bg-rpg-error/20 hover:bg-rpg-error/40 text-rpg-error rounded transition-colors active:scale-95 min-h-[44px]"
               >
-                Ctrl+C
+                Interrupt
               </button>
             )}
           </div>

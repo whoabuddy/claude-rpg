@@ -170,3 +170,18 @@ export async function dismissWaiting(paneId: string): Promise<boolean> {
     return false
   }
 }
+
+// Helper to refresh pane (scroll to bottom, reset state, refresh terminal)
+export async function refreshPane(paneId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/api/panes/${encodeURIComponent(paneId)}/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    const data = await res.json()
+    return data.ok
+  } catch {
+    return false
+  }
+}
