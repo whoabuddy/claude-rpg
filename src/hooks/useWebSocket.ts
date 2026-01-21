@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ClaudeEvent, ServerMessage } from '@shared/types'
 
-const WS_URL = `ws://${window.location.hostname}:${__SERVER_PORT__}`
-
-declare const __SERVER_PORT__: number
+// Use relative WebSocket URL to go through Vite proxy (supports both HTTP and HTTPS)
+const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+const WS_URL = `${WS_PROTOCOL}//${window.location.host}/ws`
 
 export function useWebSocket() {
   const [connected, setConnected] = useState(false)

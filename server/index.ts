@@ -35,6 +35,7 @@ import {
   getSessionCache,
   setSessionCache,
 } from './tmux.js'
+import { isWhisperAvailable, transcribeAudio } from './whisper.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Configuration
@@ -699,7 +700,12 @@ const server = http.createServer(async (req, res) => {
   // Health check
   if (url.pathname === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, companions: companions.length, windows: windows.length }))
+    res.end(JSON.stringify({
+      ok: true,
+      companions: companions.length,
+      windows: windows.length,
+      whisper: isWhisperAvailable(),
+    }))
     return
   }
 
@@ -717,6 +723,57 @@ const server = http.createServer(async (req, res) => {
       } catch {
         res.writeHead(400, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ ok: false, error: 'Invalid JSON' }))
+      }
+    })
+    return
+  }
+
+  // Audio transcription (whisper.cpp)
+  if (url.pathname === '/api/transcribe' && req.method === 'POST') {
+    if (!isWhisperAvailable()) {
+      res.writeHead(503, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        ok: false,
+        error: 'Whisper not available. Please install whisper.cpp and download the model.',
+      }))
+      return
+    }
+
+    const MAX_AUDIO_SIZE = 10 * 1024 * 1024 // 10MB limit
+    const chunks: Buffer[] = []
+    let totalSize = 0
+
+    req.on('data', (chunk: Buffer) => {
+      totalSize += chunk.length
+      if (totalSize <= MAX_AUDIO_SIZE) {
+        chunks.push(chunk)
+      }
+    })
+
+    req.on('end', async () => {
+      try {
+        if (totalSize > MAX_AUDIO_SIZE) {
+          res.writeHead(413, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: 'Audio file too large (max 10MB)' }))
+          return
+        }
+
+        const audioBuffer = Buffer.concat(chunks)
+        if (audioBuffer.length === 0) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: 'No audio data received' }))
+          return
+        }
+
+        const text = await transcribeAudio(audioBuffer)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true, text }))
+      } catch (e) {
+        console.error('[whisper] Transcription error:', e)
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        // Sanitize error message - don't expose stack traces
+        const errorMsg = e instanceof Error ? e.message : 'Transcription failed'
+        res.end(JSON.stringify({ ok: false, error: errorMsg }))
       }
     })
     return

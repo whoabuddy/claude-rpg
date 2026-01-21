@@ -3,6 +3,7 @@ import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, RepoInfo } from '@shared/
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
+import { VoiceButton } from './VoiceButton'
 
 interface PaneCardProps {
   pane: TmuxPane
@@ -65,6 +66,13 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     e.stopPropagation()
     onRefreshPane?.(pane.id)
   }, [onRefreshPane, pane.id])
+
+  const handleVoiceTranscription = useCallback((text: string) => {
+    // Append transcribed text to input
+    setInputValue(prev => prev ? `${prev} ${text}` : text)
+    // Focus the input so user can edit/send
+    inputRef.current?.focus()
+  }, [])
 
   // Show input when: expanded AND (Claude not actively working OR non-Claude pane)
   // Allow input for idle, waiting, typing, error - only hide when working
@@ -292,35 +300,38 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
             {/* Regular input (when no pending question) */}
             {showInput && !session?.pendingQuestion && (
               <>
-                <textarea
-                  ref={inputRef}
-                  value={inputValue}
-                  onChange={(e) => {
-                    setInputValue(e.target.value)
-                    // Auto-resize textarea
-                    e.target.style.height = 'auto'
-                    e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      if (inputValue.trim()) {
-                        handleSend()
-                        // Reset height after sending
-                        if (inputRef.current) {
-                          inputRef.current.style.height = 'auto'
+                <div className="flex gap-2 items-end">
+                  <textarea
+                    ref={inputRef}
+                    value={inputValue}
+                    onChange={(e) => {
+                      setInputValue(e.target.value)
+                      // Auto-resize textarea
+                      e.target.style.height = 'auto'
+                      e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (inputValue.trim()) {
+                          handleSend()
+                          // Reset height after sending
+                          if (inputRef.current) {
+                            inputRef.current.style.height = 'auto'
+                          }
+                        } else {
+                          onSendPrompt(pane.id, '') // Just Enter
                         }
-                      } else {
-                        onSendPrompt(pane.id, '') // Just Enter
                       }
-                    }
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder={isClaudePane ? "Send prompt... (Shift+Enter for newline)" : "Send input..."}
-                  className="w-full px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none"
-                  rows={1}
-                />
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder={isClaudePane ? "Send prompt... (Shift+Enter for newline)" : "Send input..."}
+                    className="flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none"
+                    rows={1}
+                  />
+                  <VoiceButton onTranscription={handleVoiceTranscription} />
+                </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
