@@ -198,7 +198,8 @@ export function FullScreenPane({
       <div className="flex-1 overflow-hidden p-4">
         <pre
           ref={terminalRef}
-          className="h-full bg-rpg-bg rounded-lg p-4 text-sm font-mono text-rpg-working overflow-auto whitespace-pre-wrap border border-rpg-border-dim"
+          onClick={() => inputRef.current?.focus()}
+          className="h-full bg-rpg-bg rounded-lg p-4 text-sm font-mono text-rpg-working overflow-auto whitespace-pre-wrap border border-rpg-border-dim cursor-text"
         >
           {terminalContent || <span className="text-rpg-text-dim">Waiting for activity...</span>}
         </pre>

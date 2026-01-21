@@ -284,7 +284,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
           )}
 
           {/* Terminal */}
-          <ExpandedTerminal content={terminalContent} />
+          <ExpandedTerminal content={terminalContent} onTerminalClick={() => inputRef.current?.focus()} />
 
           {/* Input section - always at bottom */}
           <div className="space-y-2">
@@ -483,7 +483,7 @@ const GitHubLinks = memo(function GitHubLinks({ repo }: { repo: RepoInfo }) {
 })
 
 // Expanded terminal view
-const ExpandedTerminal = memo(function ExpandedTerminal({ content }: { content: string | undefined }) {
+const ExpandedTerminal = memo(function ExpandedTerminal({ content, onTerminalClick }: { content: string | undefined, onTerminalClick?: () => void }) {
   const terminalRef = useRef<HTMLPreElement>(null)
 
   useEffect(() => {
@@ -498,7 +498,8 @@ const ExpandedTerminal = memo(function ExpandedTerminal({ content }: { content: 
   return (
     <pre
       ref={terminalRef}
-      className="bg-rpg-bg rounded p-3 text-xs font-mono text-rpg-working overflow-auto max-h-64 whitespace-pre-wrap border border-rpg-border-dim"
+      onClick={onTerminalClick}
+      className="bg-rpg-bg rounded p-3 text-xs font-mono text-rpg-working overflow-auto max-h-64 whitespace-pre-wrap border border-rpg-border-dim cursor-text"
     >
       {content || <span className="text-rpg-text-dim">Waiting for activity...</span>}
     </pre>
