@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, memo, useCallback } from 'react'
-import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, SessionStatus } from '@shared/types'
+import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, SessionStatus, RepoInfo } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 
 // Status theme - applies to all panes
@@ -188,11 +188,28 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
                 <span className="font-mono text-sm">{pane.process.command}</span>
               )}
 
-              {/* Repo */}
+              {/* Repo + Git Status */}
               {pane.repo && (
-                <span className="text-xs text-rpg-accent truncate">
-                  {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
-                </span>
+                <div className="flex items-center gap-1.5 text-xs truncate">
+                  <span className="text-rpg-accent">
+                    {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
+                  </span>
+                  {pane.repo.branch && (
+                    <>
+                      <span className="text-rpg-idle/50">:</span>
+                      <span className="text-rpg-working">{pane.repo.branch}</span>
+                    </>
+                  )}
+                  {(pane.repo.ahead !== undefined && pane.repo.ahead > 0) && (
+                    <span className="text-rpg-success" title={`${pane.repo.ahead} ahead`}>↑{pane.repo.ahead}</span>
+                  )}
+                  {(pane.repo.behind !== undefined && pane.repo.behind > 0) && (
+                    <span className="text-rpg-error" title={`${pane.repo.behind} behind`}>↓{pane.repo.behind}</span>
+                  )}
+                  {pane.repo.isDirty && (
+                    <span className="text-rpg-waiting" title="Uncommitted changes">●</span>
+                  )}
+                </div>
               )}
 
               {/* Status indicator */}
@@ -269,6 +286,11 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
       {/* Expanded Content */}
       {expanded && (
         <div className="px-3 pb-3 space-y-2">
+          {/* Fork info + GitHub Links */}
+          {pane.repo?.org && (
+            <GitHubLinks repo={pane.repo} />
+          )}
+
           {/* Terminal */}
           <ExpandedTerminal content={terminalContent} />
 
@@ -436,6 +458,65 @@ const PendingQuestionSection = memo(function PendingQuestionSection({ question, 
             Send
           </button>
         </div>
+      </div>
+    </div>
+  )
+})
+
+// GitHub quick links
+const GitHubLinks = memo(function GitHubLinks({ repo }: { repo: RepoInfo }) {
+  if (!repo.org) return null
+
+  const baseUrl = `https://github.com/${repo.org}/${repo.name}`
+
+  const links = [
+    { label: 'Repo', url: baseUrl, icon: '📁' },
+    { label: 'Issues', url: `${baseUrl}/issues`, icon: '🐛' },
+    { label: 'PRs', url: `${baseUrl}/pulls`, icon: '🔀' },
+  ]
+
+  // Add "Create PR" if on a non-default branch
+  if (repo.branch && repo.defaultBranch && repo.branch !== repo.defaultBranch) {
+    links.push({
+      label: 'Create PR',
+      url: `${baseUrl}/compare/${repo.defaultBranch}...${repo.branch}?expand=1`,
+      icon: '➕',
+    })
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Fork info */}
+      {repo.upstream && (
+        <span className="text-xs text-rpg-idle/70">
+          ↳ fork of{' '}
+          <a
+            href={`https://github.com/${repo.upstream.org}/${repo.upstream.name}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-rpg-accent hover:underline"
+            onClick={e => e.stopPropagation()}
+          >
+            {repo.upstream.org}/{repo.upstream.name}
+          </a>
+        </span>
+      )}
+
+      {/* Quick links */}
+      <div className="flex gap-1 ml-auto">
+        {links.map(link => (
+          <a
+            key={link.label}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="px-2 py-1 text-xs bg-rpg-bg hover:bg-rpg-border rounded transition-colors"
+            title={link.label}
+          >
+            {link.icon}
+          </a>
+        ))}
       </div>
     </div>
   )

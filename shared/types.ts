@@ -83,6 +83,18 @@ export interface RepoInfo {
   remote?: string        // git@github.com:org/repo.git
   org?: string           // org
   name: string           // repo
+  // Git status (populated async)
+  branch?: string        // current branch name
+  defaultBranch?: string // main or master
+  ahead?: number         // commits ahead of origin
+  behind?: number        // commits behind origin
+  isDirty?: boolean      // has uncommitted changes
+  // Fork info
+  upstream?: {
+    org: string
+    name: string
+    remote: string
+  }
 }
 
 export interface CompanionStats {

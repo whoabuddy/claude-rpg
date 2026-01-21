@@ -8,6 +8,7 @@ import type {
 } from '../shared/types.js'
 import {
   detectRepoInfo,
+  getEnrichedRepoInfo,
   findPaneByTarget,
   findPaneById,
   getClaudePanes,
@@ -86,7 +87,12 @@ export async function pollTmuxState(): Promise<TmuxWindow[]> {
       const process = await detectPaneProcess(paneId, currentCommand, pid)
 
       // Detect repo info from cwd
-      const repo = detectRepoInfo(cwd)
+      let repo = detectRepoInfo(cwd)
+
+      // Enrich with git status (cached, won't block)
+      if (repo) {
+        repo = await getEnrichedRepoInfo(repo)
+      }
 
       const pane: TmuxPane = {
         id: paneId,

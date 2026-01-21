@@ -151,13 +151,35 @@ export function FullScreenPane({
               {isClaudePane && session ? (proMode ? 'Claude' : session.name) : pane.process.command}
             </span>
             {pane.repo && (
-              <span className="text-sm text-rpg-accent truncate">
-                {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
-              </span>
+              <div className="flex items-center gap-1.5 text-sm truncate">
+                <span className="text-rpg-accent">
+                  {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
+                </span>
+                {pane.repo.branch && (
+                  <>
+                    <span className="text-rpg-idle/50">:</span>
+                    <span className="text-rpg-working">{pane.repo.branch}</span>
+                  </>
+                )}
+                {(pane.repo.ahead !== undefined && pane.repo.ahead > 0) && (
+                  <span className="text-rpg-success">↑{pane.repo.ahead}</span>
+                )}
+                {(pane.repo.behind !== undefined && pane.repo.behind > 0) && (
+                  <span className="text-rpg-error">↓{pane.repo.behind}</span>
+                )}
+                {pane.repo.isDirty && (
+                  <span className="text-rpg-waiting">●</span>
+                )}
+              </div>
             )}
           </div>
           <div className="text-sm text-rpg-idle/70">
             {window.sessionName}:{window.windowName}
+            {pane.repo?.upstream && (
+              <span className="ml-2">
+                ↳ fork of {pane.repo.upstream.org}/{pane.repo.upstream.name}
+              </span>
+            )}
           </div>
         </div>
 
