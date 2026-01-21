@@ -19,6 +19,8 @@ Monitor and interact with multiple Claude Code sessions from your phone while th
 - [Claude Code](https://claude.ai/code) - Anthropic's CLI for Claude
 - Node.js 18+
 
+For voice input support, see [SETUP.md](./SETUP.md#voice-input-setup-optional).
+
 ## Quick Start
 
 ```bash
@@ -35,7 +37,9 @@ npm run setup
 npm run dev
 ```
 
-Then open http://localhost:4010 on your phone (same network).
+Then open https://localhost:4010 on your phone (same network).
+
+> **Note:** HTTPS is required for voice input. Accept the self-signed certificate warning on first visit. See [SETUP.md](./SETUP.md#https-configuration) for custom certificate options.
 
 ## How It Works
 
@@ -55,6 +59,8 @@ Then open http://localhost:4010 on your phone (same network).
 |---------|---------|-------------|
 | `CLAUDE_RPG_PORT` | 4011 | Server port |
 | `CLAUDE_RPG_CLIENT_PORT` | 4010 | Vite dev server port |
+
+For detailed setup including HTTPS certificates, voice input, and mobile access, see **[SETUP.md](./SETUP.md)**.
 
 ## Development
 
