@@ -42,21 +42,42 @@ export const QuestionInput = memo(function QuestionInput({
     }
   }, [focusedIndex, options.length])
 
+  // Check if custom input is focused
+  const isCustomInputFocused = focusedIndex === options.length
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     const totalItems = options.length + 1 // options + custom input
+
+    // When custom input is focused, only handle Tab for navigation
+    // Let all other keys work normally for text editing
+    if (isCustomInputFocused && e.key !== 'Tab' && e.key !== 'Escape') {
+      // Don't prevent default - let the input handle the key
+      if (e.key === 'Enter' && customAnswer.trim()) {
+        e.preventDefault()
+        onAnswer(customAnswer.trim())
+        setCustomAnswer('')
+      }
+      return
+    }
 
     switch (e.key) {
       case 'ArrowDown':
       case 'ArrowRight':
+        e.preventDefault()
+        setFocusedIndex(prev => {
+          const next = prev + 1
+          return next >= totalItems ? 0 : next
+        })
+        break
+
       case 'Tab':
+        e.preventDefault()
         if (!e.shiftKey) {
-          e.preventDefault()
           setFocusedIndex(prev => {
             const next = prev + 1
             return next >= totalItems ? 0 : next
           })
-        } else if (e.key === 'Tab') {
-          e.preventDefault()
+        } else {
           setFocusedIndex(prev => {
             const next = prev - 1
             return next < 0 ? totalItems - 1 : next
@@ -74,21 +95,14 @@ export const QuestionInput = memo(function QuestionInput({
         break
 
       case 'Enter':
-        if (focusedIndex === -1 || focusedIndex === options.length) {
-          // Custom input focused
-          if (customAnswer.trim()) {
-            e.preventDefault()
-            onAnswer(customAnswer.trim())
-            setCustomAnswer('')
-          }
-        } else if (focusedIndex >= 0 && focusedIndex < options.length) {
+        if (focusedIndex >= 0 && focusedIndex < options.length) {
           e.preventDefault()
           handleOptionSelect(focusedIndex)
         }
         break
 
       case ' ':
-        // Space for multi-select toggle
+        // Space for multi-select toggle (only on option buttons)
         if (currentQuestion.multiSelect && focusedIndex >= 0 && focusedIndex < options.length) {
           e.preventDefault()
           toggleOption(focusedIndex)
@@ -102,7 +116,7 @@ export const QuestionInput = memo(function QuestionInput({
         }
         break
     }
-  }, [options.length, focusedIndex, customAnswer, currentQuestion.multiSelect, onAnswer])
+  }, [options.length, focusedIndex, customAnswer, currentQuestion.multiSelect, onAnswer, isCustomInputFocused])
 
   const handleOptionSelect = useCallback((index: number) => {
     if (currentQuestion.multiSelect) {
