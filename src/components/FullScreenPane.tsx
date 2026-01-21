@@ -1,8 +1,24 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { TmuxPane, TmuxWindow } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { STATUS_LABELS, getStatusColor } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
+
+// Detect if terminal is showing a password prompt
+const PASSWORD_PATTERNS = [
+  /\[sudo\] password for/i,
+  /password:/i,
+  /enter passphrase/i,
+  /enter pin/i,
+  /authentication required/i,
+]
+
+function isPasswordPrompt(terminalContent: string | undefined): boolean {
+  if (!terminalContent) return false
+  // Check last few lines for password prompt
+  const lastLines = terminalContent.split('\n').slice(-5).join('\n')
+  return PASSWORD_PATTERNS.some(pattern => pattern.test(lastLines))
+}
 
 interface FullScreenPaneProps {
   pane: TmuxPane
@@ -29,6 +45,9 @@ export function FullScreenPane({
   const terminalContent = usePaneTerminal(pane.id)
   const terminalRef = useRef<HTMLPreElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Detect password prompt in terminal
+  const isPassword = useMemo(() => isPasswordPrompt(terminalContent), [terminalContent])
 
   const isClaudePane = pane.process.type === 'claude'
   const session = pane.process.claudeSession
@@ -217,10 +236,11 @@ export function FullScreenPane({
 
         {/* Regular input (when no pending question) */}
         {showInput && !session?.pendingQuestion && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            {isPassword && <span className="text-rpg-waiting text-lg">🔒</span>}
             <input
               ref={inputRef}
-              type="text"
+              type={isPassword ? 'password' : 'text'}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={(e) => {
@@ -232,20 +252,27 @@ export function FullScreenPane({
                   }
                 }
               }}
-              placeholder={isClaudePane ? "Send prompt..." : "Send input..."}
-              className="flex-1 px-4 py-3 text-base bg-rpg-bg border border-rpg-border rounded-lg focus:border-rpg-accent outline-none"
+              placeholder={isPassword ? "Enter password..." : (isClaudePane ? "Send prompt..." : "Send input...")}
+              className={`flex-1 px-4 py-3 text-base bg-rpg-bg border rounded-lg outline-none ${
+                isPassword ? 'border-rpg-waiting/50 focus:border-rpg-waiting' : 'border-rpg-border focus:border-rpg-accent'
+              }`}
+              autoComplete={isPassword ? 'off' : undefined}
             />
-            <button
-              onClick={handleEnter}
-              className="px-4 py-3 bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle rounded-lg transition-colors active:scale-95"
-              title="Send Enter"
-            >
-              ⏎
-            </button>
+            {!isPassword && (
+              <button
+                onClick={handleEnter}
+                className="px-4 py-3 bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle rounded-lg transition-colors active:scale-95"
+                title="Send Enter"
+              >
+                ⏎
+              </button>
+            )}
             <button
               onClick={handleSend}
               disabled={!inputValue.trim()}
-              className="px-6 py-3 bg-rpg-accent/30 hover:bg-rpg-accent/50 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95"
+              className={`px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95 ${
+                isPassword ? 'bg-rpg-waiting/30 hover:bg-rpg-waiting/50' : 'bg-rpg-accent/30 hover:bg-rpg-accent/50'
+              }`}
             >
               Send
             </button>

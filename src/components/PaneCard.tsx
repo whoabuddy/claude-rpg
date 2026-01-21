@@ -1,9 +1,25 @@
-import { useState, useEffect, useRef, memo, useCallback } from 'react'
+import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react'
 import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, RepoInfo } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
 import { VoiceButton } from './VoiceButton'
+
+// Detect if terminal is showing a password prompt
+const PASSWORD_PATTERNS = [
+  /\[sudo\] password for/i,
+  /password:/i,
+  /enter passphrase/i,
+  /enter pin/i,
+  /authentication required/i,
+]
+
+function isPasswordPrompt(terminalContent: string | undefined): boolean {
+  if (!terminalContent) return false
+  // Check last few lines for password prompt
+  const lastLines = terminalContent.split('\n').slice(-5).join('\n')
+  return PASSWORD_PATTERNS.some(pattern => pattern.test(lastLines))
+}
 
 interface PaneCardProps {
   pane: TmuxPane
@@ -22,6 +38,10 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
   const [inputValue, setInputValue] = useState('')
   const terminalContent = usePaneTerminal(pane.id)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const passwordInputRef = useRef<HTMLInputElement>(null)
+
+  // Detect password prompt in terminal
+  const isPassword = useMemo(() => isPasswordPrompt(terminalContent), [terminalContent])
 
   const isClaudePane = pane.process.type === 'claude'
   const session = pane.process.claudeSession
@@ -93,10 +113,14 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     const justExpanded = expanded && !prevExpandedRef.current
     prevExpandedRef.current = expanded
 
-    if (justExpanded && showInput && inputRef.current) {
-      inputRef.current.focus()
+    if (justExpanded && showInput) {
+      if (isPassword) {
+        passwordInputRef.current?.focus()
+      } else {
+        inputRef.current?.focus()
+      }
     }
-  }, [expanded, showInput])
+  }, [expanded, showInput, isPassword])
 
   // Compact mode: simpler display for idle panes
   if (compact && !expanded) {
@@ -288,7 +312,13 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
           )}
 
           {/* Terminal */}
-          <ExpandedTerminal content={terminalContent} onTerminalClick={() => inputRef.current?.focus()} />
+          <ExpandedTerminal content={terminalContent} onTerminalClick={() => {
+            if (isPassword) {
+              passwordInputRef.current?.focus()
+            } else {
+              inputRef.current?.focus()
+            }
+          }} />
 
           {/* Input section - always at bottom */}
           <div className="space-y-2">
@@ -304,38 +334,63 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
             {/* Regular input (when no pending question) */}
             {showInput && !session?.pendingQuestion && (
               <>
-                <div className="flex gap-2 items-end">
-                  <textarea
-                    ref={inputRef}
-                    value={inputValue}
-                    onChange={(e) => {
-                      setInputValue(e.target.value)
-                      // Auto-resize textarea
-                      e.target.style.height = 'auto'
-                      e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        if (inputValue.trim()) {
+                {isPassword ? (
+                  /* Password input - masked */
+                  <div className="flex gap-2 items-center">
+                    <span className="text-rpg-waiting text-sm">🔒</span>
+                    <input
+                      ref={passwordInputRef}
+                      type="password"
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          e.stopPropagation()
                           handleSend()
-                          // Reset height after sending
-                          if (inputRef.current) {
-                            inputRef.current.style.height = 'auto'
-                          }
-                        } else {
-                          onSendPrompt(pane.id, '') // Just Enter
                         }
-                      }
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder={isClaudePane ? "Send prompt... (Shift+Enter for newline)" : "Send input..."}
-                    className="flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none"
-                    rows={1}
-                  />
-                  <VoiceButton onTranscription={handleVoiceTranscription} />
-                </div>
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder="Enter password..."
+                      className="flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-waiting/50 rounded focus:border-rpg-waiting outline-none min-h-[44px]"
+                      autoComplete="off"
+                    />
+                  </div>
+                ) : (
+                  /* Regular textarea input */
+                  <div className="flex gap-2 items-end">
+                    <textarea
+                      ref={inputRef}
+                      value={inputValue}
+                      onChange={(e) => {
+                        setInputValue(e.target.value)
+                        // Auto-resize textarea
+                        e.target.style.height = 'auto'
+                        e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          if (inputValue.trim()) {
+                            handleSend()
+                            // Reset height after sending
+                            if (inputRef.current) {
+                              inputRef.current.style.height = 'auto'
+                            }
+                          } else {
+                            onSendPrompt(pane.id, '') // Just Enter
+                          }
+                        }
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder={isClaudePane ? "Send prompt... (Shift+Enter for newline)" : "Send input..."}
+                      className="flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none"
+                      rows={1}
+                    />
+                    <VoiceButton onTranscription={handleVoiceTranscription} />
+                  </div>
+                )}
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -351,7 +406,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
                   }}
                   className={`w-full px-4 py-2 text-sm rounded transition-colors active:scale-95 min-h-[44px] ${
                     inputValue.trim()
-                      ? 'bg-rpg-accent/30 hover:bg-rpg-accent/50'
+                      ? isPassword ? 'bg-rpg-waiting/30 hover:bg-rpg-waiting/50' : 'bg-rpg-accent/30 hover:bg-rpg-accent/50'
                       : 'bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle'
                   }`}
                   title={inputValue.trim() ? "Send message" : "Send Enter (accept suggestion)"}
