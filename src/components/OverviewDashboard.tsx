@@ -18,21 +18,6 @@ interface PaneWithWindow extends TmuxPane {
   sortPriority: number
 }
 
-// Priority: lower = higher priority (shown first)
-function getPanePriority(pane: TmuxPane): number {
-  if (pane.process.type === 'claude' && pane.process.claudeSession) {
-    const status = pane.process.claudeSession.status
-    if (status === 'waiting' || status === 'error') return 0  // Needs attention
-    if (status === 'working') return 1                         // Working
-    if (status === 'typing') return 2                          // User typing
-    return 3                                                   // Idle
-  }
-  // Non-Claude panes
-  if (pane.process.typing) return 4                            // Active terminal
-  if (pane.process.type === 'process') return 5                // Running process
-  return 6                                                      // Shell/idle
-}
-
 export function OverviewDashboard({
   windows,
   attentionCount,
@@ -42,10 +27,11 @@ export function OverviewDashboard({
   onSendSignal,
   onToggleProMode,
 }: OverviewDashboardProps) {
-  // Flatten all panes into single sorted list
+  // Flatten all panes - stable order by window/pane position (no dynamic sorting)
   const { panes, stats } = useMemo(() => {
     const allPanes: PaneWithWindow[] = []
     let claudeCount = 0
+    let windowIndex = 0
 
     for (const window of windows) {
       for (const pane of window.panes) {
@@ -53,21 +39,15 @@ export function OverviewDashboard({
         allPanes.push({
           ...pane,
           window,
-          sortPriority: getPanePriority(pane),
+          // Use window order + pane index for stable ordering
+          sortPriority: windowIndex * 100 + pane.paneIndex,
         })
       }
+      windowIndex++
     }
 
-    // Sort by priority, then by last activity
-    allPanes.sort((a, b) => {
-      if (a.sortPriority !== b.sortPriority) {
-        return a.sortPriority - b.sortPriority
-      }
-      // Within same priority, sort by activity (most recent first)
-      const aTime = a.process.claudeSession?.lastActivity || 0
-      const bTime = b.process.claudeSession?.lastActivity || 0
-      return bTime - aTime
-    })
+    // Stable sort by window/pane position - no layout shift on status changes
+    allPanes.sort((a, b) => a.sortPriority - b.sortPriority)
 
     return {
       panes: allPanes,

@@ -3,6 +3,36 @@ import type { TmuxWindow, TmuxPane, ServerMessage } from '@shared/types'
 
 const API_URL = '' // Same origin, proxied by Vite in dev
 
+// Deep equality check for windows array - only compares fields that affect rendering
+function windowsEqual(a: TmuxWindow[], b: TmuxWindow[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const wa = a[i], wb = b[i]
+    if (wa.id !== wb.id || wa.windowName !== wb.windowName) return false
+    if (wa.panes.length !== wb.panes.length) return false
+    for (let j = 0; j < wa.panes.length; j++) {
+      const pa = wa.panes[j], pb = wb.panes[j]
+      if (pa.id !== pb.id) return false
+      if (pa.process.type !== pb.process.type) return false
+      if (pa.process.typing !== pb.process.typing) return false
+      if (pa.process.command !== pb.process.command) return false
+      // Compare Claude session state
+      const sa = pa.process.claudeSession, sb = pb.process.claudeSession
+      if (!!sa !== !!sb) return false
+      if (sa && sb) {
+        if (sa.status !== sb.status) return false
+        if (sa.name !== sb.name) return false
+        if (sa.currentTool !== sb.currentTool) return false
+        if (sa.lastPrompt !== sb.lastPrompt) return false
+        if (!!sa.pendingQuestion !== !!sb.pendingQuestion) return false
+        if (sa.pendingQuestion?.toolUseId !== sb.pendingQuestion?.toolUseId) return false
+        if (sa.lastError?.timestamp !== sb.lastError?.timestamp) return false
+      }
+    }
+  }
+  return true
+}
+
 export function useWindows() {
   const [windows, setWindows] = useState<TmuxWindow[]>([])
   const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null)
@@ -27,7 +57,8 @@ export function useWindows() {
   // Listen for windows updates via custom event
   useEffect(() => {
     const handleWindowsUpdate = (e: CustomEvent<TmuxWindow[]>) => {
-      setWindows(e.detail)
+      // Only update state if windows actually changed (prevents unnecessary re-renders)
+      setWindows(prev => windowsEqual(prev, e.detail) ? prev : e.detail)
     }
 
     const handlePaneUpdate = (e: CustomEvent<TmuxPane>) => {

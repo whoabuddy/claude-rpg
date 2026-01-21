@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react'
+import { useState, useEffect, useRef, memo, useCallback } from 'react'
 import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, SessionStatus } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 
@@ -33,6 +33,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
   const [expanded, setExpanded] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const terminalContent = usePaneTerminal(pane.id)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const isClaudePane = pane.process.type === 'claude'
   const session = pane.process.claudeSession
@@ -64,9 +65,14 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     onSendSignal(pane.id, 'SIGINT')
   }, [onSendSignal, pane.id])
 
-  // Show input when: expanded AND (idle Claude OR non-Claude pane)
+  const handleAnswer = useCallback((answer: string) => {
+    onSendPrompt(pane.id, answer)
+  }, [onSendPrompt, pane.id])
+
+  // Show input when: expanded AND (Claude not actively working OR non-Claude pane)
+  // Allow input for idle, waiting, typing, error - only hide when working
   const showInput = expanded && (
-    (isClaudePane && session?.status === 'idle') ||
+    (isClaudePane && session?.status !== 'working') ||
     !isClaudePane
   )
 
@@ -75,6 +81,13 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     (isClaudePane && session?.status === 'working') ||
     (pane.process.type === 'process')
   )
+
+  // Auto-focus input when panel expands
+  useEffect(() => {
+    if (showInput && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [showInput])
 
   return (
     <div className={`rounded-lg border-2 ${theme.border} ${theme.bg} transition-all`}>
@@ -156,9 +169,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
       {isClaudePane && session?.pendingQuestion && (
         <PendingQuestionSection
           question={session.pendingQuestion}
-          onAnswer={(answer) => {
-            onSendPrompt(pane.id, answer)
-          }}
+          onAnswer={handleAnswer}
         />
       )}
 
@@ -187,6 +198,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
             {showInput && (
               <>
                 <input
+                  ref={inputRef}
                   type="text"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
@@ -236,10 +248,37 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
       )}
     </div>
   )
+}, (prev, next) => {
+  // Custom comparison - only re-render when visible state changes
+  if (prev.proMode !== next.proMode) return false
+  if (prev.pane.id !== next.pane.id) return false
+  if (prev.pane.process.type !== next.pane.process.type) return false
+  if (prev.pane.process.typing !== next.pane.process.typing) return false
+  if (prev.pane.process.command !== next.pane.process.command) return false
+  if (prev.pane.cwd !== next.pane.cwd) return false
+  // Compare Claude session
+  const sa = prev.pane.process.claudeSession
+  const sb = next.pane.process.claudeSession
+  if (!!sa !== !!sb) return false
+  if (sa && sb) {
+    if (sa.status !== sb.status) return false
+    if (sa.name !== sb.name) return false
+    if (sa.avatarSvg !== sb.avatarSvg) return false
+    if (sa.currentTool !== sb.currentTool) return false
+    if (sa.currentFile !== sb.currentFile) return false
+    if (sa.lastPrompt !== sb.lastPrompt) return false
+    if (!!sa.pendingQuestion !== !!sb.pendingQuestion) return false
+    if (sa.pendingQuestion?.toolUseId !== sb.pendingQuestion?.toolUseId) return false
+    if (sa.lastError?.timestamp !== sb.lastError?.timestamp) return false
+  }
+  // Compare repo
+  if (prev.pane.repo?.name !== next.pane.repo?.name) return false
+  if (prev.pane.repo?.org !== next.pane.repo?.org) return false
+  return true
 })
 
 // Claude activity display
-function ClaudeActivity({ session }: { session: ClaudeSessionInfo }) {
+const ClaudeActivity = memo(function ClaudeActivity({ session }: { session: ClaudeSessionInfo }) {
   if (session.lastPrompt) {
     return <span><span className="text-rpg-idle/30">Prompt:</span> {session.lastPrompt}</span>
   }
@@ -258,7 +297,7 @@ function ClaudeActivity({ session }: { session: ClaudeSessionInfo }) {
     return <span className="text-rpg-error">Error in {session.lastError.tool}</span>
   }
   return <span className="text-rpg-idle/50">Ready</span>
-}
+})
 
 // Pending question section
 interface PendingQuestionSectionProps {

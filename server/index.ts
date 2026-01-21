@@ -79,8 +79,8 @@ function loadPanesCache(): void {
       }
       setSessionCache(cache)
     }
-  } catch {
-    // Ignore cache load errors
+  } catch (e) {
+    console.error('[claude-rpg] Cache load error:', e)
   }
 }
 
@@ -92,8 +92,8 @@ function savePanesCache(): void {
       sessions[paneId] = session
     }
     writeFileSync(PANES_CACHE_FILE, JSON.stringify({ sessions }, null, 2))
-  } catch {
-    // Ignore cache save errors
+  } catch (e) {
+    console.error('[claude-rpg] Cache save error:', e)
   }
 }
 
@@ -787,6 +787,13 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'windows', payload: windows } satisfies ServerMessage))
   ws.send(JSON.stringify({ type: 'companions', payload: companions } satisfies ServerMessage))
   ws.send(JSON.stringify({ type: 'history', payload: events.slice(-100) } satisfies ServerMessage))
+
+  // Send current terminal content for all panes
+  const now = Date.now()
+  for (const [paneId, content] of lastTerminalContent) {
+    const output: TerminalOutput = { paneId, target: '', content, timestamp: now }
+    ws.send(JSON.stringify({ type: 'terminal_output', payload: output } satisfies ServerMessage))
+  }
 
   ws.on('message', (_data) => {
     // Handle client messages if needed
