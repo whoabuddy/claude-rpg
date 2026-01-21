@@ -9,6 +9,7 @@ const statusTheme = {
   working: { border: 'border-rpg-working',   bg: 'bg-rpg-card',       indicator: 'bg-rpg-working' },
   waiting: { border: 'border-rpg-waiting',   bg: 'bg-rpg-waiting/10', indicator: 'bg-rpg-waiting' },
   error:   { border: 'border-rpg-error',     bg: 'bg-rpg-error/10',   indicator: 'bg-rpg-error' },
+  process: { border: 'border-rpg-active/70', bg: 'bg-rpg-active/5',   indicator: 'bg-rpg-active' },
 } as const
 
 const statusLabels: Record<string, string> = {
@@ -26,11 +27,12 @@ interface PaneCardProps {
   window: TmuxWindow
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
+  onDismissWaiting?: (paneId: string) => void
   proMode?: boolean
   compact?: boolean
 }
 
-export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, proMode = false, compact = false }: PaneCardProps) {
+export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, onDismissWaiting, proMode = false, compact = false }: PaneCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const terminalContent = usePaneTerminal(pane.id)
@@ -69,6 +71,11 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
   const handleAnswer = useCallback((answer: string) => {
     onSendPrompt(pane.id, answer)
   }, [onSendPrompt, pane.id])
+
+  const handleDismiss = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onDismissWaiting?.(pane.id)
+  }, [onDismissWaiting, pane.id])
 
   // Show input when: expanded AND (Claude not actively working OR non-Claude pane)
   // Allow input for idle, waiting, typing, error - only hide when working
@@ -121,8 +128,14 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
             </span>
           )}
 
-          {/* Expand hint */}
-          <span className="ml-auto text-rpg-idle/30 text-xs">▼</span>
+          {/* Status indicator - aligned right */}
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span className="text-xs text-rpg-idle/70">{statusLabel}</span>
+            <div className={`w-2 h-2 rounded-full ${theme.indicator} ${
+              status === 'working' || status === 'typing' || status === 'process' ? 'animate-pulse' : ''
+            }`} />
+            <span className="text-rpg-idle/30 text-xs">▼</span>
+          </div>
         </div>
       </div>
     )
@@ -177,11 +190,21 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
               )}
 
               {/* Status indicator */}
-              <div className="flex items-center gap-1 ml-auto">
-                <div className={`w-2 h-2 rounded-full ${theme.indicator} ${
-                  status === 'working' || status === 'typing' ? 'animate-pulse' : ''
-                }`} />
+              <div className="flex items-center gap-1.5 ml-auto">
+                {/* Dismiss button for waiting status - on left */}
+                {status === 'waiting' && onDismissWaiting && (
+                  <button
+                    onClick={handleDismiss}
+                    className="px-1.5 py-0.5 text-xs bg-rpg-ready/30 hover:bg-rpg-ready/50 text-rpg-text/70 rounded transition-colors"
+                    title="Dismiss - Claude is waiting for you to type"
+                  >
+                    ✓
+                  </button>
+                )}
                 <span className="text-xs text-rpg-idle/70">{statusLabel}</span>
+                <div className={`w-2 h-2 rounded-full ${theme.indicator} ${
+                  status === 'working' || status === 'typing' || status === 'process' ? 'animate-pulse' : ''
+                }`} />
               </div>
             </div>
 

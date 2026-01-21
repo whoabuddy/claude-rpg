@@ -7,32 +7,32 @@ export default {
   theme: {
     extend: {
       colors: {
-        // RPG color palette - warm earth tones with tetradic accents
+        // RPG color palette - warm earth tones with vibrant jewel accents
         'rpg': {
           // Base surfaces (warm brown)
           'bg': '#31291b',
-          'card': '#3d352a',
-          'border': '#524736',
+          'card': '#3a3125',
+          'border': '#5a4d3a',
 
           // Text hierarchy (cream/pale yellow)
           'text': '#f7f9d7',
           'text-dim': '#a09a7d',
 
-          // Accent (lavender - interactive UI elements only)
-          'accent': '#d9d7f9',
-          'accent-dim': '#b8b5e6',
+          // Accent (warm amber)
+          'accent': '#e6a857',
+          'accent-dim': '#c4915e',
 
           // Semantic status colors
-          'xp': '#f5d76e',        // Warm gold for XP display
-          'success': '#7ec9b8',   // Teal-green for success states
-          'error': '#e57373',     // Soft red for errors
-          'working': '#d7f7f9',   // Cyan - Claude actively processing
-          'waiting': '#f9d9d7',   // Pink/salmon - needs user input
-          'active': '#e8c547',    // Amber/gold - user typing/activity
-          'ready': '#8a7d6a',     // Muted brown - ready for next step
+          'xp': '#ffc94a',        // Bright gold for XP display
+          'success': '#4ecca3',   // Vibrant teal for success states
+          'error': '#ff6b6b',     // Coral red for errors
+          'working': '#5bcefa',   // Bright cyan - Claude actively processing
+          'waiting': '#ff9f43',   // Vivid orange - needs user input (highest urgency)
+          'active': '#f9ca24',    // Bright yellow-gold - user typing/activity
+          'ready': '#9b8b6e',     // Warm taupe - stable, calm
 
           // UI elements (aliases for semantic clarity)
-          'idle': '#8a7d6a',      // Alias for muted/secondary UI text
+          'idle': '#9b8b6e',      // Alias for ready state
         },
       },
       fontFamily: {

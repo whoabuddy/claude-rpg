@@ -155,3 +155,18 @@ export async function sendSignalToPane(paneId: string, signal: string): Promise<
     return false
   }
 }
+
+// Helper to dismiss waiting status (set to ready)
+export async function dismissWaiting(paneId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/api/panes/${encodeURIComponent(paneId)}/dismiss`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    const data = await res.json()
+    return data.ok
+  } catch {
+    return false
+  }
+}

@@ -10,6 +10,7 @@ interface OverviewDashboardProps {
   proMode: boolean
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
+  onDismissWaiting: (paneId: string) => void
   onToggleProMode: () => void
 }
 
@@ -60,6 +61,7 @@ export function OverviewDashboard({
   proMode,
   onSendPrompt,
   onSendSignal,
+  onDismissWaiting,
   onToggleProMode,
 }: OverviewDashboardProps) {
   const [collapsedWindows, setCollapsedWindows] = useState<Set<string>>(new Set())
@@ -175,6 +177,7 @@ export function OverviewDashboard({
               onToggleWindow={() => toggleWindow(group.window.id)}
               onSendPrompt={onSendPrompt}
               onSendSignal={onSendSignal}
+              onDismissWaiting={onDismissWaiting}
             />
           ))}
         </div>
@@ -190,6 +193,7 @@ interface WindowSectionProps {
   onToggleWindow: () => void
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
+  onDismissWaiting: (paneId: string) => void
 }
 
 function WindowSection({
@@ -199,6 +203,7 @@ function WindowSection({
   onToggleWindow,
   onSendPrompt,
   onSendSignal,
+  onDismissWaiting,
 }: WindowSectionProps) {
   const hasAttention = group.attentionCount > 0
 
@@ -246,6 +251,7 @@ function WindowSection({
               window={group.window}
               onSendPrompt={onSendPrompt}
               onSendSignal={onSendSignal}
+              onDismissWaiting={onDismissWaiting}
               proMode={proMode}
             />
           ))}

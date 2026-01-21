@@ -761,6 +761,36 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // Dismiss waiting status (clear pending question, set to idle)
+  const paneDismissMatch = url.pathname.match(/^\/api\/panes\/([^/]+)\/dismiss$/)
+  if (paneDismissMatch && req.method === 'POST') {
+    const paneId = decodeURIComponent(paneDismissMatch[1])
+    const pane = findPaneById(windows, paneId)
+
+    if (!pane) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
+      return
+    }
+
+    // Clear pending question and set to idle
+    if (pane.process.claudeSession) {
+      const updated = updateClaudeSession(pane.id, {
+        pendingQuestion: undefined,
+        status: 'idle',
+      })
+      if (updated) {
+        pane.process.claudeSession = updated
+        savePanesCache()
+        broadcast({ type: 'pane_update', payload: pane })
+      }
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true }))
+    return
+  }
+
   // List companions (for XP/stats)
   if (url.pathname === '/api/companions' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })

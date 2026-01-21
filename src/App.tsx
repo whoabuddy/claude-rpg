@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { OverviewDashboard } from './components/OverviewDashboard'
 import { useWebSocket } from './hooks/useWebSocket'
-import { useWindows, sendPromptToPane, sendSignalToPane } from './hooks/useWindows'
+import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting } from './hooks/useWindows'
 import { initTerminalCache } from './hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
 
@@ -37,6 +37,13 @@ export default function App() {
   const handleSendSignal = useCallback(
     async (paneId: string, signal: string) => {
       await sendSignalToPane(paneId, signal)
+    },
+    []
+  )
+
+  const handleDismissWaiting = useCallback(
+    async (paneId: string) => {
+      await dismissWaiting(paneId)
     },
     []
   )
@@ -85,6 +92,7 @@ export default function App() {
           proMode={proMode}
           onSendPrompt={handleSendPrompt}
           onSendSignal={handleSendSignal}
+          onDismissWaiting={handleDismissWaiting}
           onToggleProMode={handleToggleProMode}
         />
       </main>
