@@ -18,17 +18,21 @@ export default {
           'text': '#f7f9d7',
           'text-dim': '#a09a7d',
 
-          // Accent (lavender - interactive elements)
+          // Accent (lavender - interactive UI elements only)
           'accent': '#d9d7f9',
           'accent-dim': '#b8b5e6',
 
           // Semantic status colors
-          'xp': '#f5d76e',        // Warm gold for XP
-          'success': '#7ec9b8',   // Teal-green (harmonizes with cyan)
-          'error': '#e57373',     // Soft red (harmonizes with pink)
-          'working': '#d7f7f9',   // Cyan for active work
-          'waiting': '#f9d9d7',   // Pink/salmon for attention
-          'idle': '#8a7d6a',      // Muted brown
+          'xp': '#f5d76e',        // Warm gold for XP display
+          'success': '#7ec9b8',   // Teal-green for success states
+          'error': '#e57373',     // Soft red for errors
+          'working': '#d7f7f9',   // Cyan - Claude actively processing
+          'waiting': '#f9d9d7',   // Pink/salmon - needs user input
+          'active': '#e8c547',    // Amber/gold - user typing/activity
+          'ready': '#8a7d6a',     // Muted brown - ready for next step
+
+          // UI elements (aliases for semantic clarity)
+          'idle': '#8a7d6a',      // Alias for muted/secondary UI text
         },
       },
       fontFamily: {

@@ -13,31 +13,11 @@ interface OverviewDashboardProps {
   onToggleProMode: () => void
 }
 
-interface PaneWithWindow extends TmuxPane {
-  window: TmuxWindow
-}
-
-interface ProjectGroup {
-  key: string // "org/repo" or "no-project"
-  label: string
-  panes: PaneWithWindow[]
-  attentionCount: number
-}
-
 interface WindowGroup {
   window: TmuxWindow
-  projects: ProjectGroup[]
+  panes: TmuxPane[]
   attentionCount: number
-}
-
-function getProjectKey(pane: TmuxPane): string {
-  if (!pane.repo) return 'no-project'
-  return pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name
-}
-
-function getProjectLabel(pane: TmuxPane): string {
-  if (!pane.repo) return 'Other'
-  return pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name
+  primaryRepo: string | null // "org/repo" or just "repo" or null
 }
 
 function needsAttention(pane: TmuxPane): boolean {
@@ -45,6 +25,32 @@ function needsAttention(pane: TmuxPane): boolean {
   const session = pane.process.claudeSession
   if (!session) return false
   return session.status === 'waiting' || session.status === 'error' || !!session.pendingQuestion
+}
+
+function getPrimaryRepo(panes: TmuxPane[]): string | null {
+  // Count repos across all panes
+  const repoCounts = new Map<string, number>()
+  for (const pane of panes) {
+    if (pane.repo) {
+      const key = pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name
+      repoCounts.set(key, (repoCounts.get(key) || 0) + 1)
+    }
+  }
+
+  if (repoCounts.size === 0) return null
+
+  // If there's only one repo, or one repo is dominant (>50%), show it
+  const entries = Array.from(repoCounts.entries())
+  if (entries.length === 1) return entries[0][0]
+
+  // Find the most common repo
+  entries.sort((a, b) => b[1] - a[1])
+  const [topRepo, topCount] = entries[0]
+
+  // Only show if it's the majority
+  if (topCount > panes.length / 2) return topRepo
+
+  return null
 }
 
 export function OverviewDashboard({
@@ -57,54 +63,39 @@ export function OverviewDashboard({
   onToggleProMode,
 }: OverviewDashboardProps) {
   const [collapsedWindows, setCollapsedWindows] = useState<Set<string>>(new Set())
-  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set())
 
-  // Group panes by window, then by project
+  // Group panes by window, sort panes by attention first
   const { windowGroups, stats } = useMemo(() => {
     const groups: WindowGroup[] = []
     let totalPanes = 0
     let claudeCount = 0
 
     for (const window of windows) {
-      // Group panes in this window by project
-      const projectMap = new Map<string, PaneWithWindow[]>()
+      const panes = [...window.panes]
+      totalPanes += panes.length
 
-      for (const pane of window.panes) {
-        totalPanes++
+      for (const pane of panes) {
         if (pane.process.type === 'claude') claudeCount++
-
-        const key = getProjectKey(pane)
-        if (!projectMap.has(key)) {
-          projectMap.set(key, [])
-        }
-        projectMap.get(key)!.push({ ...pane, window })
       }
 
-      // Convert to ProjectGroup array, sorted: projects with attention first, then alphabetically
-      const projects: ProjectGroup[] = Array.from(projectMap.entries())
-        .map(([key, panes]) => ({
-          key,
-          label: panes[0].repo ? getProjectLabel(panes[0]) : 'Other',
-          panes,
-          attentionCount: panes.filter(needsAttention).length,
-        }))
-        .sort((a, b) => {
-          // Attention items first
-          if (a.attentionCount > 0 && b.attentionCount === 0) return -1
-          if (b.attentionCount > 0 && a.attentionCount === 0) return 1
-          // Then "Other" last
-          if (a.key === 'no-project') return 1
-          if (b.key === 'no-project') return -1
-          // Then alphabetically
-          return a.label.localeCompare(b.label)
-        })
+      // Sort panes: attention first, then Claude panes, then others
+      panes.sort((a, b) => {
+        const aAttention = needsAttention(a) ? 0 : 1
+        const bAttention = needsAttention(b) ? 0 : 1
+        if (aAttention !== bAttention) return aAttention - bAttention
 
-      const windowAttention = projects.reduce((sum, p) => sum + p.attentionCount, 0)
+        const aClaude = a.process.type === 'claude' ? 0 : 1
+        const bClaude = b.process.type === 'claude' ? 0 : 1
+        return aClaude - bClaude
+      })
+
+      const windowAttention = panes.filter(needsAttention).length
 
       groups.push({
         window,
-        projects,
+        panes,
         attentionCount: windowAttention,
+        primaryRepo: getPrimaryRepo(panes),
       })
     }
 
@@ -132,18 +123,6 @@ export function OverviewDashboard({
         next.delete(windowId)
       } else {
         next.add(windowId)
-      }
-      return next
-    })
-  }
-
-  const toggleProject = (projectKey: string) => {
-    setCollapsedProjects(prev => {
-      const next = new Set(prev)
-      if (next.has(projectKey)) {
-        next.delete(projectKey)
-      } else {
-        next.add(projectKey)
       }
       return next
     })
@@ -192,10 +171,8 @@ export function OverviewDashboard({
               key={group.window.id}
               group={group}
               collapsed={collapsedWindows.has(group.window.id)}
-              collapsedProjects={collapsedProjects}
               proMode={proMode}
               onToggleWindow={() => toggleWindow(group.window.id)}
-              onToggleProject={toggleProject}
               onSendPrompt={onSendPrompt}
               onSendSignal={onSendSignal}
             />
@@ -209,10 +186,8 @@ export function OverviewDashboard({
 interface WindowSectionProps {
   group: WindowGroup
   collapsed: boolean
-  collapsedProjects: Set<string>
   proMode: boolean
   onToggleWindow: () => void
-  onToggleProject: (key: string) => void
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
 }
@@ -220,22 +195,19 @@ interface WindowSectionProps {
 function WindowSection({
   group,
   collapsed,
-  collapsedProjects,
   proMode,
   onToggleWindow,
-  onToggleProject,
   onSendPrompt,
   onSendSignal,
 }: WindowSectionProps) {
   const hasAttention = group.attentionCount > 0
-  const hasMultipleProjects = group.projects.length > 1 || (group.projects.length === 1 && group.projects[0].key !== 'no-project')
 
   return (
     <div className={`rounded-lg border ${hasAttention ? 'border-rpg-waiting/50 bg-rpg-waiting/5' : 'border-rpg-border/50'}`}>
       {/* Window header */}
       <button
         onClick={onToggleWindow}
-        className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors rounded-t-lg hover:bg-rpg-card/50`}
+        className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors rounded-t-lg hover:bg-rpg-card/50"
       >
         <span className="w-6 h-6 flex items-center justify-center text-xs rounded bg-rpg-card text-rpg-idle font-mono">
           {group.window.windowIndex}
@@ -243,6 +215,11 @@ function WindowSection({
         <span className="font-medium text-sm text-rpg-text/90">
           {group.window.windowName}
         </span>
+        {group.primaryRepo && (
+          <span className="text-xs text-rpg-accent truncate max-w-[200px]">
+            {group.primaryRepo}
+          </span>
+        )}
         <span className="text-xs text-rpg-idle/60">
           {group.window.sessionName}
         </span>
@@ -252,102 +229,21 @@ function WindowSection({
           </span>
         )}
         <span className="text-xs text-rpg-idle/50 ml-auto">
-          {group.projects.reduce((sum, p) => sum + p.panes.length, 0)} pane{group.projects.reduce((sum, p) => sum + p.panes.length, 0) !== 1 ? 's' : ''}
+          {group.panes.length} pane{group.panes.length !== 1 ? 's' : ''}
         </span>
         <span className="text-rpg-idle/50 text-xs">
           {collapsed ? '▶' : '▼'}
         </span>
       </button>
 
-      {/* Window content */}
+      {/* Panes */}
       {!collapsed && (
         <div className="px-2 pb-2 space-y-2">
-          {hasMultipleProjects ? (
-            // Show project subgroups
-            group.projects.map(project => (
-              <ProjectSection
-                key={`${group.window.id}-${project.key}`}
-                project={project}
-                windowId={group.window.id}
-                collapsed={collapsedProjects.has(`${group.window.id}-${project.key}`)}
-                proMode={proMode}
-                onToggle={() => onToggleProject(`${group.window.id}-${project.key}`)}
-                onSendPrompt={onSendPrompt}
-                onSendSignal={onSendSignal}
-              />
-            ))
-          ) : (
-            // Single project or no-project: show panes directly
-            group.projects.flatMap(project =>
-              project.panes.map(pane => (
-                <PaneCard
-                  key={pane.id}
-                  pane={pane}
-                  window={pane.window}
-                  onSendPrompt={onSendPrompt}
-                  onSendSignal={onSendSignal}
-                  proMode={proMode}
-                />
-              ))
-            )
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-interface ProjectSectionProps {
-  project: ProjectGroup
-  windowId: string
-  collapsed: boolean
-  proMode: boolean
-  onToggle: () => void
-  onSendPrompt: (paneId: string, prompt: string) => void
-  onSendSignal: (paneId: string, signal: string) => void
-}
-
-function ProjectSection({
-  project,
-  collapsed,
-  proMode,
-  onToggle,
-  onSendPrompt,
-  onSendSignal,
-}: ProjectSectionProps) {
-  const hasAttention = project.attentionCount > 0
-
-  return (
-    <div className={`rounded-lg ${hasAttention ? 'bg-rpg-waiting/10' : 'bg-rpg-card/30'}`}>
-      {/* Project header */}
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors rounded-t-lg hover:bg-rpg-card/50"
-      >
-        <span className="text-rpg-accent text-sm">
-          {project.label}
-        </span>
-        {hasAttention && (
-          <span className="px-1.5 py-0.5 rounded bg-rpg-waiting/20 text-rpg-waiting text-xs">
-            {project.attentionCount}
-          </span>
-        )}
-        <span className="text-xs text-rpg-idle/50 ml-auto">
-          {project.panes.length}
-        </span>
-        <span className="text-rpg-idle/30 text-xs">
-          {collapsed ? '▶' : '▼'}
-        </span>
-      </button>
-
-      {/* Project panes */}
-      {!collapsed && (
-        <div className="px-2 pb-2 space-y-2">
-          {project.panes.map(pane => (
+          {group.panes.map(pane => (
             <PaneCard
               key={pane.id}
               pane={pane}
-              window={pane.window}
+              window={group.window}
               onSendPrompt={onSendPrompt}
               onSendSignal={onSendSignal}
               proMode={proMode}

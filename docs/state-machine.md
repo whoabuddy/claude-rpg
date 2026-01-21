@@ -9,17 +9,45 @@ SessionStatus = 'idle' | 'typing' | 'working' | 'waiting' | 'error'
 ProcessType   = 'claude' | 'shell' | 'process' | 'idle'
 ```
 
-## Color and Label Mapping
+## Color Palette
 
-| Status | Border Color | Background | Indicator | Label | Hex Values |
-|--------|--------------|------------|-----------|-------|------------|
-| `idle` | `rpg-idle/50` | `rpg-card` | `rpg-idle` | Idle | #8a7d6a |
-| `typing` | `rpg-accent/70` | `rpg-accent/5` | `rpg-accent` | Active | #d9d7f9 |
-| `working` | `rpg-working` | `rpg-card` | `rpg-working` | Working | #d7f7f9 |
-| `waiting` | `rpg-waiting` | `rpg-waiting/10` | `rpg-waiting` | Waiting | #f9d9d7 |
-| `error` | `rpg-error` | `rpg-error/10` | `rpg-error` | Error | #e57373 |
+### Base Colors
+| Token | Hex | Purpose |
+|-------|-----|---------|
+| `rpg-bg` | #31291b | Primary background (warm dark brown) |
+| `rpg-card` | #3d352a | Card surfaces |
+| `rpg-border` | #524736 | Borders |
+| `rpg-text` | #f7f9d7 | Primary text (cream) |
+| `rpg-text-dim` | #a09a7d | Secondary text |
+| `rpg-accent` | #d9d7f9 | Interactive UI elements (lavender) |
 
-Non-Claude panes also use:
+### Status Colors
+| Token | Hex | Status | Description |
+|-------|-----|--------|-------------|
+| `rpg-ready` | #8a7d6a | Ready | Muted brown - waiting for next step |
+| `rpg-active` | #e8c547 | Active | Amber/gold - user typing activity |
+| `rpg-working` | #d7f7f9 | Working | Cyan - Claude processing |
+| `rpg-waiting` | #f9d9d7 | Waiting | Pink/salmon - needs user input |
+| `rpg-error` | #e57373 | Error | Soft red - something failed |
+
+### Other
+| Token | Hex | Purpose |
+|-------|-----|---------|
+| `rpg-xp` | #f5d76e | XP display (warm gold) |
+| `rpg-success` | #7ec9b8 | Success states (teal-green) |
+| `rpg-idle` | #8a7d6a | Muted UI text (alias for ready) |
+
+## Status → Visual Mapping
+
+| Status | Label | Border | Background | Indicator | Pulses? |
+|--------|-------|--------|------------|-----------|---------|
+| `idle` | Ready | `rpg-ready/50` | `rpg-card` | `rpg-ready` | No |
+| `typing` | Active | `rpg-active/70` | `rpg-active/5` | `rpg-active` | Yes |
+| `working` | Working | `rpg-working` | `rpg-card` | `rpg-working` | Yes |
+| `waiting` | Waiting | `rpg-waiting` | `rpg-waiting/10` | `rpg-waiting` | No |
+| `error` | Error | `rpg-error` | `rpg-error/10` | `rpg-error` | No |
+
+Non-Claude panes:
 | ProcessType | Label |
 |-------------|-------|
 | `shell` | Shell |
@@ -150,7 +178,7 @@ Shown when:
 │ Status Indicator (dot)                  │
 ├─────────────────────────────────────────┤
 │ idle     → static dot (muted brown)     │
-│ typing   → pulsing dot (lavender)       │
+│ typing   → pulsing dot (amber/gold)     │
 │ working  → pulsing dot (cyan)           │
 │ waiting  → static dot (pink)            │
 │ error    → static dot (red)             │
@@ -160,12 +188,32 @@ Shown when:
 │ Border Treatment                        │
 ├─────────────────────────────────────────┤
 │ idle     → subtle border (50% opacity)  │
-│ typing   → accent border (70% opacity)  │
+│ typing   → amber border (70% opacity)   │
 │ working  → solid cyan border            │
 │ waiting  → solid pink border + bg tint  │
 │ error    → solid red border + bg tint   │
 └─────────────────────────────────────────┘
 ```
+
+## Layout Structure
+
+```
+┌─────────────────────────────────────────┐
+│ Window Header                           │
+│ [index] windowName  repo  session  [n]  │
+├─────────────────────────────────────────┤
+│ ┌─────────────────────────────────────┐ │
+│ │ Pane Card (attention first)         │ │
+│ └─────────────────────────────────────┘ │
+│ ┌─────────────────────────────────────┐ │
+│ │ Pane Card                           │ │
+│ └─────────────────────────────────────┘ │
+└─────────────────────────────────────────┘
+```
+
+- Windows sorted: attention first, then by index
+- Panes sorted: attention first, then Claude panes, then others
+- Primary repo shown in window header if >50% of panes share it
 
 ## Data Flow
 
@@ -207,6 +255,7 @@ Shown when:
 | `server/index.ts:273-426` | Event processing, status transitions |
 | `server/index.ts:454-551` | Terminal typing detection |
 | `server/tmux.ts:137-253` | Process detection, session cache |
-| `src/components/PaneCard.tsx:6-48` | Status theme, visual mapping |
-| `src/components/OverviewDashboard.tsx:43-48` | needsAttention logic |
+| `src/components/PaneCard.tsx:6-22` | Status theme, labels |
+| `src/components/OverviewDashboard.tsx:23-54` | needsAttention, getPrimaryRepo |
 | `src/hooks/useNotifications.ts:70-179` | Notification triggers |
+| `tailwind.config.js` | Color definitions |

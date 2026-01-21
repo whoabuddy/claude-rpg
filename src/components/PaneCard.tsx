@@ -4,15 +4,15 @@ import { usePaneTerminal } from '../hooks/usePaneTerminal'
 
 // Status theme - applies to all panes
 const statusTheme = {
-  idle:    { border: 'border-rpg-idle/50',   bg: 'bg-rpg-card',       indicator: 'bg-rpg-idle' },
-  typing:  { border: 'border-rpg-accent/70', bg: 'bg-rpg-accent/5',   indicator: 'bg-rpg-accent' },
+  idle:    { border: 'border-rpg-ready/50',  bg: 'bg-rpg-card',       indicator: 'bg-rpg-ready' },
+  typing:  { border: 'border-rpg-active/70', bg: 'bg-rpg-active/5',   indicator: 'bg-rpg-active' },
   working: { border: 'border-rpg-working',   bg: 'bg-rpg-card',       indicator: 'bg-rpg-working' },
   waiting: { border: 'border-rpg-waiting',   bg: 'bg-rpg-waiting/10', indicator: 'bg-rpg-waiting' },
   error:   { border: 'border-rpg-error',     bg: 'bg-rpg-error/10',   indicator: 'bg-rpg-error' },
 } as const
 
 const statusLabels: Record<string, string> = {
-  idle: 'Idle',
+  idle: 'Ready',
   typing: 'Active',
   working: 'Working',
   waiting: 'Waiting',
