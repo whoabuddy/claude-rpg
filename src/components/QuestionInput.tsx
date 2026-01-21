@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
-import type { PendingQuestion, Question } from '@shared/types'
+import type { PendingQuestion } from '@shared/types'
 
 interface QuestionInputProps {
   pendingQuestion: PendingQuestion
   onAnswer: (answer: string) => void
-  onCustomInput?: (input: string) => void
   compact?: boolean
 }
 
@@ -17,7 +16,7 @@ export const QuestionInput = memo(function QuestionInput({
   const currentQuestion = questions[currentIndex]
   const options = currentQuestion.options
 
-  // Track focused option index (-1 means custom input is focused)
+  // Track focused option index (options.length = custom input)
   const [focusedIndex, setFocusedIndex] = useState(0)
   const [customAnswer, setCustomAnswer] = useState('')
   const [selectedOptions, setSelectedOptions] = useState<Set<number>>(new Set())
@@ -35,15 +34,63 @@ export const QuestionInput = memo(function QuestionInput({
 
   // Focus management
   useEffect(() => {
-    if (focusedIndex === -1) {
-      customInputRef.current?.focus()
-    } else if (focusedIndex >= 0 && focusedIndex < options.length) {
+    if (focusedIndex >= 0 && focusedIndex < options.length) {
       buttonRefs.current[focusedIndex]?.focus()
+    } else if (focusedIndex === options.length) {
+      customInputRef.current?.focus()
     }
   }, [focusedIndex, options.length])
 
   // Check if custom input is focused
   const isCustomInputFocused = focusedIndex === options.length
+
+  // Check if there's anything to submit
+  const canSubmit = selectedOptions.size > 0 || customAnswer.trim().length > 0
+
+  const toggleOption = useCallback((index: number) => {
+    setSelectedOptions(prev => {
+      const next = new Set(prev)
+      if (next.has(index)) {
+        next.delete(index)
+      } else {
+        next.add(index)
+      }
+      return next
+    })
+  }, [])
+
+  // Unified submit: combines selected options + custom text
+  const handleSubmit = useCallback(() => {
+    const parts: string[] = []
+
+    // Add selected options
+    if (selectedOptions.size > 0) {
+      const selectedLabels = Array.from(selectedOptions)
+        .sort()
+        .map(i => options[i].label)
+      parts.push(...selectedLabels)
+    }
+
+    // Add custom text if provided
+    if (customAnswer.trim()) {
+      parts.push(customAnswer.trim())
+    }
+
+    if (parts.length > 0) {
+      onAnswer(parts.join(', '))
+      setSelectedOptions(new Set())
+      setCustomAnswer('')
+    }
+  }, [selectedOptions, options, customAnswer, onAnswer])
+
+  const handleOptionSelect = useCallback((index: number) => {
+    if (currentQuestion.multiSelect) {
+      toggleOption(index)
+    } else {
+      // Single select - immediately answer
+      onAnswer(options[index].label)
+    }
+  }, [currentQuestion.multiSelect, options, onAnswer, toggleOption])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     const totalItems = options.length + 1 // options + custom input
@@ -51,11 +98,9 @@ export const QuestionInput = memo(function QuestionInput({
     // When custom input is focused, only handle Tab for navigation
     // Let all other keys work normally for text editing
     if (isCustomInputFocused && e.key !== 'Tab' && e.key !== 'Escape') {
-      // Don't prevent default - let the input handle the key
-      if (e.key === 'Enter' && customAnswer.trim()) {
+      if (e.key === 'Enter' && canSubmit) {
         e.preventDefault()
-        onAnswer(customAnswer.trim())
-        setCustomAnswer('')
+        handleSubmit()
       }
       return
     }
@@ -64,34 +109,22 @@ export const QuestionInput = memo(function QuestionInput({
       case 'ArrowDown':
       case 'ArrowRight':
         e.preventDefault()
-        setFocusedIndex(prev => {
-          const next = prev + 1
-          return next >= totalItems ? 0 : next
-        })
+        setFocusedIndex(prev => (prev + 1) % totalItems)
         break
 
       case 'Tab':
         e.preventDefault()
         if (!e.shiftKey) {
-          setFocusedIndex(prev => {
-            const next = prev + 1
-            return next >= totalItems ? 0 : next
-          })
+          setFocusedIndex(prev => (prev + 1) % totalItems)
         } else {
-          setFocusedIndex(prev => {
-            const next = prev - 1
-            return next < 0 ? totalItems - 1 : next
-          })
+          setFocusedIndex(prev => (prev - 1 + totalItems) % totalItems)
         }
         break
 
       case 'ArrowUp':
       case 'ArrowLeft':
         e.preventDefault()
-        setFocusedIndex(prev => {
-          const next = prev - 1
-          return next < 0 ? totalItems - 1 : next
-        })
+        setFocusedIndex(prev => (prev - 1 + totalItems) % totalItems)
         break
 
       case 'Enter':
@@ -110,52 +143,12 @@ export const QuestionInput = memo(function QuestionInput({
         break
 
       case 'Escape':
-        // Blur current focus
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur()
         }
         break
     }
-  }, [options.length, focusedIndex, customAnswer, currentQuestion.multiSelect, onAnswer, isCustomInputFocused])
-
-  const handleOptionSelect = useCallback((index: number) => {
-    if (currentQuestion.multiSelect) {
-      toggleOption(index)
-    } else {
-      // Single select - immediately answer
-      onAnswer(options[index].label)
-    }
-  }, [currentQuestion.multiSelect, options, onAnswer])
-
-  const toggleOption = useCallback((index: number) => {
-    setSelectedOptions(prev => {
-      const next = new Set(prev)
-      if (next.has(index)) {
-        next.delete(index)
-      } else {
-        next.add(index)
-      }
-      return next
-    })
-  }, [])
-
-  const submitMultiSelect = useCallback(() => {
-    if (selectedOptions.size > 0) {
-      const selectedLabels = Array.from(selectedOptions)
-        .sort()
-        .map(i => options[i].label)
-        .join(', ')
-      onAnswer(selectedLabels)
-      setSelectedOptions(new Set())
-    }
-  }, [selectedOptions, options, onAnswer])
-
-  const handleCustomSubmit = useCallback(() => {
-    if (customAnswer.trim()) {
-      onAnswer(customAnswer.trim())
-      setCustomAnswer('')
-    }
-  }, [customAnswer, onAnswer])
+  }, [options.length, focusedIndex, currentQuestion.multiSelect, isCustomInputFocused, canSubmit, handleSubmit, handleOptionSelect, toggleOption])
 
   // Question progress indicator for multiple questions
   const showProgress = questions.length > 1
@@ -233,20 +226,7 @@ export const QuestionInput = memo(function QuestionInput({
         })}
       </div>
 
-      {/* Multi-select submit */}
-      {currentQuestion.multiSelect && selectedOptions.size > 0 && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            submitMultiSelect()
-          }}
-          className="w-full px-4 py-2 text-sm bg-rpg-success/30 hover:bg-rpg-success/50 text-rpg-success rounded transition-colors active:scale-95 min-h-[40px]"
-        >
-          Submit {selectedOptions.size} selected
-        </button>
-      )}
-
-      {/* Custom answer input */}
+      {/* Custom answer input + unified submit */}
       <div className="flex gap-2">
         <input
           ref={customInputRef}
@@ -255,7 +235,7 @@ export const QuestionInput = memo(function QuestionInput({
           onChange={(e) => setCustomAnswer(e.target.value)}
           onFocus={() => setFocusedIndex(options.length)}
           onClick={(e) => e.stopPropagation()}
-          placeholder="Or type custom answer..."
+          placeholder={currentQuestion.multiSelect ? "Add custom text (optional)..." : "Or type custom answer..."}
           className={`
             flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded
             focus:border-rpg-accent outline-none min-h-[40px]
@@ -265,14 +245,28 @@ export const QuestionInput = memo(function QuestionInput({
         <button
           onClick={(e) => {
             e.stopPropagation()
-            handleCustomSubmit()
+            handleSubmit()
           }}
-          disabled={!customAnswer.trim()}
-          className="px-4 py-2 text-sm bg-rpg-accent/30 hover:bg-rpg-accent/50 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors active:scale-95 min-h-[40px]"
+          disabled={!canSubmit}
+          className={`px-4 py-2 text-sm rounded transition-colors active:scale-95 min-h-[40px] ${
+            canSubmit
+              ? 'bg-rpg-success/30 hover:bg-rpg-success/50 text-rpg-success'
+              : 'bg-rpg-accent/30 opacity-50 cursor-not-allowed'
+          }`}
         >
-          Send
+          {selectedOptions.size > 0
+            ? `Submit${customAnswer.trim() ? ' +' : ` ${selectedOptions.size}`}`
+            : 'Send'}
         </button>
       </div>
+
+      {/* Selection summary for multi-select */}
+      {currentQuestion.multiSelect && selectedOptions.size > 0 && (
+        <div className="text-xs text-rpg-text-muted">
+          Selected: {Array.from(selectedOptions).sort().map(i => options[i].label).join(', ')}
+          {customAnswer.trim() && ` + "${customAnswer.trim()}"`}
+        </div>
+      )}
 
       {/* Keyboard hints */}
       <div className="text-xs text-rpg-text-dim flex gap-3">
