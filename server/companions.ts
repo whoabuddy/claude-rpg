@@ -2,8 +2,9 @@ import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { randomUUID, createHash } from 'crypto'
 import { DEFAULTS } from '../shared/defaults.js'
-import type { Companion, CompanionStats } from '../shared/types.js'
+import type { Companion, CompanionStats, StreakInfo } from '../shared/types.js'
 import { detectRepoInfo } from './utils.js'
+import { createDefaultStreak } from './competitions.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // English First Names (for Claude sessions)
@@ -115,6 +116,7 @@ export function findOrCreateCompanion(companions: Companion[], cwd: string): Com
     experience: 0,
     totalExperience: 0,
     stats: createDefaultStats(),
+    streak: createDefaultStreak(),
     createdAt: Date.now(),
     lastActivity: Date.now(),
   }
@@ -129,6 +131,14 @@ export function findOrCreateCompanion(companions: Companion[], cwd: string): Com
 // Persistence
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Ensure companion has all required fields (migration for existing data)
+function migrateCompanion(companion: Partial<Companion>): Companion {
+  return {
+    ...companion,
+    streak: companion.streak || createDefaultStreak(),
+  } as Companion
+}
+
 export function loadCompanions(dataDir: string): Companion[] {
   const file = join(dataDir, DEFAULTS.COMPANIONS_FILE)
 
@@ -139,7 +149,9 @@ export function loadCompanions(dataDir: string): Companion[] {
   try {
     const content = readFileSync(file, 'utf-8')
     const data = JSON.parse(content)
-    return data.companions || []
+    const companions = data.companions || []
+    // Migrate existing companions to ensure all fields exist
+    return companions.map(migrateCompanion)
   } catch (e) {
     console.error(`[claude-rpg] Error loading companions:`, e)
     return []

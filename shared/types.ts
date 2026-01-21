@@ -66,6 +66,12 @@ export interface TmuxPane {
 // COMPANION (Project) - for XP/stats persistence
 // ═══════════════════════════════════════════════════════════════════════════
 
+export interface StreakInfo {
+  current: number        // Current consecutive days
+  longest: number        // All-time longest streak
+  lastActiveDate: string // YYYY-MM-DD format
+}
+
 export interface Companion {
   id: string
   name: string
@@ -74,6 +80,7 @@ export interface Companion {
   experience: number
   totalExperience: number
   stats: CompanionStats
+  streak: StreakInfo
   createdAt: number
   lastActivity: number
 }
@@ -236,6 +243,35 @@ export function levelFromTotalXP(totalXP: number): { level: number; currentXP: n
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// COMPETITIONS / LEADERBOARDS
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type CompetitionCategory =
+  | 'xp'        // Total XP
+  | 'commits'   // Git commits
+  | 'tests'     // Tests run
+  | 'tools'     // Total tool uses
+  | 'prompts'   // Prompts received
+
+export type TimePeriod = 'today' | 'week' | 'all'
+
+export interface LeaderboardEntry {
+  companionId: string
+  companionName: string
+  rank: number
+  value: number        // XP, commits, etc.
+  streak: StreakInfo
+  change?: number      // Position change from previous period
+}
+
+export interface Competition {
+  category: CompetitionCategory
+  period: TimePeriod
+  entries: LeaderboardEntry[]
+  updatedAt: number
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // WEBSOCKET MESSAGES
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -257,6 +293,7 @@ export type ServerMessage =
   | { type: 'xp_gain'; payload: XPGain }
   | { type: 'history'; payload: ClaudeEvent[] }
   | { type: 'terminal_output'; payload: TerminalOutput }
+  | { type: 'competitions'; payload: Competition[] }
 
 export type ClientMessage =
   | { type: 'subscribe' }

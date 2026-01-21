@@ -63,6 +63,10 @@ export function useWebSocket() {
           case 'terminal_output':
             window.dispatchEvent(new CustomEvent('terminal_output', { detail: message.payload }))
             break
+
+          case 'competitions':
+            window.dispatchEvent(new CustomEvent('competitions_update', { detail: message.payload }))
+            break
         }
       } catch (e) {
         console.error('[claude-rpg] Error parsing message:', e)

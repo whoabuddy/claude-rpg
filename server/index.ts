@@ -444,6 +444,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
 
     if (xpGain) {
       broadcast({ type: 'xp_gain', payload: xpGain })
+      // Update competitions leaderboard when XP changes
+      broadcast({ type: 'competitions', payload: getAllCompetitions(companions, events) })
     }
   }
 
