@@ -370,7 +370,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
             {showCtrlC && (
               <button
                 onClick={handleCtrlC}
-                className="w-full px-4 py-2 text-sm bg-rpg-error/20 hover:bg-rpg-error/40 text-rpg-error rounded transition-colors active:scale-95 min-h-[44px]"
+                className="w-full sm:w-auto px-4 py-2 text-sm bg-rpg-error/20 hover:bg-rpg-error/40 text-rpg-error rounded transition-colors active:scale-95 min-h-[44px]"
               >
                 Interrupt
               </button>
