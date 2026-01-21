@@ -27,9 +27,10 @@ interface PaneCardProps {
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
   proMode?: boolean
+  compact?: boolean
 }
 
-export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, proMode = false }: PaneCardProps) {
+export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, proMode = false, compact = false }: PaneCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const terminalContent = usePaneTerminal(pane.id)
@@ -89,9 +90,47 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     }
   }, [showInput])
 
+  // Compact mode: simpler display for idle panes
+  if (compact && !expanded) {
+    return (
+      <div
+        className={`rounded-lg border ${theme.border} bg-rpg-card/50 transition-all cursor-pointer hover:border-rpg-accent/50`}
+        onClick={toggleExpanded}
+      >
+        <div className="px-3 py-2 flex items-center gap-2">
+          {/* Minimal icon */}
+          {isClaudePane && session ? (
+            <div className="w-6 h-6 rounded bg-rpg-accent/20 flex items-center justify-center text-xs font-bold flex-shrink-0">
+              C
+            </div>
+          ) : (
+            <div className="w-6 h-6 rounded bg-rpg-bg/50 flex items-center justify-center text-xs font-mono flex-shrink-0 text-rpg-idle">
+              $
+            </div>
+          )}
+
+          {/* Name */}
+          <span className="text-sm text-rpg-idle/80 truncate">
+            {isClaudePane && session ? session.name : pane.process.command}
+          </span>
+
+          {/* Repo badge */}
+          {pane.repo && (
+            <span className="text-xs text-rpg-accent/60 truncate">
+              {pane.repo.name}
+            </span>
+          )}
+
+          {/* Expand hint */}
+          <span className="ml-auto text-rpg-idle/30 text-xs">▼</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`rounded-lg border-2 ${theme.border} ${theme.bg} transition-all`}>
-      {/* Compact Header - always visible */}
+      {/* Header - always visible */}
       <div className="p-3 cursor-pointer" onClick={toggleExpanded}>
         <div className="flex items-center gap-3">
           {/* Avatar/Icon */}
@@ -251,6 +290,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
 }, (prev, next) => {
   // Custom comparison - only re-render when visible state changes
   if (prev.proMode !== next.proMode) return false
+  if (prev.compact !== next.compact) return false
   if (prev.pane.id !== next.pane.id) return false
   if (prev.pane.process.type !== next.pane.process.type) return false
   if (prev.pane.process.typing !== next.pane.process.typing) return false
