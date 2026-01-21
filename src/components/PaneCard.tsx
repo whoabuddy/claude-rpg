@@ -186,7 +186,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
             </div>
 
             {/* Activity line */}
-            <div className="text-sm text-white/80 truncate">
+            <div className="text-sm text-rpg-text/80 truncate">
               {isClaudePane && session ? (
                 <ClaudeActivity session={session} />
               ) : (
@@ -417,7 +417,7 @@ const ExpandedTerminal = memo(function ExpandedTerminal({ content }: { content: 
   return (
     <pre
       ref={terminalRef}
-      className="bg-black/50 rounded p-3 text-xs font-mono text-green-400 overflow-auto max-h-64 whitespace-pre-wrap"
+      className="bg-rpg-bg/80 rounded p-3 text-xs font-mono text-rpg-working overflow-auto max-h-64 whitespace-pre-wrap"
     >
       {content || <span className="text-rpg-idle/50">Waiting for activity...</span>}
     </pre>

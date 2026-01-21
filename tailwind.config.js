@@ -7,19 +7,28 @@ export default {
   theme: {
     extend: {
       colors: {
-        // RPG-inspired color palette
+        // RPG color palette - warm earth tones with tetradic accents
         'rpg': {
-          'bg': '#0f0f1a',
-          'card': '#1a1a2e',
-          'border': '#2a2a4a',
-          'accent': '#6366f1',
-          'accent-dim': '#4f46e5',
-          'xp': '#fbbf24',
-          'success': '#22c55e',
-          'error': '#ef4444',
-          'working': '#3b82f6',
-          'waiting': '#f59e0b',
-          'idle': '#6b7280',
+          // Base surfaces (warm brown)
+          'bg': '#31291b',
+          'card': '#3d352a',
+          'border': '#524736',
+
+          // Text hierarchy (cream/pale yellow)
+          'text': '#f7f9d7',
+          'text-dim': '#a09a7d',
+
+          // Accent (lavender - interactive elements)
+          'accent': '#d9d7f9',
+          'accent-dim': '#b8b5e6',
+
+          // Semantic status colors
+          'xp': '#f5d76e',        // Warm gold for XP
+          'success': '#7ec9b8',   // Teal-green (harmonizes with cyan)
+          'error': '#e57373',     // Soft red (harmonizes with pink)
+          'working': '#d7f7f9',   // Cyan for active work
+          'waiting': '#f9d9d7',   // Pink/salmon for attention
+          'idle': '#8a7d6a',      // Muted brown
         },
       },
       fontFamily: {

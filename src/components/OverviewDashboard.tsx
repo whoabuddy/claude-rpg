@@ -169,7 +169,7 @@ export function OverviewDashboard({
             className={`px-2 py-1 text-xs rounded transition-colors ${
               proMode
                 ? 'bg-rpg-accent/20 text-rpg-accent'
-                : 'bg-rpg-card text-rpg-idle hover:text-white'
+                : 'bg-rpg-card text-rpg-idle hover:text-rpg-text'
             }`}
             title={proMode ? "Show Bitcoin faces" : "Hide Bitcoin faces"}
           >
@@ -240,7 +240,7 @@ function WindowSection({
         <span className="w-6 h-6 flex items-center justify-center text-xs rounded bg-rpg-card text-rpg-idle font-mono">
           {group.window.windowIndex}
         </span>
-        <span className="font-medium text-sm text-white/90">
+        <span className="font-medium text-sm text-rpg-text/90">
           {group.window.windowName}
         </span>
         <span className="text-xs text-rpg-idle/60">

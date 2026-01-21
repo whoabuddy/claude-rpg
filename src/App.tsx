@@ -62,13 +62,13 @@ export default function App() {
           <div className="flex items-center gap-2">
             <button
               onClick={requestPermission}
-              className="px-3 py-1 text-sm bg-rpg-accent hover:bg-rpg-accent/80 text-rpg-bg rounded transition-colors"
+              className="px-3 py-1 text-sm bg-rpg-accent hover:bg-rpg-accent-dim text-rpg-bg font-medium rounded transition-colors"
             >
               Enable
             </button>
             <button
               onClick={() => setNotificationsDismissed(true)}
-              className="px-3 py-1 text-sm text-rpg-idle hover:text-white transition-colors"
+              className="px-3 py-1 text-sm text-rpg-idle hover:text-rpg-text transition-colors"
             >
               Dismiss
             </button>
