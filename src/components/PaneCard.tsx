@@ -54,6 +54,11 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     }
   }, [onSendPrompt, pane.id, inputValue])
 
+  const handleEnter = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onSendPrompt(pane.id, '') // Empty string = just send Enter
+  }, [onSendPrompt, pane.id])
+
   const handleCtrlC = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     onSendSignal(pane.id, 'SIGINT')
@@ -188,7 +193,11 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.stopPropagation()
-                      handleSend()
+                      if (inputValue.trim()) {
+                        handleSend()
+                      } else {
+                        onSendPrompt(pane.id, '') // Just Enter
+                      }
                     }
                   }}
                   onClick={(e) => e.stopPropagation()}
@@ -196,11 +205,19 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
                   className="flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[40px]"
                 />
                 <button
+                  onClick={handleEnter}
+                  className="px-3 py-2 text-sm bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle rounded transition-colors active:scale-95 min-h-[40px]"
+                  title="Send Enter (accept suggestion)"
+                >
+                  ⏎
+                </button>
+                <button
                   onClick={(e) => {
                     e.stopPropagation()
                     handleSend()
                   }}
-                  className="px-4 py-2 text-sm bg-rpg-accent/30 hover:bg-rpg-accent/50 rounded transition-colors active:scale-95 min-h-[40px]"
+                  disabled={!inputValue.trim()}
+                  className="px-4 py-2 text-sm bg-rpg-accent/30 hover:bg-rpg-accent/50 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors active:scale-95 min-h-[40px]"
                 >
                   Send
                 </button>

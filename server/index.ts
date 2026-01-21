@@ -555,13 +555,20 @@ setInterval(broadcastTerminalUpdates, 500)
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function sendPromptToTmux(target: string, prompt: string): Promise<void> {
+  // If empty prompt, just send Enter (accepts Claude's suggestion)
+  if (!prompt) {
+    await execAsync(`tmux send-keys -t "${target}" Enter`)
+    return
+  }
+
+  // For non-empty prompts, use buffer to handle special characters
   const tempFile = `/tmp/claude-rpg-prompt-${Date.now()}.txt`
   writeFileSync(tempFile, prompt)
 
   await execAsync(`tmux load-buffer ${tempFile}`)
-  await execAsync(`tmux paste-buffer -t ${target}`)
+  await execAsync(`tmux paste-buffer -t "${target}"`)
   await new Promise(r => setTimeout(r, 100))
-  await execAsync(`tmux send-keys -t ${target} Enter`)
+  await execAsync(`tmux send-keys -t "${target}" Enter`)
 
   await unlink(tempFile).catch(() => {})
 }
