@@ -412,7 +412,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
                       inputRef.current.style.height = 'auto'
                     }
                   }}
-                  className={`w-full px-4 py-2 text-sm rounded transition-colors active:scale-95 min-h-[44px] ${
+                  className={`w-full sm:w-auto px-4 py-2 text-sm rounded transition-colors active:scale-95 min-h-[44px] ${
                     inputValue.trim()
                       ? isPassword ? 'bg-rpg-waiting/30 hover:bg-rpg-waiting/50' : 'bg-rpg-accent/30 hover:bg-rpg-accent/50'
                       : 'bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle'

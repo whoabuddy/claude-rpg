@@ -106,9 +106,11 @@ export function usePaneNotifications({
 
           // P1: Needs attention (waiting/error)
           const icon = session.avatarSvg ? svgToDataUrl(session.avatarSvg) : undefined
-          if (session.status === 'waiting' && prevStatus !== 'waiting') {
+          // Only notify for 'waiting' if there's an actual pending question
+          // This prevents false notifications after /clear or other context resets
+          if (session.status === 'waiting' && prevStatus !== 'waiting' && session.pendingQuestion) {
             const pq = session.pendingQuestion
-            const question = pq ? pq.questions[pq.currentIndex]?.question : 'needs input'
+            const question = pq.questions[pq.currentIndex]?.question || 'needs input'
             notify(`${session.name} needs input`, {
               body: `${pane.repo?.name || 'Unknown'}: ${question}`,
               tag: `pane-${paneId}`,
