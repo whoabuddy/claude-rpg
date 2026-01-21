@@ -144,6 +144,80 @@ sudo firewall-cmd --add-port=4010/tcp --permanent
 sudo firewall-cmd --reload
 ```
 
+## Running as a Service (Optional)
+
+For persistent operation, run the server as a service that auto-restarts and ensures only one instance.
+
+### Option A: pm2 (Recommended)
+
+pm2 is a Node.js process manager with automatic restart and log management.
+
+```bash
+# Install pm2 globally
+npm install -g pm2
+
+# Start claude-rpg (from the claude-rpg directory)
+pm2 start npm --name "claude-rpg" -- run dev
+
+# Useful commands
+pm2 status          # Check status
+pm2 logs claude-rpg # View logs
+pm2 restart claude-rpg
+pm2 stop claude-rpg
+
+# Auto-start on boot
+pm2 startup         # Follow the instructions it prints
+pm2 save            # Save current process list
+```
+
+### Option B: systemd (Linux)
+
+Create a systemd service for system-level management.
+
+```bash
+# Create service file
+sudo tee /etc/systemd/system/claude-rpg.service << 'EOF'
+[Unit]
+Description=Claude RPG Server
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/path/to/claude-rpg
+ExecStart=/usr/bin/npm run dev
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Update YOUR_USERNAME and /path/to/claude-rpg, then:
+sudo systemctl daemon-reload
+sudo systemctl enable claude-rpg
+sudo systemctl start claude-rpg
+
+# Useful commands
+sudo systemctl status claude-rpg
+sudo journalctl -u claude-rpg -f  # View logs
+```
+
+### Option C: tmux/screen Session
+
+Simple approach using a detached terminal session.
+
+```bash
+# Start in detached tmux session
+tmux new-session -d -s claude-rpg "cd /path/to/claude-rpg && npm run dev"
+
+# Attach to view logs
+tmux attach -t claude-rpg
+
+# Detach: Ctrl+B, then D
+```
+
 ## Voice Input Setup (Optional)
 
 Voice input requires whisper.cpp for local speech-to-text transcription.

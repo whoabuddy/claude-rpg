@@ -180,8 +180,17 @@ export function OverviewDashboard({
       {/* Empty state */}
       {windowGroups.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-rpg-text-muted">
-          <p className="text-lg mb-2">No tmux panes found</p>
-          <p className="text-sm text-rpg-text-dim">Start Claude Code in a tmux session to begin!</p>
+          {!connected ? (
+            <>
+              <p className="text-lg mb-2">Server not connected</p>
+              <p className="text-sm text-rpg-text-dim">Start the server with: npm run dev</p>
+            </>
+          ) : (
+            <>
+              <p className="text-lg mb-2">No tmux panes found</p>
+              <p className="text-sm text-rpg-text-dim">Start Claude Code in a tmux session to begin!</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
