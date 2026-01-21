@@ -42,6 +42,8 @@ export interface PendingQuestion {
   // Tool tracking
   toolUseId: string
   timestamp: number
+  // True when all questions answered but user needs to confirm submission
+  readyToSubmit?: boolean
 }
 
 export interface SessionError {

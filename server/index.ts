@@ -820,28 +820,61 @@ const server = http.createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const { prompt } = JSON.parse(body)
+
+        // Handle special key sequences
+        if (prompt === 'Escape') {
+          // Send Escape key (for canceling submit)
+          await execAsync(`tmux send-keys -t "${pane.target}" Escape`)
+          // Clear pending question on cancel
+          if (pane.process.claudeSession?.pendingQuestion) {
+            updateClaudeSession(pane.id, {
+              pendingQuestion: undefined,
+              status: 'idle',
+            })
+            savePanesCache()
+            broadcast({ type: 'pane_update', payload: pane })
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: true }))
+          return
+        }
+
         await sendPromptToTmux(pane.target, prompt)
 
-        // Handle pending question - advance to next or clear if done
+        // Handle pending question - advance to next or mark ready to submit
         if (pane.process.claudeSession?.pendingQuestion) {
           const pq = pane.process.claudeSession.pendingQuestion
-          const nextIndex = pq.currentIndex + 1
 
-          if (nextIndex < pq.questions.length) {
-            // Advance to next question
-            updateClaudeSession(pane.id, {
-              pendingQuestion: {
-                ...pq,
-                currentIndex: nextIndex,
-              },
-              status: 'waiting',
-            })
-          } else {
-            // All questions answered - clear and set to working
+          // If already ready to submit, this is the final submission
+          if (pq.readyToSubmit) {
+            // Clear question and set to working - submission sent
             updateClaudeSession(pane.id, {
               pendingQuestion: undefined,
               status: 'working',
             })
+          } else {
+            const nextIndex = pq.currentIndex + 1
+
+            if (nextIndex < pq.questions.length) {
+              // Advance to next question
+              updateClaudeSession(pane.id, {
+                pendingQuestion: {
+                  ...pq,
+                  currentIndex: nextIndex,
+                },
+                status: 'waiting',
+              })
+            } else {
+              // All questions answered - mark ready to submit (user must confirm)
+              // Claude Code TUI shows "Submit Answers" / "Cancel" at this point
+              updateClaudeSession(pane.id, {
+                pendingQuestion: {
+                  ...pq,
+                  readyToSubmit: true,
+                },
+                status: 'waiting',
+              })
+            }
           }
           savePanesCache()
           broadcast({ type: 'pane_update', payload: pane })
@@ -877,6 +910,26 @@ const server = http.createServer(async (req, res) => {
         // Send Ctrl+C via tmux
         if (signal === 'SIGINT') {
           await execAsync(`tmux send-keys -t "${pane.target}" C-c`)
+
+          // After interrupt, optimistically reset Claude session state
+          // The Stop hook may not fire if Claude wasn't mid-response
+          // This ensures the UI shows input box instead of just Interrupt button
+          if (pane.process.claudeSession) {
+            // Small delay to let tmux process the interrupt
+            await new Promise(r => setTimeout(r, 200))
+
+            const updated = updateClaudeSession(pane.id, {
+              status: 'idle',
+              pendingQuestion: undefined,
+              currentTool: undefined,
+              currentFile: undefined,
+            })
+            if (updated) {
+              pane.process.claudeSession = updated
+              savePanesCache()
+              broadcast({ type: 'pane_update', payload: pane })
+            }
+          }
         }
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ ok: true }))

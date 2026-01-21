@@ -142,13 +142,16 @@ export function usePaneNotifications({
         }
       } else {
         // Non-Claude pane tracking
-        const isActive = pane.process.typing || pane.process.type === 'process'
-        const currentStatus = isActive ? 'active' : 'inactive'
+        // Only track 'process' type (actual running commands), not shell typing activity
+        // This prevents notifications for idle bash panes with cursor blink or minor terminal updates
+        const isRunningProcess = pane.process.type === 'process'
+        const currentStatus = isRunningProcess ? 'active' : 'inactive'
 
         if (prev) {
-          // P3: Terminal activity (inactive → active)
-          if (currentStatus === 'active' && prev.lastStatus === 'inactive') {
-            notify(`Activity in ${pane.process.command}`, {
+          // P3: Process started (inactive → active)
+          // Only notify when an actual process starts running, not just typing in shell
+          if (currentStatus === 'active' && prev.lastStatus === 'inactive' && isRunningProcess) {
+            notify(`Running: ${pane.process.command}`, {
               body: pane.repo?.name || pane.cwd.split('/').slice(-2).join('/'),
               tag: `pane-${paneId}-activity`,
             })

@@ -19,7 +19,61 @@ export const QuestionInput = memo(function QuestionInput({
   onAnswer,
   compact = false,
 }: QuestionInputProps) {
-  const { questions, currentIndex } = pendingQuestion
+  const { questions, currentIndex, readyToSubmit } = pendingQuestion
+
+  // When all questions answered, show submit confirmation
+  if (readyToSubmit) {
+    return (
+      <div className="space-y-2">
+        {/* Progress complete indicator */}
+        {questions.length > 1 && (
+          <div className="flex items-center gap-2 text-xs text-rpg-text-muted">
+            <span>All {questions.length} questions answered</span>
+            <div className="flex gap-1">
+              {questions.map((_, i) => (
+                <div key={i} className="w-2 h-2 rounded-full bg-rpg-success" />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Confirmation prompt */}
+        <div className={`p-3 bg-rpg-success/20 rounded border border-rpg-success/50 ${compact ? 'p-2' : ''}`}>
+          <p className={`font-medium ${compact ? 'text-sm' : ''}`}>
+            Ready to submit your answers?
+          </p>
+        </div>
+
+        {/* Submit / Cancel buttons */}
+        <div className="flex gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onAnswer('') // Empty string = Enter key to submit
+            }}
+            className="flex-1 px-4 py-2 text-sm bg-rpg-success/30 hover:bg-rpg-success/50 text-rpg-success rounded transition-colors active:scale-95 min-h-[44px] font-medium"
+          >
+            Submit Answers
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onAnswer('Escape') // Send Escape to cancel
+            }}
+            className="px-4 py-2 text-sm bg-rpg-error/20 hover:bg-rpg-error/40 text-rpg-error rounded transition-colors active:scale-95 min-h-[44px]"
+          >
+            Cancel
+          </button>
+        </div>
+
+        {/* Keyboard hint */}
+        <div className="text-xs text-rpg-text-dim">
+          Press Enter to submit or Escape to cancel
+        </div>
+      </div>
+    )
+  }
+
   const currentQuestion = questions[currentIndex]
   const options = currentQuestion.options
 
