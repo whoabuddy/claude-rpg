@@ -6,6 +6,7 @@ import type {
   PaneProcess,
   ClaudeSessionInfo,
 } from '../shared/types.js'
+import { createDefaultSessionStats } from '../shared/types.js'
 import {
   detectRepoInfo,
   getEnrichedRepoInfo,
@@ -239,11 +240,12 @@ export function updateClaudeSession(
   let session = claudeSessionsByPane.get(paneId)
 
   if (!session && sessionInfo.id) {
-    // Create new session
+    // Create new session with default stats
     session = {
       id: sessionInfo.id,
       name: sessionInfo.name || 'Unknown',
       status: 'idle',
+      stats: createDefaultSessionStats(),
       createdAt: Date.now(),
       lastActivity: Date.now(),
       ...sessionInfo,

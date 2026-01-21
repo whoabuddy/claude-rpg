@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react'
-import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, RepoInfo } from '@shared/types'
+import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, RepoInfo, SessionStats } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
@@ -196,13 +196,16 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
           {/* Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
-              {/* Name/Command */}
+              {/* Name/Command with Worker badge for Claude */}
               {isClaudePane && session ? (
-                proMode ? (
-                  <span className="font-medium text-sm">Claude</span>
-                ) : (
-                  <span className="font-medium text-sm">{session.name}</span>
-                )
+                <span className="flex items-center gap-1.5">
+                  <span className="text-xs px-1 py-0.5 rounded bg-rpg-accent/20 text-rpg-accent font-medium" title="Worker">W</span>
+                  {proMode ? (
+                    <span className="font-medium text-sm">Claude</span>
+                  ) : (
+                    <span className="font-medium text-sm">{session.name}</span>
+                  )}
+                </span>
               ) : (
                 <span className="font-mono text-sm">{pane.process.command}</span>
               )}
@@ -309,6 +312,11 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
           {/* Fork info + GitHub Links */}
           {pane.repo?.org && (
             <GitHubLinks repo={pane.repo} />
+          )}
+
+          {/* Session stats bar for Claude sessions */}
+          {isClaudePane && session && (
+            <SessionStatsBar stats={session.stats} />
           )}
 
           {/* Terminal */}
@@ -453,6 +461,8 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     if (!!sa.pendingQuestion !== !!sb.pendingQuestion) return false
     if (sa.pendingQuestion?.toolUseId !== sb.pendingQuestion?.toolUseId) return false
     if (sa.lastError?.timestamp !== sb.lastError?.timestamp) return false
+    // Compare session stats (for re-rendering when stats change)
+    if (sa.stats?.totalXPGained !== sb.stats?.totalXPGained) return false
   }
   // Compare repo
   if (prev.pane.repo?.name !== next.pane.repo?.name) return false
@@ -562,5 +572,30 @@ const ExpandedTerminal = memo(function ExpandedTerminal({ content, onTerminalCli
     >
       {content || <span className="text-rpg-text-dim">Waiting for activity...</span>}
     </pre>
+  )
+})
+
+// Session stats bar - shows XP and activity for current session
+const SessionStatsBar = memo(function SessionStatsBar({ stats }: { stats: SessionStats | undefined }) {
+  if (!stats || stats.totalXPGained === 0) return null
+
+  // Calculate total tools used
+  const totalTools = Object.values(stats.toolsUsed).reduce((sum, count) => sum + count, 0)
+
+  // Calculate total git operations
+  const totalGit = stats.git.commits + stats.git.pushes + stats.git.prsCreated + stats.git.prsMerged
+
+  const parts: string[] = []
+  parts.push(`+${stats.totalXPGained} XP`)
+  if (totalTools > 0) parts.push(`${totalTools} tools`)
+  if (stats.git.commits > 0) parts.push(`${stats.git.commits} commit${stats.git.commits > 1 ? 's' : ''}`)
+  if (stats.git.prsCreated > 0) parts.push(`${stats.git.prsCreated} PR${stats.git.prsCreated > 1 ? 's' : ''}`)
+  if (stats.commands.testsRun > 0) parts.push(`${stats.commands.testsRun} test${stats.commands.testsRun > 1 ? 's' : ''}`)
+
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5 bg-rpg-accent/10 rounded text-xs text-rpg-accent">
+      <span className="text-rpg-text-dim">This session:</span>
+      <span className="font-mono">{parts.join(' | ')}</span>
+    </div>
   )
 })

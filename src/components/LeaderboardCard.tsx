@@ -84,9 +84,10 @@ function EntryRow({ entry, unit }: { entry: LeaderboardEntry; unit: string }) {
         {isTopThree ? <TrophyIcon rank={entry.rank} /> : rankText}
       </span>
 
-      {/* Name */}
-      <span className="flex-1 text-sm truncate text-rpg-text">
-        {entry.companionName}
+      {/* Name with project indicator */}
+      <span className="flex-1 flex items-center gap-1 text-sm truncate text-rpg-text">
+        <span className="text-rpg-text-dim text-xs" title="Project">P</span>
+        <span className="truncate">{entry.companionName}</span>
       </span>
 
       {/* Streak indicator */}
@@ -199,9 +200,10 @@ export function StreakCard({ entries }: StreakCardProps) {
                   {isTopThree ? <TrophyIcon rank={rank} /> : rank}
                 </span>
 
-                {/* Name */}
-                <span className="flex-1 text-sm truncate text-rpg-text">
-                  {entry.companionName}
+                {/* Name with project indicator */}
+                <span className="flex-1 flex items-center gap-1 text-sm truncate text-rpg-text">
+                  <span className="text-rpg-text-dim text-xs" title="Project">P</span>
+                  <span className="truncate">{entry.companionName}</span>
                 </span>
 
                 {/* Current streak with fire */}

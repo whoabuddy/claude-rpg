@@ -22,7 +22,7 @@ import type {
   CompetitionCategory,
   TimePeriod,
 } from '../shared/types.js'
-import { processEvent } from './xp.js'
+import { processEvent, detectCommandXP } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName } from './companions.js'
 import { getAllCompetitions, getCompetition, getStreakLeaderboard, updateStreak } from './competitions.js'
 import {
@@ -485,7 +485,45 @@ async function handleEvent(rawEvent: RawHookEvent) {
       broadcast({ type: 'xp_gain', payload: xpGain })
       // Update competitions leaderboard when XP changes
       broadcast({ type: 'competitions', payload: getAllCompetitions(companions, events) })
+
+      // Also update session stats if we have an active session
+      if (pane && pane.process.claudeSession?.stats) {
+        const sessionStats = pane.process.claudeSession.stats
+        sessionStats.totalXPGained += xpGain.amount
+      }
     }
+  }
+
+  // Update session stats for all tracked events
+  if (pane && pane.process.claudeSession?.stats) {
+    const sessionStats = pane.process.claudeSession.stats
+
+    if (event.type === 'pre_tool_use') {
+      const preEvent = event as PreToolUseEvent
+      sessionStats.toolsUsed[preEvent.tool] = (sessionStats.toolsUsed[preEvent.tool] || 0) + 1
+    } else if (event.type === 'user_prompt_submit') {
+      sessionStats.promptsReceived++
+    } else if (event.type === 'post_tool_use') {
+      const postEvent = event as import('../shared/types.js').PostToolUseEvent
+      // Check for git/command operations in Bash
+      if (postEvent.tool === 'Bash' && postEvent.success && postEvent.toolInput) {
+        const command = (postEvent.toolInput as { command?: string }).command || ''
+        const cmdDetection = detectCommandXP(command)
+        if (cmdDetection) {
+          // Update session stats based on command type
+          if (cmdDetection.statKey === 'git.commits') sessionStats.git.commits++
+          else if (cmdDetection.statKey === 'git.pushes') sessionStats.git.pushes++
+          else if (cmdDetection.statKey === 'git.prsCreated') sessionStats.git.prsCreated++
+          else if (cmdDetection.statKey === 'git.prsMerged') sessionStats.git.prsMerged++
+          else if (cmdDetection.statKey === 'commands.testsRun') sessionStats.commands.testsRun++
+          else if (cmdDetection.statKey === 'commands.buildsRun') sessionStats.commands.buildsRun++
+        }
+      }
+    }
+
+    // Broadcast pane update to show new stats
+    savePanesCache()
+    broadcast({ type: 'pane_update', payload: pane })
   }
 
   // Store event

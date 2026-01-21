@@ -22,6 +22,45 @@ export interface PaneProcess {
 
 export type SessionStatus = 'idle' | 'typing' | 'working' | 'waiting' | 'error'
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SESSION STATS (Worker) - tracks stats for a single Claude session
+// Workers are the Claude instances that do the actual work, earning XP for Projects
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface SessionStats {
+  totalXPGained: number
+  toolsUsed: Record<string, number>
+  promptsReceived: number
+  git: {
+    commits: number
+    pushes: number
+    prsCreated: number
+    prsMerged: number
+  }
+  commands: {
+    testsRun: number
+    buildsRun: number
+  }
+}
+
+export function createDefaultSessionStats(): SessionStats {
+  return {
+    totalXPGained: 0,
+    toolsUsed: {},
+    promptsReceived: 0,
+    git: {
+      commits: 0,
+      pushes: 0,
+      prsCreated: 0,
+      prsMerged: 0,
+    },
+    commands: {
+      testsRun: 0,
+      buildsRun: 0,
+    },
+  }
+}
+
 export interface QuestionOption {
   label: string
   description?: string
@@ -52,6 +91,10 @@ export interface SessionError {
   timestamp: number
 }
 
+/**
+ * ClaudeSessionInfo represents a Worker - a Claude instance running in a pane.
+ * Workers do the actual work and earn XP for Projects (Companions).
+ */
 export interface ClaudeSessionInfo {
   id: string              // session UUID
   name: string            // "Alice" (English name)
@@ -63,6 +106,7 @@ export interface ClaudeSessionInfo {
   currentFile?: string
   lastPrompt?: string     // Last user prompt (truncated for display)
   recentFiles?: string[]  // Recently touched files (last 5 unique)
+  stats?: SessionStats    // Stats for this session (in-memory only)
   createdAt: number
   lastActivity: number
 }
@@ -80,6 +124,7 @@ export interface TmuxPane {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COMPANION (Project) - for XP/stats persistence
+// Projects are git repositories that accumulate XP from Workers (Claude sessions)
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface StreakInfo {
@@ -88,6 +133,10 @@ export interface StreakInfo {
   lastActiveDate: string // YYYY-MM-DD format
 }
 
+/**
+ * Companion represents a Project - a git repository with RPG progression.
+ * Projects accumulate XP and stats from Workers (Claude sessions) working on them.
+ */
 export interface Companion {
   id: string
   name: string
