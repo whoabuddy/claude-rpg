@@ -5,9 +5,20 @@ This document describes how each pane is evaluated for status and what colors, l
 ## Status Values
 
 ```
-SessionStatus = 'idle' | 'typing' | 'working' | 'waiting' | 'error'
+SessionStatus = 'ready' | 'typing' | 'working' | 'waiting' | 'error'
 ProcessType   = 'claude' | 'shell' | 'process' | 'idle'
 ```
+
+### Ready vs Waiting
+
+Both states await user input, but differ in context:
+
+| Status | Meaning | Visual |
+|--------|---------|--------|
+| **Ready** | Task complete, awaiting new prompt | Muted, no glow |
+| **Waiting** | Mid-task, blocked on question/permission | Pink glow, attention badge |
+
+`waiting` triggers notifications and "needs attention" badges because Claude is actively blocked.
 
 ## Color Palette
 
@@ -41,7 +52,7 @@ ProcessType   = 'claude' | 'shell' | 'process' | 'idle'
 
 | Status | Label | Border | Background | Indicator | Pulses? |
 |--------|-------|--------|------------|-----------|---------|
-| `idle` | Ready | `rpg-ready/50` | `rpg-card` | `rpg-ready` | No |
+| `ready` | Ready | `rpg-ready/50` | `rpg-card` | `rpg-ready` | No |
 | `typing` | Active | `rpg-active/70` | `rpg-active/5` | `rpg-active` | Yes |
 | `working` | Working | `rpg-working` | `rpg-card` | `rpg-working` | Yes |
 | `waiting` | Waiting | `rpg-waiting` | `rpg-waiting/10` | `rpg-waiting` | No |
@@ -57,28 +68,28 @@ Non-Claude panes:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> idle: session_start
+    [*] --> ready: session_start
 
-    idle --> typing: terminal content changes
-    typing --> idle: 3s no changes
+    ready --> typing: terminal content changes
+    typing --> ready: 3s no changes
 
-    idle --> working: pre_tool_use (generic tool)
-    idle --> working: user_prompt_submit
+    ready --> working: pre_tool_use (generic tool)
+    ready --> working: user_prompt_submit
 
     working --> waiting: pre_tool_use (AskUserQuestion)
     working --> waiting: pre_tool_use (ExitPlanMode)
     working --> waiting: notification (permission/waiting)
     working --> error: post_tool_use (success=false)
-    working --> idle: stop
-    working --> idle: post_tool_use (success=true, no pending question)
+    working --> ready: stop
+    working --> ready: post_tool_use (success=true, no pending question)
 
     waiting --> working: user_prompt_submit
     waiting --> working: post_tool_use (success=true, had pending question)
 
     error --> working: user_prompt_submit
-    error --> idle: stop
+    error --> ready: stop
 
-    idle --> [*]: session_end
+    ready --> [*]: session_end
     typing --> [*]: session_end
     working --> [*]: session_end
     waiting --> [*]: session_end
@@ -91,15 +102,15 @@ stateDiagram-v2
 
 | Event | Status Change | Details |
 |-------|---------------|---------|
-| `session_start` | → `idle` | New session initialized |
+| `session_start` | → `ready` | New session initialized |
 | `pre_tool_use` | → `working` | Tool execution starting |
 | `pre_tool_use` (AskUserQuestion) | → `waiting` | Question pending |
 | `pre_tool_use` (ExitPlanMode) | → `waiting` | Plan approval pending |
-| `post_tool_use` (success) | → `idle` or `working` | Tool completed |
+| `post_tool_use` (success) | → `ready` or `working` | Tool completed |
 | `post_tool_use` (failure) | → `error` | Tool failed |
 | `user_prompt_submit` | → `working` | User sent input |
 | `notification` | → `waiting` | Permission prompt detected |
-| `stop` | → `idle` | Session completed |
+| `stop` | → `ready` | Session completed |
 | `session_end` | (removed) | Session terminated |
 
 ### Terminal Activity Detection
@@ -107,11 +118,11 @@ stateDiagram-v2
 ```
 Every 500ms per pane:
   - Compare terminal content hash
-  - If changed and Claude pane is 'idle':
+  - If changed and Claude pane is 'ready':
       status → 'typing'
       pane.process.typing = true
   - If no change for 3s and 'typing':
-      status → 'idle'
+      status → 'ready'
       pane.process.typing = false
 ```
 
@@ -138,7 +149,7 @@ A pane "needs attention" when ALL of:
 
 | Transition | Notification |
 |------------|--------------|
-| `working → idle` | "{Name} finished" |
+| `working → ready` | "{Name} finished" |
 
 ### Activity (non-Claude panes)
 
@@ -177,21 +188,21 @@ Shown when:
 ┌─────────────────────────────────────────┐
 │ Status Indicator (dot)                  │
 ├─────────────────────────────────────────┤
-│ idle     → static dot (muted brown)     │
+│ ready    → static dot (muted brown)     │
 │ typing   → pulsing dot (amber/gold)     │
 │ working  → pulsing dot (cyan)           │
-│ waiting  → static dot (pink)            │
-│ error    → static dot (red)             │
+│ waiting  → static dot (pink) + glow     │
+│ error    → static dot (red) + glow      │
 └─────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────┐
 │ Border Treatment                        │
 ├─────────────────────────────────────────┤
-│ idle     → subtle border (50% opacity)  │
+│ ready    → subtle border (50% opacity)  │
 │ typing   → amber border (70% opacity)   │
 │ working  → solid cyan border            │
-│ waiting  → solid pink border + bg tint  │
-│ error    → solid red border + bg tint   │
+│ waiting  → solid pink border + bg glow  │
+│ error    → solid red border + bg glow   │
 └─────────────────────────────────────────┘
 ```
 
