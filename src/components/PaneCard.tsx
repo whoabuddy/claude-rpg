@@ -35,6 +35,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
   const statusLabel = STATUS_LABELS[status] || status
 
   const toggleExpanded = useCallback(() => setExpanded(prev => !prev), [])
+  const prevExpandedRef = useRef(expanded)
 
   const handleSend = useCallback(() => {
     if (inputValue.trim()) {
@@ -87,12 +88,15 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     (pane.process.type === 'process')
   )
 
-  // Auto-focus input when panel expands
+  // Auto-focus input only when user expands the pane (not when status changes)
   useEffect(() => {
-    if (showInput && inputRef.current) {
+    const justExpanded = expanded && !prevExpandedRef.current
+    prevExpandedRef.current = expanded
+
+    if (justExpanded && showInput && inputRef.current) {
       inputRef.current.focus()
     }
-  }, [showInput])
+  }, [expanded, showInput])
 
   // Compact mode: simpler display for idle panes
   if (compact && !expanded) {
