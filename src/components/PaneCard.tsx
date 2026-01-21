@@ -42,11 +42,6 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     }
   }, [onSendPrompt, pane.id, inputValue])
 
-  const handleEnter = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    onSendPrompt(pane.id, '') // Empty string = just send Enter
-  }, [onSendPrompt, pane.id])
-
   const handleCtrlC = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     onSendSignal(pane.id, 'SIGINT')
@@ -326,29 +321,28 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
                   className="w-full px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none"
                   rows={1}
                 />
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleEnter}
-                    className="flex-1 sm:flex-none px-3 py-2 text-sm bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle rounded transition-colors active:scale-95 min-h-[44px]"
-                    title="Send Enter (accept suggestion)"
-                  >
-                    ⏎ Enter
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (inputValue.trim()) {
                       handleSend()
-                      // Reset height after sending
-                      if (inputRef.current) {
-                        inputRef.current.style.height = 'auto'
-                      }
-                    }}
-                    disabled={!inputValue.trim()}
-                    className="flex-1 sm:flex-none px-4 py-2 text-sm bg-rpg-accent/30 hover:bg-rpg-accent/50 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors active:scale-95 min-h-[44px]"
-                  >
-                    Send
-                  </button>
-                </div>
+                    } else {
+                      onSendPrompt(pane.id, '') // Just Enter
+                    }
+                    // Reset height after sending
+                    if (inputRef.current) {
+                      inputRef.current.style.height = 'auto'
+                    }
+                  }}
+                  className={`w-full px-4 py-2 text-sm rounded transition-colors active:scale-95 min-h-[44px] ${
+                    inputValue.trim()
+                      ? 'bg-rpg-accent/30 hover:bg-rpg-accent/50'
+                      : 'bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle'
+                  }`}
+                  title={inputValue.trim() ? "Send message" : "Send Enter (accept suggestion)"}
+                >
+                  {inputValue.trim() ? 'Send' : '⏎ Enter'}
+                </button>
               </>
             )}
 
