@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/whoabuddy/claude-rpg/compare/v1.1.0...v1.2.0) (2026-01-22)
+
+
+### Features
+
+* terminal-first prompt detection for permission and question prompts ([854c2fa](https://github.com/whoabuddy/claude-rpg/commit/854c2fac5b680dfb445c159cb18a2e4b8bdc9b9c))
+
 ## [1.1.0](https://github.com/whoabuddy/claude-rpg/compare/v1.0.2...v1.1.0) (2026-01-22)
 
 
