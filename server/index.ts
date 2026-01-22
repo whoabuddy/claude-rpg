@@ -580,40 +580,20 @@ async function broadcastTerminalUpdates() {
       const contentChanged = lastTerminalContent.get(pane.id) !== content
       const lastTyping = lastTypingActivity.get(pane.id) || 0
 
-      // Detect typing for all panes
+      // Detect typing for NON-Claude panes only
+      // Claude pane status is managed by hook events (pre_tool_use, stop, etc.)
+      // Terminal content changes (from /clear, /help, etc.) should not affect Claude status
       if (contentChanged) {
         lastTypingActivity.set(pane.id, now)
 
-        // For Claude panes, update session status
-        if (isClaudePane && pane.process.claudeSession) {
-          const session = pane.process.claudeSession
-          if (session.status === 'idle') {
-            const updated = updateClaudeSession(pane.id, { status: 'typing' })
-            if (updated) {
-              pane.process.claudeSession = updated
-              savePanesCache()
-            }
-          }
-        }
-
-        // For all panes, set typing flag
-        if (!pane.process.typing) {
+        // Only set typing flag for non-Claude panes
+        if (!isClaudePane && !pane.process.typing) {
           pane.process.typing = true
           broadcast({ type: 'pane_update', payload: pane })
         }
-      } else if (pane.process.typing && now - lastTyping > TYPING_IDLE_TIMEOUT_MS) {
-        // No changes for a while and was typing → clear typing flag
+      } else if (!isClaudePane && pane.process.typing && now - lastTyping > TYPING_IDLE_TIMEOUT_MS) {
+        // No changes for a while and was typing → clear typing flag (non-Claude only)
         pane.process.typing = false
-
-        // For Claude panes, also reset session status
-        if (isClaudePane && pane.process.claudeSession?.status === 'typing') {
-          const updated = updateClaudeSession(pane.id, { status: 'idle' })
-          if (updated) {
-            pane.process.claudeSession = updated
-            savePanesCache()
-          }
-        }
-
         broadcast({ type: 'pane_update', payload: pane })
       }
 

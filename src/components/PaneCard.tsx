@@ -507,14 +507,14 @@ const GitHubLinks = memo(function GitHubLinks({ repo }: { repo: RepoInfo }) {
   // Add "Create PR" if on a non-default branch
   if (repo.branch && repo.defaultBranch && repo.branch !== repo.defaultBranch) {
     links.push({
-      label: 'Create PR',
+      label: 'New PR',
       url: `${baseUrl}/compare/${repo.defaultBranch}...${repo.branch}?expand=1`,
       icon: '➕',
     })
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col gap-2">
       {/* Fork info */}
       {repo.upstream && (
         <span className="text-xs text-rpg-text-muted">
@@ -531,8 +531,8 @@ const GitHubLinks = memo(function GitHubLinks({ repo }: { repo: RepoInfo }) {
         </span>
       )}
 
-      {/* Quick links */}
-      <div className="flex gap-1 ml-auto">
+      {/* Quick links - mobile-friendly with labels and larger touch targets */}
+      <div className="flex flex-wrap gap-2">
         {links.map(link => (
           <a
             key={link.label}
@@ -540,10 +540,10 @@ const GitHubLinks = memo(function GitHubLinks({ repo }: { repo: RepoInfo }) {
             target="_blank"
             rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
-            className="px-2 py-1 text-xs bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors"
-            title={link.label}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
           >
-            {link.icon}
+            <span>{link.icon}</span>
+            <span>{link.label}</span>
           </a>
         ))}
       </div>
