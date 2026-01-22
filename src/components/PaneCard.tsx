@@ -29,14 +29,12 @@ interface PaneCardProps {
   onDismissWaiting?: (paneId: string) => void
   onExpandPane?: (paneId: string) => void
   onRefreshPane?: (paneId: string) => void
-  onSplitPane?: (paneId: string, direction: 'h' | 'v') => void
   onClosePane?: (paneId: string) => void
-  onStartClaude?: (paneId: string) => void
   proMode?: boolean
   compact?: boolean
 }
 
-export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onSplitPane, onClosePane, onStartClaude, proMode = false, compact = false }: PaneCardProps) {
+export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onClosePane, proMode = false, compact = false }: PaneCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [confirmClose, setConfirmClose] = useState(false)
@@ -92,21 +90,6 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     e.stopPropagation()
     onRefreshPane?.(pane.id)
   }, [onRefreshPane, pane.id])
-
-  const handleSplitH = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    onSplitPane?.(pane.id, 'h')
-  }, [onSplitPane, pane.id])
-
-  const handleSplitV = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    onSplitPane?.(pane.id, 'v')
-  }, [onSplitPane, pane.id])
-
-  const handleStartClaude = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    onStartClaude?.(pane.id)
-  }, [onStartClaude, pane.id])
 
   const handleCloseClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -345,44 +328,15 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
               </div>
             ) : (
               <>
-                {/* Pane management - hidden on mobile, visible on sm+ */}
-                {onSplitPane && (
-                  <div className="hidden sm:flex items-center">
-                    <button
-                      onClick={handleSplitH}
-                      className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
-                      title="Split horizontal (side by side)"
-                    >
-                      ↔
-                    </button>
-                    <button
-                      onClick={handleSplitV}
-                      className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
-                      title="Split vertical (stacked)"
-                    >
-                      ↕
-                    </button>
-                  </div>
-                )}
-                {onStartClaude && !isClaudePane && (
-                  <button
-                    onClick={handleStartClaude}
-                    className="hidden sm:flex w-8 h-8 items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors font-mono text-xs"
-                    title="Split and start Claude"
-                  >
-                    +C
-                  </button>
-                )}
                 {onClosePane && (
                   <button
                     onClick={handleCloseClick}
-                    className="hidden sm:flex w-8 h-8 items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
+                    className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
                     title="Close pane"
                   >
                     ×
                   </button>
                 )}
-                {/* Always visible actions */}
                 {onRefreshPane && (
                   <button
                     onClick={handleRefresh}
@@ -428,51 +382,6 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
       {expanded && (
         <div className="px-3 pb-3 space-y-2">
           {/* Pane management - visible on mobile only when expanded */}
-          {(onSplitPane || onClosePane || onStartClaude) && (
-            <div className="flex sm:hidden flex-wrap gap-2">
-              {onSplitPane && (
-                <>
-                  <button
-                    onClick={handleSplitH}
-                    className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
-                  >
-                    <span>↔</span>
-                    <span>Split H</span>
-                  </button>
-                  <button
-                    onClick={handleSplitV}
-                    className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
-                  >
-                    <span>↕</span>
-                    <span>Split V</span>
-                  </button>
-                </>
-              )}
-              {onStartClaude && !isClaudePane && (
-                <button
-                  onClick={handleStartClaude}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
-                >
-                  <span className="font-mono">+C</span>
-                  <span>New Claude</span>
-                </button>
-              )}
-              {onClosePane && (
-                <button
-                  onClick={handleCloseClick}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded transition-colors min-h-[44px] ${
-                    confirmClose
-                      ? 'bg-rpg-error/30 text-rpg-error'
-                      : 'bg-rpg-bg-elevated hover:bg-rpg-error/20 hover:text-rpg-error'
-                  }`}
-                >
-                  <span>×</span>
-                  <span>{confirmClose ? 'Confirm Close' : 'Close'}</span>
-                </button>
-              )}
-            </div>
-          )}
-
           {/* Fork info + GitHub Links */}
           {pane.repo?.org && (
             <GitHubLinks repo={pane.repo} />

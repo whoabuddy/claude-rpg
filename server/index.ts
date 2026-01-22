@@ -35,6 +35,10 @@ import {
   getSessionCache,
   setSessionCache,
 } from './tmux.js'
+import { findWindowById } from './utils.js'
+
+// Maximum panes per window (keeps tmux TUI manageable)
+const MAX_PANES_PER_WINDOW = 4
 import { isWhisperAvailable, transcribeAudio } from './whisper.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1053,38 +1057,6 @@ const server = http.createServer(async (req, res) => {
   // Pane Management Endpoints
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Split pane horizontally or vertically
-  const paneSplitMatch = url.pathname.match(/^\/api\/panes\/([^/]+)\/split$/)
-  if (paneSplitMatch && req.method === 'POST') {
-    const paneId = decodeURIComponent(paneSplitMatch[1])
-    const pane = findPaneById(windows, paneId)
-
-    if (!pane) {
-      res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
-      return
-    }
-
-    let body = ''
-    req.on('data', chunk => body += chunk)
-    req.on('end', async () => {
-      try {
-        const { direction = 'v' } = JSON.parse(body || '{}')
-        const splitFlag = direction === 'h' ? '-h' : ''
-
-        // Split the pane, preserving working directory
-        await execAsync(`tmux split-window ${splitFlag} -t "${pane.target}" -c "${pane.cwd}"`)
-
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: true }))
-      } catch (e) {
-        res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: String(e) }))
-      }
-    })
-    return
-  }
-
   // Close pane (kill-pane)
   const paneCloseMatch = url.pathname.match(/^\/api\/panes\/([^/]+)\/close$/)
   if (paneCloseMatch && req.method === 'POST') {
@@ -1110,41 +1082,99 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // Start Claude in a new split pane
-  const paneStartClaudeMatch = url.pathname.match(/^\/api\/panes\/([^/]+)\/start-claude$/)
-  if (paneStartClaudeMatch && req.method === 'POST') {
-    const paneId = decodeURIComponent(paneStartClaudeMatch[1])
-    const pane = findPaneById(windows, paneId)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Window-level Pane Creation Endpoints
+  // ═══════════════════════════════════════════════════════════════════════════
 
-    if (!pane) {
+  // Create new pane in window (auto-balanced)
+  const windowNewPaneMatch = url.pathname.match(/^\/api\/windows\/([^/]+)\/new-pane$/)
+  if (windowNewPaneMatch && req.method === 'POST') {
+    const windowId = decodeURIComponent(windowNewPaneMatch[1])
+    const window = findWindowById(windows, windowId)
+
+    if (!window) {
       res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
+      res.end(JSON.stringify({ ok: false, error: 'Window not found' }))
       return
     }
 
-    let body = ''
-    req.on('data', chunk => body += chunk)
-    req.on('end', async () => {
-      try {
-        const { direction = 'v' } = JSON.parse(body || '{}')
-        const splitFlag = direction === 'h' ? '-h' : ''
+    // Check max panes limit
+    if (window.panes.length >= MAX_PANES_PER_WINDOW) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        ok: false,
+        error: `Maximum ${MAX_PANES_PER_WINDOW} panes per window`,
+        paneCount: window.panes.length,
+        maxPanes: MAX_PANES_PER_WINDOW,
+      }))
+      return
+    }
 
-        // Split the pane, preserving working directory
-        await execAsync(`tmux split-window ${splitFlag} -t "${pane.target}" -c "${pane.cwd}"`)
+    try {
+      // Use first pane to split from (preserves cwd)
+      const sourcPane = window.panes[0]
 
-        // Small delay to let the new pane initialize
-        await new Promise(r => setTimeout(r, 200))
+      // Split the pane, preserving working directory
+      await execAsync(`tmux split-window -t "${sourcPane.target}" -c "${sourcPane.cwd}"`)
 
-        // Send 'claude' command to the new pane (tmux focuses the new pane after split)
-        await execAsync(`tmux send-keys "claude" Enter`)
+      // Auto-balance the layout with tiled arrangement
+      await execAsync(`tmux select-layout -t "${window.id}" tiled`)
 
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: true }))
-      } catch (e) {
-        res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: String(e) }))
-      }
-    })
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, paneCount: window.panes.length + 1 }))
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: String(e) }))
+    }
+    return
+  }
+
+  // Create new Claude pane in window (auto-balanced)
+  const windowNewClaudeMatch = url.pathname.match(/^\/api\/windows\/([^/]+)\/new-claude$/)
+  if (windowNewClaudeMatch && req.method === 'POST') {
+    const windowId = decodeURIComponent(windowNewClaudeMatch[1])
+    const window = findWindowById(windows, windowId)
+
+    if (!window) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'Window not found' }))
+      return
+    }
+
+    // Check max panes limit
+    if (window.panes.length >= MAX_PANES_PER_WINDOW) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        ok: false,
+        error: `Maximum ${MAX_PANES_PER_WINDOW} panes per window`,
+        paneCount: window.panes.length,
+        maxPanes: MAX_PANES_PER_WINDOW,
+      }))
+      return
+    }
+
+    try {
+      // Use first pane to split from (preserves cwd)
+      const sourcePane = window.panes[0]
+
+      // Split the pane, preserving working directory
+      await execAsync(`tmux split-window -t "${sourcePane.target}" -c "${sourcePane.cwd}"`)
+
+      // Auto-balance the layout with tiled arrangement
+      await execAsync(`tmux select-layout -t "${window.id}" tiled`)
+
+      // Small delay to let the new pane initialize
+      await new Promise(r => setTimeout(r, 200))
+
+      // Send 'claude' command to the new pane (tmux focuses the new pane after split)
+      await execAsync(`tmux send-keys "claude" Enter`)
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, paneCount: window.panes.length + 1 }))
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: String(e) }))
+    }
     return
   }
 

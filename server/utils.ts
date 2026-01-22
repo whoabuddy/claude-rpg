@@ -217,3 +217,13 @@ export function getClaudePanes(windows: TmuxWindow[]): TmuxPane[] {
   }
   return panes
 }
+
+/**
+ * Find window by ID (format: session:window_index)
+ */
+export function findWindowById(
+  windows: TmuxWindow[],
+  windowId: string
+): TmuxWindow | undefined {
+  return windows.find(w => w.id === windowId)
+}

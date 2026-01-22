@@ -3,6 +3,9 @@ import type { TmuxWindow, TmuxPane } from '@shared/types'
 import { PaneCard } from './PaneCard'
 import { ConnectionStatus } from './ConnectionStatus'
 
+// Maximum panes per window (must match server constant)
+const MAX_PANES_PER_WINDOW = 4
+
 interface OverviewDashboardProps {
   windows: TmuxWindow[]
   attentionCount: number
@@ -13,9 +16,9 @@ interface OverviewDashboardProps {
   onDismissWaiting: (paneId: string) => void
   onExpandPane: (paneId: string) => void
   onRefreshPane: (paneId: string) => void
-  onSplitPane: (paneId: string, direction: 'h' | 'v') => void
   onClosePane: (paneId: string) => void
-  onStartClaude: (paneId: string) => void
+  onNewPane: (windowId: string) => void
+  onNewClaude: (windowId: string) => void
   onToggleProMode: () => void
   onNavigateToCompetitions: () => void
 }
@@ -70,9 +73,9 @@ export function OverviewDashboard({
   onDismissWaiting,
   onExpandPane,
   onRefreshPane,
-  onSplitPane,
   onClosePane,
-  onStartClaude,
+  onNewPane,
+  onNewClaude,
   onToggleProMode,
   onNavigateToCompetitions,
 }: OverviewDashboardProps) {
@@ -206,15 +209,16 @@ export function OverviewDashboard({
               group={group}
               collapsed={collapsedWindows.has(group.window.id)}
               proMode={proMode}
+              maxPanes={MAX_PANES_PER_WINDOW}
               onToggleWindow={() => toggleWindow(group.window.id)}
               onSendPrompt={onSendPrompt}
               onSendSignal={onSendSignal}
               onDismissWaiting={onDismissWaiting}
               onExpandPane={onExpandPane}
               onRefreshPane={onRefreshPane}
-              onSplitPane={onSplitPane}
               onClosePane={onClosePane}
-              onStartClaude={onStartClaude}
+              onNewPane={onNewPane}
+              onNewClaude={onNewClaude}
             />
           ))}
         </div>
@@ -227,66 +231,99 @@ interface WindowSectionProps {
   group: WindowGroup
   collapsed: boolean
   proMode: boolean
+  maxPanes: number
   onToggleWindow: () => void
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
   onExpandPane: (paneId: string) => void
   onRefreshPane: (paneId: string) => void
-  onSplitPane: (paneId: string, direction: 'h' | 'v') => void
   onClosePane: (paneId: string) => void
-  onStartClaude: (paneId: string) => void
+  onNewPane: (windowId: string) => void
+  onNewClaude: (windowId: string) => void
 }
 
 const WindowSection = memo(function WindowSection({
   group,
   collapsed,
   proMode,
+  maxPanes,
   onToggleWindow,
   onSendPrompt,
   onSendSignal,
   onDismissWaiting,
   onExpandPane,
   onRefreshPane,
-  onSplitPane,
   onClosePane,
-  onStartClaude,
+  onNewPane,
+  onNewClaude,
 }: WindowSectionProps) {
   const hasAttention = group.attentionCount > 0
+  const canAddPane = group.panes.length < maxPanes
 
   return (
     <div className={`rounded-lg border ${hasAttention ? 'border-rpg-waiting status-bg-waiting' : 'border-rpg-border'}`}>
       {/* Window header */}
-      <button
-        onClick={onToggleWindow}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors rounded-t-lg hover:bg-rpg-card-hover"
-      >
-        <span className="w-6 h-6 flex items-center justify-center text-xs rounded bg-rpg-card text-rpg-text-muted font-mono">
-          {group.window.windowIndex}
-        </span>
-        <span className="font-medium text-sm text-rpg-text">
-          {group.window.windowName}
-        </span>
-        {group.primaryRepo && (
-          <span className="text-xs text-rpg-accent truncate max-w-[200px]">
-            {group.primaryRepo}
+      <div className="flex items-center gap-2 px-3 py-2 rounded-t-lg">
+        <button
+          onClick={onToggleWindow}
+          className="flex-1 flex items-center gap-2 text-left transition-colors hover:bg-rpg-card-hover rounded px-1 -ml-1"
+        >
+          <span className="w-6 h-6 flex items-center justify-center text-xs rounded bg-rpg-card text-rpg-text-muted font-mono">
+            {group.window.windowIndex}
           </span>
-        )}
-        <span className="text-xs text-rpg-text-dim">
-          {group.window.sessionName}
-        </span>
-        {hasAttention && (
-          <span className="px-1.5 py-0.5 rounded status-bg-waiting text-rpg-waiting text-xs">
-            {group.attentionCount}
+          <span className="font-medium text-sm text-rpg-text">
+            {group.window.windowName}
           </span>
-        )}
-        <span className="text-xs text-rpg-text-dim ml-auto">
-          {group.panes.length} pane{group.panes.length !== 1 ? 's' : ''}
-        </span>
-        <span className="text-rpg-text-dim text-xs">
-          {collapsed ? '▶' : '▼'}
-        </span>
-      </button>
+          {group.primaryRepo && (
+            <span className="text-xs text-rpg-accent truncate max-w-[200px] hidden sm:inline">
+              {group.primaryRepo}
+            </span>
+          )}
+          <span className="text-xs text-rpg-text-dim hidden sm:inline">
+            {group.window.sessionName}
+          </span>
+          {hasAttention && (
+            <span className="px-1.5 py-0.5 rounded status-bg-waiting text-rpg-waiting text-xs">
+              {group.attentionCount}
+            </span>
+          )}
+          <span className="text-xs text-rpg-text-dim ml-auto">
+            {group.panes.length}/{maxPanes}
+          </span>
+          <span className="text-rpg-text-dim text-xs">
+            {collapsed ? '▶' : '▼'}
+          </span>
+        </button>
+
+        {/* Window-level actions */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onNewPane(group.window.id)}
+            disabled={!canAddPane}
+            className={`px-2 py-1 text-xs rounded transition-colors ${
+              canAddPane
+                ? 'bg-rpg-bg-elevated hover:bg-rpg-border text-rpg-text-muted hover:text-rpg-text'
+                : 'bg-rpg-bg-elevated/50 text-rpg-text-dim cursor-not-allowed'
+            }`}
+            title={canAddPane ? 'Add new shell pane' : `Maximum ${maxPanes} panes`}
+          >
+            +Pane
+          </button>
+          <button
+            onClick={() => onNewClaude(group.window.id)}
+            disabled={!canAddPane}
+            className={`px-2 py-1 text-xs rounded transition-colors ${
+              canAddPane
+                ? 'bg-rpg-accent/20 hover:bg-rpg-accent/30 text-rpg-accent'
+                : 'bg-rpg-accent/10 text-rpg-accent/50 cursor-not-allowed'
+            }`}
+            title={canAddPane ? 'Add new Claude pane' : `Maximum ${maxPanes} panes`}
+          >
+            +Claude
+          </button>
+        </div>
+      </div>
 
       {/* Panes */}
       {!collapsed && (
@@ -301,9 +338,7 @@ const WindowSection = memo(function WindowSection({
               onDismissWaiting={onDismissWaiting}
               onExpandPane={onExpandPane}
               onRefreshPane={onRefreshPane}
-              onSplitPane={onSplitPane}
               onClosePane={onClosePane}
-              onStartClaude={onStartClaude}
               proMode={proMode}
             />
           ))}

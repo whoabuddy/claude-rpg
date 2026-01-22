@@ -186,21 +186,6 @@ export async function refreshPane(paneId: string): Promise<boolean> {
   }
 }
 
-// Helper to split pane horizontally or vertically
-export async function splitPane(paneId: string, direction: 'h' | 'v'): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_URL}/api/panes/${encodeURIComponent(paneId)}/split`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ direction }),
-    })
-    const data = await res.json()
-    return data.ok
-  } catch {
-    return false
-  }
-}
-
 // Helper to close pane
 export async function closePane(paneId: string): Promise<boolean> {
   try {
@@ -216,17 +201,30 @@ export async function closePane(paneId: string): Promise<boolean> {
   }
 }
 
-// Helper to start Claude in a new split pane
-export async function startClaudeInPane(paneId: string, direction: 'h' | 'v' = 'v'): Promise<boolean> {
+// Helper to create new pane in window (auto-balanced)
+export async function createPaneInWindow(windowId: string): Promise<{ ok: boolean; paneCount?: number; error?: string }> {
   try {
-    const res = await fetch(`${API_URL}/api/panes/${encodeURIComponent(paneId)}/start-claude`, {
+    const res = await fetch(`${API_URL}/api/windows/${encodeURIComponent(windowId)}/new-pane`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ direction }),
+      body: JSON.stringify({}),
     })
-    const data = await res.json()
-    return data.ok
+    return await res.json()
   } catch {
-    return false
+    return { ok: false, error: 'Network error' }
+  }
+}
+
+// Helper to create new Claude pane in window (auto-balanced)
+export async function createClaudeInWindow(windowId: string): Promise<{ ok: boolean; paneCount?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_URL}/api/windows/${encodeURIComponent(windowId)}/new-claude`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    return await res.json()
+  } catch {
+    return { ok: false, error: 'Network error' }
   }
 }

@@ -28,9 +28,7 @@ interface FullScreenPaneProps {
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
-  onSplitPane?: (paneId: string, direction: 'h' | 'v') => void
   onClosePane?: (paneId: string) => void
-  onStartClaude?: (paneId: string) => void
   proMode: boolean
 }
 
@@ -42,9 +40,7 @@ export function FullScreenPane({
   onSendPrompt,
   onSendSignal,
   onDismissWaiting,
-  onSplitPane,
   onClosePane,
-  onStartClaude,
   proMode,
 }: FullScreenPaneProps) {
   const [inputValue, setInputValue] = useState('')
@@ -114,18 +110,6 @@ export function FullScreenPane({
   const handleAnswer = useCallback((answer: string) => {
     onSendPrompt(pane.id, answer)
   }, [onSendPrompt, pane.id])
-
-  const handleSplitH = useCallback(() => {
-    onSplitPane?.(pane.id, 'h')
-  }, [onSplitPane, pane.id])
-
-  const handleSplitV = useCallback(() => {
-    onSplitPane?.(pane.id, 'v')
-  }, [onSplitPane, pane.id])
-
-  const handleStartClaudeClick = useCallback(() => {
-    onStartClaude?.(pane.id)
-  }, [onStartClaude, pane.id])
 
   const handleCloseClick = useCallback(() => {
     if (confirmClose) {
@@ -239,65 +223,36 @@ export function FullScreenPane({
           </div>
         </div>
 
-        {/* Pane controls - hidden on mobile, visible on sm+ */}
-        <div className="hidden sm:flex items-center gap-1">
-          {confirmClose ? (
-            <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
-              <span className="text-rpg-error">Close?</span>
-              <button
-                onClick={handleCancelClose}
-                className="px-1.5 py-0.5 bg-rpg-idle/30 hover:bg-rpg-idle/50 rounded transition-colors"
-              >
-                No
-              </button>
-              <button
-                onClick={handleCloseClick}
-                className="px-1.5 py-0.5 bg-rpg-error/50 hover:bg-rpg-error/70 text-white rounded transition-colors"
-              >
-                Yes
-              </button>
-            </div>
-          ) : (
-            <>
-              {onSplitPane && (
-                <>
-                  <button
-                    onClick={handleSplitH}
-                    className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
-                    title="Split horizontal (side by side)"
-                  >
-                    ↔
-                  </button>
-                  <button
-                    onClick={handleSplitV}
-                    className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
-                    title="Split vertical (stacked)"
-                  >
-                    ↕
-                  </button>
-                </>
-              )}
-              {onStartClaude && !isClaudePane && (
+        {/* Pane close control */}
+        {onClosePane && (
+          <div className="flex items-center gap-1">
+            {confirmClose ? (
+              <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
+                <span className="text-rpg-error">Close?</span>
                 <button
-                  onClick={handleStartClaudeClick}
-                  className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors font-mono text-xs"
-                  title="Split and start Claude"
+                  onClick={handleCancelClose}
+                  className="px-1.5 py-0.5 bg-rpg-idle/30 hover:bg-rpg-idle/50 rounded transition-colors"
                 >
-                  +C
+                  No
                 </button>
-              )}
-              {onClosePane && (
                 <button
                   onClick={handleCloseClick}
-                  className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
-                  title="Close pane"
+                  className="px-1.5 py-0.5 bg-rpg-error/50 hover:bg-rpg-error/70 text-white rounded transition-colors"
                 >
-                  ×
+                  Yes
                 </button>
-              )}
-            </>
-          )}
-        </div>
+              </div>
+            ) : (
+              <button
+                onClick={handleCloseClick}
+                className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
+                title="Close pane"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Status */}
         <div className="flex items-center gap-2">
@@ -327,52 +282,6 @@ export function FullScreenPane({
           </button>
         )}
       </header>
-
-      {/* Mobile pane controls toolbar */}
-      {(onSplitPane || onClosePane || onStartClaude) && (
-        <div className="flex sm:hidden flex-wrap gap-2 px-4 py-2 border-b border-rpg-border bg-rpg-card">
-          {onSplitPane && (
-            <>
-              <button
-                onClick={handleSplitH}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
-              >
-                <span>↔</span>
-                <span>Split H</span>
-              </button>
-              <button
-                onClick={handleSplitV}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
-              >
-                <span>↕</span>
-                <span>Split V</span>
-              </button>
-            </>
-          )}
-          {onStartClaude && !isClaudePane && (
-            <button
-              onClick={handleStartClaudeClick}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
-            >
-              <span className="font-mono">+C</span>
-              <span>New Claude</span>
-            </button>
-          )}
-          {onClosePane && (
-            <button
-              onClick={handleCloseClick}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded transition-colors min-h-[44px] ${
-                confirmClose
-                  ? 'bg-rpg-error/30 text-rpg-error'
-                  : 'bg-rpg-bg-elevated hover:bg-rpg-error/20 hover:text-rpg-error'
-              }`}
-            >
-              <span>×</span>
-              <span>{confirmClose ? 'Confirm Close' : 'Close'}</span>
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Terminal - takes remaining space */}
       <div className="flex-1 overflow-hidden p-4">
