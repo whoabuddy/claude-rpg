@@ -1,0 +1,17 @@
+[Unit]
+Description=Claude RPG - Claude Code Companion
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/claude-rpg
+Environment=NODE_ENV=production
+Environment=CLAUDE_RPG_PORT=4011
+ExecStart=/usr/bin/node dist/server/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

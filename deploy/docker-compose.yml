@@ -1,0 +1,31 @@
+# Claude RPG - Docker Compose
+#
+# NOTE: Docker deployment has limited functionality.
+# Tmux monitoring requires running directly on host.
+# For full functionality, use the systemd service (install.sh).
+#
+# Usage:
+#   cd deploy
+#   docker compose build
+#   docker compose up -d
+
+services:
+  claude-rpg:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "4011:4011"
+    volumes:
+      - claude-rpg-data:/data
+      # Optional: Mount host tmux socket for monitoring
+      # Requires matching UID and socket path on host
+      # - /tmp/tmux-1000:/tmp/tmux-1000:ro
+    environment:
+      - NODE_ENV=production
+      - CLAUDE_RPG_PORT=4011
+      - CLAUDE_RPG_DATA_DIR=/data
+    restart: unless-stopped
+
+volumes:
+  claude-rpg-data:
