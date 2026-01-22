@@ -3,7 +3,7 @@ import { OverviewDashboard } from './components/OverviewDashboard'
 import { FullScreenPane } from './components/FullScreenPane'
 import { CompetitionsPage } from './components/CompetitionsPage'
 import { useWebSocket } from './hooks/useWebSocket'
-import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refreshPane } from './hooks/useWindows'
+import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refreshPane, splitPane, closePane, startClaudeInPane } from './hooks/useWindows'
 import { initTerminalCache } from './hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
 
@@ -57,6 +57,27 @@ export default function App() {
   const handleRefreshPane = useCallback(
     async (paneId: string) => {
       await refreshPane(paneId)
+    },
+    []
+  )
+
+  const handleSplitPane = useCallback(
+    async (paneId: string, direction: 'h' | 'v') => {
+      await splitPane(paneId, direction)
+    },
+    []
+  )
+
+  const handleClosePane = useCallback(
+    async (paneId: string) => {
+      await closePane(paneId)
+    },
+    []
+  )
+
+  const handleStartClaude = useCallback(
+    async (paneId: string) => {
+      await startClaudeInPane(paneId, 'v')
     },
     []
   )
@@ -141,6 +162,9 @@ export default function App() {
             onDismissWaiting={handleDismissWaiting}
             onExpandPane={handleExpandPane}
             onRefreshPane={handleRefreshPane}
+            onSplitPane={handleSplitPane}
+            onClosePane={handleClosePane}
+            onStartClaude={handleStartClaude}
             onToggleProMode={handleToggleProMode}
             onNavigateToCompetitions={handleNavigateToCompetitions}
           />
@@ -162,6 +186,9 @@ export default function App() {
           onSendPrompt={handleSendPrompt}
           onSendSignal={handleSendSignal}
           onDismissWaiting={handleDismissWaiting}
+          onSplitPane={handleSplitPane}
+          onClosePane={handleClosePane}
+          onStartClaude={handleStartClaude}
           proMode={proMode}
         />
       )}

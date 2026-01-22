@@ -185,3 +185,48 @@ export async function refreshPane(paneId: string): Promise<boolean> {
     return false
   }
 }
+
+// Helper to split pane horizontally or vertically
+export async function splitPane(paneId: string, direction: 'h' | 'v'): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/api/panes/${encodeURIComponent(paneId)}/split`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direction }),
+    })
+    const data = await res.json()
+    return data.ok
+  } catch {
+    return false
+  }
+}
+
+// Helper to close pane
+export async function closePane(paneId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/api/panes/${encodeURIComponent(paneId)}/close`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    const data = await res.json()
+    return data.ok
+  } catch {
+    return false
+  }
+}
+
+// Helper to start Claude in a new split pane
+export async function startClaudeInPane(paneId: string, direction: 'h' | 'v' = 'v'): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/api/panes/${encodeURIComponent(paneId)}/start-claude`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direction }),
+    })
+    const data = await res.json()
+    return data.ok
+  } catch {
+    return false
+  }
+}

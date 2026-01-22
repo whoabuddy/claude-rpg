@@ -29,16 +29,21 @@ interface PaneCardProps {
   onDismissWaiting?: (paneId: string) => void
   onExpandPane?: (paneId: string) => void
   onRefreshPane?: (paneId: string) => void
+  onSplitPane?: (paneId: string, direction: 'h' | 'v') => void
+  onClosePane?: (paneId: string) => void
+  onStartClaude?: (paneId: string) => void
   proMode?: boolean
   compact?: boolean
 }
 
-export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, proMode = false, compact = false }: PaneCardProps) {
+export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onSplitPane, onClosePane, onStartClaude, proMode = false, compact = false }: PaneCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [inputValue, setInputValue] = useState('')
+  const [confirmClose, setConfirmClose] = useState(false)
   const terminalContent = usePaneTerminal(pane.id)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const passwordInputRef = useRef<HTMLInputElement>(null)
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Detect password prompt in terminal
   const isPassword = useMemo(() => isPasswordPrompt(terminalContent), [terminalContent])
@@ -87,6 +92,60 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     e.stopPropagation()
     onRefreshPane?.(pane.id)
   }, [onRefreshPane, pane.id])
+
+  const handleSplitH = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onSplitPane?.(pane.id, 'h')
+  }, [onSplitPane, pane.id])
+
+  const handleSplitV = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onSplitPane?.(pane.id, 'v')
+  }, [onSplitPane, pane.id])
+
+  const handleStartClaude = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onStartClaude?.(pane.id)
+  }, [onStartClaude, pane.id])
+
+  const handleCloseClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (confirmClose) {
+      // Already confirming, execute close
+      onClosePane?.(pane.id)
+      setConfirmClose(false)
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current)
+        closeTimeoutRef.current = null
+      }
+    } else {
+      // Show confirmation
+      setConfirmClose(true)
+      // Auto-dismiss after 3s
+      closeTimeoutRef.current = setTimeout(() => {
+        setConfirmClose(false)
+        closeTimeoutRef.current = null
+      }, 3000)
+    }
+  }, [confirmClose, onClosePane, pane.id])
+
+  const handleCancelClose = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    setConfirmClose(false)
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current)
+      closeTimeoutRef.current = null
+    }
+  }, [])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const handleVoiceTranscription = useCallback((text: string) => {
     // Append transcribed text to input
@@ -267,23 +326,80 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
 
           {/* Actions */}
           <div className="flex items-center gap-1 flex-shrink-0">
-            {onRefreshPane && (
-              <button
-                onClick={handleRefresh}
-                className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
-                title="Refresh pane"
-              >
-                ↻
-              </button>
-            )}
-            {onExpandPane && (
-              <button
-                onClick={handleExpand}
-                className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
-                title="Full screen"
-              >
-                ⛶
-              </button>
+            {/* Close confirmation inline */}
+            {confirmClose ? (
+              <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
+                <span className="text-rpg-error">Close?</span>
+                <button
+                  onClick={handleCancelClose}
+                  className="px-1.5 py-0.5 bg-rpg-idle/30 hover:bg-rpg-idle/50 rounded transition-colors"
+                >
+                  No
+                </button>
+                <button
+                  onClick={handleCloseClick}
+                  className="px-1.5 py-0.5 bg-rpg-error/50 hover:bg-rpg-error/70 text-white rounded transition-colors"
+                >
+                  Yes
+                </button>
+              </div>
+            ) : (
+              <>
+                {onSplitPane && (
+                  <>
+                    <button
+                      onClick={handleSplitH}
+                      className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
+                      title="Split horizontal (side by side)"
+                    >
+                      ↔
+                    </button>
+                    <button
+                      onClick={handleSplitV}
+                      className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
+                      title="Split vertical (stacked)"
+                    >
+                      ↕
+                    </button>
+                  </>
+                )}
+                {onStartClaude && !isClaudePane && (
+                  <button
+                    onClick={handleStartClaude}
+                    className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors font-mono text-xs"
+                    title="Split and start Claude"
+                  >
+                    +C
+                  </button>
+                )}
+                {onClosePane && (
+                  <button
+                    onClick={handleCloseClick}
+                    className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
+                    title="Close pane"
+                  >
+                    ×
+                  </button>
+                )}
+                {onRefreshPane && (
+                  <button
+                    onClick={handleRefresh}
+                    className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
+                    title="Refresh pane"
+                  >
+                    ↻
+                  </button>
+                )}
+                {onExpandPane && (
+                  <button
+                    onClick={handleExpand}
+                    className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
+                    title="Full screen"
+                  >
+                    ⛶
+                  </button>
+                )}
+              </>
             )}
             <span className="text-rpg-text-dim text-xs w-4 text-center">
               {expanded ? '▲' : '▼'}

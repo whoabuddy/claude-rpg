@@ -28,6 +28,9 @@ interface FullScreenPaneProps {
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
+  onSplitPane?: (paneId: string, direction: 'h' | 'v') => void
+  onClosePane?: (paneId: string) => void
+  onStartClaude?: (paneId: string) => void
   proMode: boolean
 }
 
@@ -39,12 +42,17 @@ export function FullScreenPane({
   onSendPrompt,
   onSendSignal,
   onDismissWaiting,
+  onSplitPane,
+  onClosePane,
+  onStartClaude,
   proMode,
 }: FullScreenPaneProps) {
   const [inputValue, setInputValue] = useState('')
+  const [confirmClose, setConfirmClose] = useState(false)
   const terminalContent = usePaneTerminal(pane.id)
   const terminalRef = useRef<HTMLPreElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Detect password prompt in terminal
   const isPassword = useMemo(() => isPasswordPrompt(terminalContent), [terminalContent])
@@ -106,6 +114,53 @@ export function FullScreenPane({
   const handleAnswer = useCallback((answer: string) => {
     onSendPrompt(pane.id, answer)
   }, [onSendPrompt, pane.id])
+
+  const handleSplitH = useCallback(() => {
+    onSplitPane?.(pane.id, 'h')
+  }, [onSplitPane, pane.id])
+
+  const handleSplitV = useCallback(() => {
+    onSplitPane?.(pane.id, 'v')
+  }, [onSplitPane, pane.id])
+
+  const handleStartClaudeClick = useCallback(() => {
+    onStartClaude?.(pane.id)
+  }, [onStartClaude, pane.id])
+
+  const handleCloseClick = useCallback(() => {
+    if (confirmClose) {
+      onClosePane?.(pane.id)
+      onClose() // Also close fullscreen view
+      setConfirmClose(false)
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current)
+        closeTimeoutRef.current = null
+      }
+    } else {
+      setConfirmClose(true)
+      closeTimeoutRef.current = setTimeout(() => {
+        setConfirmClose(false)
+        closeTimeoutRef.current = null
+      }, 3000)
+    }
+  }, [confirmClose, onClosePane, onClose, pane.id])
+
+  const handleCancelClose = useCallback(() => {
+    setConfirmClose(false)
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current)
+      closeTimeoutRef.current = null
+    }
+  }, [])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const showInput = status !== 'working'
   const showCtrlC = status === 'working' || pane.process.type === 'process'
@@ -182,6 +237,66 @@ export function FullScreenPane({
               </span>
             )}
           </div>
+        </div>
+
+        {/* Pane controls */}
+        <div className="flex items-center gap-1">
+          {confirmClose ? (
+            <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
+              <span className="text-rpg-error">Close?</span>
+              <button
+                onClick={handleCancelClose}
+                className="px-1.5 py-0.5 bg-rpg-idle/30 hover:bg-rpg-idle/50 rounded transition-colors"
+              >
+                No
+              </button>
+              <button
+                onClick={handleCloseClick}
+                className="px-1.5 py-0.5 bg-rpg-error/50 hover:bg-rpg-error/70 text-white rounded transition-colors"
+              >
+                Yes
+              </button>
+            </div>
+          ) : (
+            <>
+              {onSplitPane && (
+                <>
+                  <button
+                    onClick={handleSplitH}
+                    className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
+                    title="Split horizontal (side by side)"
+                  >
+                    ↔
+                  </button>
+                  <button
+                    onClick={handleSplitV}
+                    className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
+                    title="Split vertical (stacked)"
+                  >
+                    ↕
+                  </button>
+                </>
+              )}
+              {onStartClaude && !isClaudePane && (
+                <button
+                  onClick={handleStartClaudeClick}
+                  className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors font-mono text-xs"
+                  title="Split and start Claude"
+                >
+                  +C
+                </button>
+              )}
+              {onClosePane && (
+                <button
+                  onClick={handleCloseClick}
+                  className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
+                  title="Close pane"
+                >
+                  ×
+                </button>
+              )}
+            </>
+          )}
         </div>
 
         {/* Status */}

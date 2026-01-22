@@ -13,6 +13,9 @@ interface OverviewDashboardProps {
   onDismissWaiting: (paneId: string) => void
   onExpandPane: (paneId: string) => void
   onRefreshPane: (paneId: string) => void
+  onSplitPane: (paneId: string, direction: 'h' | 'v') => void
+  onClosePane: (paneId: string) => void
+  onStartClaude: (paneId: string) => void
   onToggleProMode: () => void
   onNavigateToCompetitions: () => void
 }
@@ -67,6 +70,9 @@ export function OverviewDashboard({
   onDismissWaiting,
   onExpandPane,
   onRefreshPane,
+  onSplitPane,
+  onClosePane,
+  onStartClaude,
   onToggleProMode,
   onNavigateToCompetitions,
 }: OverviewDashboardProps) {
@@ -206,6 +212,9 @@ export function OverviewDashboard({
               onDismissWaiting={onDismissWaiting}
               onExpandPane={onExpandPane}
               onRefreshPane={onRefreshPane}
+              onSplitPane={onSplitPane}
+              onClosePane={onClosePane}
+              onStartClaude={onStartClaude}
             />
           ))}
         </div>
@@ -224,6 +233,9 @@ interface WindowSectionProps {
   onDismissWaiting: (paneId: string) => void
   onExpandPane: (paneId: string) => void
   onRefreshPane: (paneId: string) => void
+  onSplitPane: (paneId: string, direction: 'h' | 'v') => void
+  onClosePane: (paneId: string) => void
+  onStartClaude: (paneId: string) => void
 }
 
 const WindowSection = memo(function WindowSection({
@@ -236,6 +248,9 @@ const WindowSection = memo(function WindowSection({
   onDismissWaiting,
   onExpandPane,
   onRefreshPane,
+  onSplitPane,
+  onClosePane,
+  onStartClaude,
 }: WindowSectionProps) {
   const hasAttention = group.attentionCount > 0
 
@@ -286,6 +301,9 @@ const WindowSection = memo(function WindowSection({
               onDismissWaiting={onDismissWaiting}
               onExpandPane={onExpandPane}
               onRefreshPane={onRefreshPane}
+              onSplitPane={onSplitPane}
+              onClosePane={onClosePane}
+              onStartClaude={onStartClaude}
               proMode={proMode}
             />
           ))}
