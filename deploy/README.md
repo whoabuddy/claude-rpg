@@ -86,21 +86,6 @@ After installation:
 | `~/.claude-rpg/data/` | Persistent data (companions, events) |
 | `~/.claude/settings.json` | Claude Code hooks configuration |
 
-## Docker (Limited)
-
-Docker support is provided for convenience but has **limited functionality**:
-
-- Tmux monitoring does not work in Docker (tmux sessions are host-local)
-- Use Docker only for testing or if you don't need tmux integration
-
-```bash
-cd deploy
-docker compose build
-docker compose up -d
-```
-
-For full functionality, use the systemd service.
-
 ## Network Configuration
 
 ### Firewall (UFW)
