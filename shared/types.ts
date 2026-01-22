@@ -85,6 +85,27 @@ export interface PendingQuestion {
   readyToSubmit?: boolean
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TERMINAL PROMPT (Source of truth for prompt state)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface TerminalPromptOption {
+  label: string
+  key: string  // The key to press (1, 2, y, n, etc.)
+}
+
+export interface TerminalPrompt {
+  type: 'question' | 'permission' | 'plan'
+  tool?: string              // 'Bash', 'Edit', 'Write' for permissions
+  command?: string           // Command preview for Bash permissions
+  question: string           // Main question text
+  options: TerminalPromptOption[]
+  multiSelect: boolean
+  footer?: string            // "Esc to cancel", etc.
+  detectedAt: number
+  contentHash: string        // For change detection
+}
+
 export interface SessionError {
   tool: string
   message?: string
@@ -100,7 +121,8 @@ export interface ClaudeSessionInfo {
   name: string            // "Alice" (English name)
   avatarSvg?: string      // Bitcoin face
   status: SessionStatus
-  pendingQuestion?: PendingQuestion
+  terminalPrompt?: TerminalPrompt  // Source of truth from terminal parsing
+  pendingQuestion?: PendingQuestion  // Deprecated: kept for fallback during migration
   lastError?: SessionError
   currentTool?: string
   currentFile?: string

@@ -21,7 +21,9 @@ import type {
   PreToolUseEvent,
   CompetitionCategory,
   TimePeriod,
+  TerminalPrompt,
 } from '../shared/types.js'
+import { parseTerminalForPrompt, hasPromptChanged } from './terminal-parser.js'
 import { processEvent, detectCommandXP } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName } from './companions.js'
 import { getAllCompetitions, getCompetition, getStreakLeaderboard, updateStreak } from './competitions.js'
@@ -53,6 +55,17 @@ const PANES_CACHE_FILE = join(DATA_DIR, 'panes-cache.json')
 // Ensure data directory exists
 if (!existsSync(DATA_DIR)) {
   mkdirSync(DATA_DIR, { recursive: true })
+}
+
+// HTTP response helpers
+function sendPaneNotFound(res: http.ServerResponse): void {
+  res.writeHead(404, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
+}
+
+function sendWindowNotFound(res: http.ServerResponse): void {
+  res.writeHead(404, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify({ ok: false, error: 'Window not found' }))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -601,6 +614,42 @@ async function broadcastTerminalUpdates() {
         broadcast({ type: 'pane_update', payload: pane })
       }
 
+      // Terminal-based prompt detection for Claude panes
+      // This is the source of truth for prompt state
+      if (isClaudePane && pane.process.claudeSession) {
+        const session = pane.process.claudeSession
+        const newPrompt = parseTerminalForPrompt(content)
+        const oldPrompt = session.terminalPrompt
+
+        if (hasPromptChanged(oldPrompt ?? null, newPrompt)) {
+          if (newPrompt) {
+            // Prompt detected → set waiting status
+            const updated = updateClaudeSession(pane.id, {
+              terminalPrompt: newPrompt,
+              status: 'waiting',
+            })
+            if (updated) {
+              pane.process.claudeSession = updated
+              savePanesCache()
+              broadcast({ type: 'pane_update', payload: pane })
+            }
+          } else if (oldPrompt) {
+            // Prompt cleared → update status based on other signals
+            // If we were waiting, go back to idle (prompt was answered)
+            const newStatus = session.status === 'waiting' ? 'idle' : session.status
+            const updated = updateClaudeSession(pane.id, {
+              terminalPrompt: undefined,
+              status: newStatus,
+            })
+            if (updated) {
+              pane.process.claudeSession = updated
+              savePanesCache()
+              broadcast({ type: 'pane_update', payload: pane })
+            }
+          }
+        }
+      }
+
       // Only broadcast terminal content if changed
       if (!contentChanged) continue
       lastTerminalContent.set(pane.id, content)
@@ -815,8 +864,7 @@ const server = http.createServer(async (req, res) => {
     const pane = findPaneById(windows, paneId)
 
     if (!pane) {
-      res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
+      sendPaneNotFound(res)
       return
     }
 
@@ -832,8 +880,7 @@ const server = http.createServer(async (req, res) => {
     const pane = findPaneById(windows, paneId)
 
     if (!pane) {
-      res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
+      sendPaneNotFound(res)
       return
     }
 
@@ -841,15 +888,18 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => body += chunk)
     req.on('end', async () => {
       try {
-        const { prompt } = JSON.parse(body)
+        const { prompt, isPermissionResponse } = JSON.parse(body)
+        const session = pane.process.claudeSession
+        const terminalPrompt = session?.terminalPrompt
 
         // Handle special key sequences
         if (prompt === 'Escape') {
           // Send Escape key (for canceling submit)
           await execAsync(`tmux send-keys -t "${pane.target}" Escape`)
-          // Clear pending question on cancel
-          if (pane.process.claudeSession?.pendingQuestion) {
+          // Clear prompt state on cancel
+          if (session?.terminalPrompt || session?.pendingQuestion) {
             updateClaudeSession(pane.id, {
+              terminalPrompt: undefined,
               pendingQuestion: undefined,
               status: 'idle',
             })
@@ -861,15 +911,41 @@ const server = http.createServer(async (req, res) => {
           return
         }
 
-        await sendPromptToTmux(pane.target, prompt)
+        // Determine response type from terminal prompt
+        const isPermission = isPermissionResponse ||
+          terminalPrompt?.type === 'permission' ||
+          (prompt.length === 1 && /^[yn!*s]$/.test(prompt))
 
-        // Handle pending question - advance to next or mark ready to submit
-        if (pane.process.claudeSession?.pendingQuestion) {
-          const pq = pane.process.claudeSession.pendingQuestion
+        // Permission responses: send single key without Enter
+        // Question responses with numbers: send number key
+        if (isPermission || (terminalPrompt && /^\d$/.test(prompt))) {
+          // Single key press for permission (y/n/!/*/s) or number selection
+          await execAsync(`tmux send-keys -t "${pane.target}" "${prompt}"`)
+
+          // Optimistically clear the prompt state
+          // Terminal polling will verify and correct if needed
+          if (session) {
+            const updated = updateClaudeSession(pane.id, {
+              terminalPrompt: undefined,
+              status: 'working',
+            })
+            if (updated) {
+              pane.process.claudeSession = updated
+              savePanesCache()
+              broadcast({ type: 'pane_update', payload: pane })
+            }
+          }
+        } else {
+          // Regular prompt: use buffer + paste + Enter
+          await sendPromptToTmux(pane.target, prompt)
+        }
+
+        // Handle legacy pending question state (for backwards compatibility)
+        if (session?.pendingQuestion && !terminalPrompt) {
+          const pq = session.pendingQuestion
 
           // If already ready to submit, this is the final submission
           if (pq.readyToSubmit) {
-            // Clear question and set to working - submission sent
             updateClaudeSession(pane.id, {
               pendingQuestion: undefined,
               status: 'working',
@@ -878,7 +954,6 @@ const server = http.createServer(async (req, res) => {
             const nextIndex = pq.currentIndex + 1
 
             if (nextIndex < pq.questions.length) {
-              // Advance to next question
               updateClaudeSession(pane.id, {
                 pendingQuestion: {
                   ...pq,
@@ -887,8 +962,6 @@ const server = http.createServer(async (req, res) => {
                 status: 'waiting',
               })
             } else {
-              // All questions answered - mark ready to submit (user must confirm)
-              // Claude Code TUI shows "Submit Answers" / "Cancel" at this point
               updateClaudeSession(pane.id, {
                 pendingQuestion: {
                   ...pq,
@@ -919,8 +992,7 @@ const server = http.createServer(async (req, res) => {
     const pane = findPaneById(windows, paneId)
 
     if (!pane) {
-      res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
+      sendPaneNotFound(res)
       return
     }
 
@@ -970,8 +1042,7 @@ const server = http.createServer(async (req, res) => {
     const pane = findPaneById(windows, paneId)
 
     if (!pane) {
-      res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
+      sendPaneNotFound(res)
       return
     }
 
@@ -1000,8 +1071,7 @@ const server = http.createServer(async (req, res) => {
     const pane = findPaneById(windows, paneId)
 
     if (!pane) {
-      res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
+      sendPaneNotFound(res)
       return
     }
 
@@ -1064,8 +1134,7 @@ const server = http.createServer(async (req, res) => {
     const pane = findPaneById(windows, paneId)
 
     if (!pane) {
-      res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Pane not found' }))
+      sendPaneNotFound(res)
       return
     }
 
@@ -1093,8 +1162,7 @@ const server = http.createServer(async (req, res) => {
     const window = findWindowById(windows, windowId)
 
     if (!window) {
-      res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Window not found' }))
+      sendWindowNotFound(res)
       return
     }
 
@@ -1112,10 +1180,10 @@ const server = http.createServer(async (req, res) => {
 
     try {
       // Use first pane to split from (preserves cwd)
-      const sourcPane = window.panes[0]
+      const sourcePane = window.panes[0]
 
       // Split the pane, preserving working directory
-      await execAsync(`tmux split-window -t "${sourcPane.target}" -c "${sourcPane.cwd}"`)
+      await execAsync(`tmux split-window -t "${sourcePane.target}" -c "${sourcePane.cwd}"`)
 
       // Auto-balance the layout with tiled arrangement
       await execAsync(`tmux select-layout -t "${window.id}" tiled`)
@@ -1136,8 +1204,7 @@ const server = http.createServer(async (req, res) => {
     const window = findWindowById(windows, windowId)
 
     if (!window) {
-      res.writeHead(404, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Window not found' }))
+      sendWindowNotFound(res)
       return
     }
 

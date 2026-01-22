@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react'
-import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, RepoInfo, SessionStats } from '@shared/types'
+import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, RepoInfo, SessionStats, TerminalPrompt } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
 import { VoiceButton } from './VoiceButton'
+
+// Server port - matches DEFAULTS.SERVER_PORT but browser-compatible
+const API_BASE = 'http://localhost:4011'
 
 // Detect if terminal is showing a password prompt
 const PASSWORD_PATTERNS = [
@@ -75,6 +78,29 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
   const handleAnswer = useCallback((answer: string) => {
     onSendPrompt(pane.id, answer)
   }, [onSendPrompt, pane.id])
+
+  // Handler for terminal-detected prompts (permissions use single keys)
+  const handleTerminalPromptAnswer = useCallback((answer: string, isPermission?: boolean) => {
+    // For permissions, we need to signal that this is a single-key response
+    // The server will send just the key without Enter
+    fetch(`${API_BASE}/api/panes/${encodeURIComponent(pane.id)}/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: answer,
+        ...(isPermission && { isPermissionResponse: true }),
+      }),
+    })
+  }, [pane.id])
+
+  const handleCancelPrompt = useCallback(() => {
+    // Send Escape to cancel the prompt
+    fetch(`${API_BASE}/api/panes/${encodeURIComponent(pane.id)}/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Escape' }),
+    })
+  }, [pane.id])
 
   const handleDismiss = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -403,8 +429,17 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
 
           {/* Input section - always at bottom */}
           <div className="space-y-2">
-            {/* Pending question input */}
-            {isClaudePane && session?.pendingQuestion && (
+            {/* Terminal-detected prompt (source of truth) */}
+            {isClaudePane && session?.terminalPrompt && (
+              <TerminalPromptUI
+                prompt={session.terminalPrompt}
+                onAnswer={handleTerminalPromptAnswer}
+                onCancel={handleCancelPrompt}
+              />
+            )}
+
+            {/* Legacy pending question input (fallback when no terminal prompt) */}
+            {isClaudePane && session?.pendingQuestion && !session?.terminalPrompt && (
               <QuestionInput
                 pendingQuestion={session.pendingQuestion}
                 onAnswer={handleAnswer}
@@ -412,8 +447,8 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
               />
             )}
 
-            {/* Regular input (when no pending question) */}
-            {showInput && !session?.pendingQuestion && (
+            {/* Regular input (when no prompt active) */}
+            {showInput && !session?.terminalPrompt && !session?.pendingQuestion && (
               <>
                 {isPassword ? (
                   /* Password input - masked */
@@ -533,6 +568,9 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
     if (sa.lastPrompt !== sb.lastPrompt) return false
     if (!!sa.pendingQuestion !== !!sb.pendingQuestion) return false
     if (sa.pendingQuestion?.toolUseId !== sb.pendingQuestion?.toolUseId) return false
+    // Compare terminal prompt (source of truth)
+    if (!!sa.terminalPrompt !== !!sb.terminalPrompt) return false
+    if (sa.terminalPrompt?.contentHash !== sb.terminalPrompt?.contentHash) return false
     if (sa.lastError?.timestamp !== sb.lastError?.timestamp) return false
     // Compare session stats (for re-rendering when stats change)
     if (sa.stats?.totalXPGained !== sb.stats?.totalXPGained) return false
@@ -655,9 +693,6 @@ const SessionStatsBar = memo(function SessionStatsBar({ stats }: { stats: Sessio
   // Calculate total tools used
   const totalTools = Object.values(stats.toolsUsed).reduce((sum, count) => sum + count, 0)
 
-  // Calculate total git operations
-  const totalGit = stats.git.commits + stats.git.pushes + stats.git.prsCreated + stats.git.prsMerged
-
   const parts: string[] = []
   parts.push(`+${stats.totalXPGained} XP`)
   if (totalTools > 0) parts.push(`${totalTools} tools`)
@@ -669,6 +704,105 @@ const SessionStatsBar = memo(function SessionStatsBar({ stats }: { stats: Sessio
     <div className="flex items-center gap-2 px-2 py-1.5 bg-rpg-accent/10 rounded text-xs text-rpg-accent">
       <span className="text-rpg-text-dim">This session:</span>
       <span className="font-mono">{parts.join(' | ')}</span>
+    </div>
+  )
+})
+
+// Terminal-detected prompt UI (source of truth for prompts)
+interface TerminalPromptUIProps {
+  prompt: TerminalPrompt
+  onAnswer: (answer: string, isPermission?: boolean) => void
+  onCancel: () => void
+}
+
+const TerminalPromptUI = memo(function TerminalPromptUI({ prompt, onAnswer, onCancel }: TerminalPromptUIProps) {
+  const isPermission = prompt.type === 'permission'
+  const isPlan = prompt.type === 'plan'
+
+  // Different styling based on prompt type
+  const bgColor = isPermission ? 'bg-rpg-waiting/10' : isPlan ? 'bg-rpg-accent/10' : 'bg-rpg-bg-elevated'
+  const borderColor = isPermission ? 'border-rpg-waiting/50' : isPlan ? 'border-rpg-accent/50' : 'border-rpg-border'
+
+  return (
+    <div className={`p-3 rounded border ${borderColor} ${bgColor} space-y-3`}>
+      {/* Header with tool name for permissions */}
+      {isPermission && prompt.tool && (
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 text-xs font-medium bg-rpg-waiting/20 text-rpg-waiting rounded">
+            {prompt.tool}
+          </span>
+          {prompt.command && (
+            <code className="text-xs text-rpg-text-muted font-mono truncate flex-1">
+              {prompt.command.length > 60 ? prompt.command.slice(0, 60) + '...' : prompt.command}
+            </code>
+          )}
+        </div>
+      )}
+
+      {/* Plan badge */}
+      {isPlan && (
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 text-xs font-medium bg-rpg-accent/20 text-rpg-accent rounded">
+            Plan Approval
+          </span>
+        </div>
+      )}
+
+      {/* Question text */}
+      <p className="text-sm font-medium">{prompt.question}</p>
+
+      {/* Options */}
+      <div className={`flex flex-wrap gap-2 ${isPermission ? '' : 'flex-col'}`}>
+        {prompt.options.map((option) => {
+          // Permission prompts: inline buttons with key hints
+          if (isPermission) {
+            // Highlight Allow (y) and Deny (n) prominently
+            const isAllow = option.key === 'y'
+            const isDeny = option.key === 'n'
+            const btnClass = isAllow
+              ? 'bg-rpg-success/20 hover:bg-rpg-success/40 text-rpg-success border-rpg-success/50'
+              : isDeny
+              ? 'bg-rpg-error/20 hover:bg-rpg-error/40 text-rpg-error border-rpg-error/50'
+              : 'bg-rpg-bg hover:bg-rpg-border text-rpg-text-muted border-rpg-border'
+
+            return (
+              <button
+                key={option.key}
+                onClick={() => onAnswer(option.key, true)}
+                className={`px-3 py-2 text-sm rounded border transition-colors min-h-[44px] ${btnClass}`}
+              >
+                <span className="font-mono text-xs mr-1.5 opacity-60">[{option.key}]</span>
+                {option.label}
+              </button>
+            )
+          }
+
+          // Question/Plan prompts: vertical list with numbers
+          return (
+            <button
+              key={option.key}
+              onClick={() => onAnswer(option.key)}
+              className="flex items-start gap-2 px-3 py-2 text-sm text-left bg-rpg-bg hover:bg-rpg-border rounded border border-rpg-border transition-colors min-h-[44px]"
+            >
+              <span className="font-mono text-rpg-accent shrink-0">({option.key})</span>
+              <span className="text-rpg-text">{option.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Footer with cancel hint */}
+      {prompt.footer && (
+        <div className="flex items-center justify-between text-xs text-rpg-text-dim">
+          <span>{prompt.footer}</span>
+          <button
+            onClick={onCancel}
+            className="px-2 py-1 hover:bg-rpg-error/20 hover:text-rpg-error rounded transition-colors"
+          >
+            Cancel (Esc)
+          </button>
+        </div>
+      )}
     </div>
   )
 })
