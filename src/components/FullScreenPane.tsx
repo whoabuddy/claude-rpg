@@ -239,8 +239,8 @@ export function FullScreenPane({
           </div>
         </div>
 
-        {/* Pane controls */}
-        <div className="flex items-center gap-1">
+        {/* Pane controls - hidden on mobile, visible on sm+ */}
+        <div className="hidden sm:flex items-center gap-1">
           {confirmClose ? (
             <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
               <span className="text-rpg-error">Close?</span>
@@ -327,6 +327,52 @@ export function FullScreenPane({
           </button>
         )}
       </header>
+
+      {/* Mobile pane controls toolbar */}
+      {(onSplitPane || onClosePane || onStartClaude) && (
+        <div className="flex sm:hidden flex-wrap gap-2 px-4 py-2 border-b border-rpg-border bg-rpg-card">
+          {onSplitPane && (
+            <>
+              <button
+                onClick={handleSplitH}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
+              >
+                <span>↔</span>
+                <span>Split H</span>
+              </button>
+              <button
+                onClick={handleSplitV}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
+              >
+                <span>↕</span>
+                <span>Split V</span>
+              </button>
+            </>
+          )}
+          {onStartClaude && !isClaudePane && (
+            <button
+              onClick={handleStartClaudeClick}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
+            >
+              <span className="font-mono">+C</span>
+              <span>New Claude</span>
+            </button>
+          )}
+          {onClosePane && (
+            <button
+              onClick={handleCloseClick}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded transition-colors min-h-[44px] ${
+                confirmClose
+                  ? 'bg-rpg-error/30 text-rpg-error'
+                  : 'bg-rpg-bg-elevated hover:bg-rpg-error/20 hover:text-rpg-error'
+              }`}
+            >
+              <span>×</span>
+              <span>{confirmClose ? 'Confirm Close' : 'Close'}</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Terminal - takes remaining space */}
       <div className="flex-1 overflow-hidden p-4">

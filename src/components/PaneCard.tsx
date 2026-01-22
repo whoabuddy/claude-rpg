@@ -325,7 +325,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
             {/* Close confirmation inline */}
             {confirmClose ? (
               <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
@@ -345,8 +345,9 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
               </div>
             ) : (
               <>
+                {/* Pane management - hidden on mobile, visible on sm+ */}
                 {onSplitPane && (
-                  <>
+                  <div className="hidden sm:flex items-center">
                     <button
                       onClick={handleSplitH}
                       className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
@@ -361,12 +362,12 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
                     >
                       ↕
                     </button>
-                  </>
+                  </div>
                 )}
                 {onStartClaude && !isClaudePane && (
                   <button
                     onClick={handleStartClaude}
-                    className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors font-mono text-xs"
+                    className="hidden sm:flex w-8 h-8 items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors font-mono text-xs"
                     title="Split and start Claude"
                   >
                     +C
@@ -375,12 +376,13 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
                 {onClosePane && (
                   <button
                     onClick={handleCloseClick}
-                    className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
+                    className="hidden sm:flex w-8 h-8 items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
                     title="Close pane"
                   >
                     ×
                   </button>
                 )}
+                {/* Always visible actions */}
                 {onRefreshPane && (
                   <button
                     onClick={handleRefresh}
@@ -425,6 +427,52 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
       {/* Expanded Content */}
       {expanded && (
         <div className="px-3 pb-3 space-y-2">
+          {/* Pane management - visible on mobile only when expanded */}
+          {(onSplitPane || onClosePane || onStartClaude) && (
+            <div className="flex sm:hidden flex-wrap gap-2">
+              {onSplitPane && (
+                <>
+                  <button
+                    onClick={handleSplitH}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
+                  >
+                    <span>↔</span>
+                    <span>Split H</span>
+                  </button>
+                  <button
+                    onClick={handleSplitV}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
+                  >
+                    <span>↕</span>
+                    <span>Split V</span>
+                  </button>
+                </>
+              )}
+              {onStartClaude && !isClaudePane && (
+                <button
+                  onClick={handleStartClaude}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
+                >
+                  <span className="font-mono">+C</span>
+                  <span>New Claude</span>
+                </button>
+              )}
+              {onClosePane && (
+                <button
+                  onClick={handleCloseClick}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded transition-colors min-h-[44px] ${
+                    confirmClose
+                      ? 'bg-rpg-error/30 text-rpg-error'
+                      : 'bg-rpg-bg-elevated hover:bg-rpg-error/20 hover:text-rpg-error'
+                  }`}
+                >
+                  <span>×</span>
+                  <span>{confirmClose ? 'Confirm Close' : 'Close'}</span>
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Fork info + GitHub Links */}
           {pane.repo?.org && (
             <GitHubLinks repo={pane.repo} />
