@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/whoabuddy/claude-rpg/compare/v1.0.2...v1.1.0) (2026-01-22)
+
+
+### Features
+
+* add tmux pane management controls (split, close, start-claude) ([d8066d5](https://github.com/whoabuddy/claude-rpg/commit/d8066d5bf071bac18b8d5c5342be47eff64cca97)), closes [#1](https://github.com/whoabuddy/claude-rpg/issues/1)
+
+
+### Bug Fixes
+
+* make pane management buttons mobile-friendly ([029c885](https://github.com/whoabuddy/claude-rpg/commit/029c88562efc8d9d7898897fb609c2748c52ad31))
+
 ## [1.0.2](https://github.com/whoabuddy/claude-rpg/compare/v1.0.1...v1.0.2) (2026-01-22)
 
 
