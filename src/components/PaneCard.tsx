@@ -573,7 +573,8 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
 
 // Claude activity display
 const ClaudeActivity = memo(function ClaudeActivity({ session }: { session: ClaudeSessionInfo }) {
-  if (session.lastPrompt) {
+  // Show last prompt if it has actual content (not empty/whitespace)
+  if (session.lastPrompt && session.lastPrompt.trim()) {
     return <span><span className="text-rpg-text-dim">Prompt:</span> {session.lastPrompt}</span>
   }
   if (session.currentTool) {

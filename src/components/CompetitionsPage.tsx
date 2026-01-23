@@ -77,7 +77,7 @@ export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPage
       {/* Leaderboards */}
       {!loading && (
         <div className="space-y-4">
-          {/* XP Leaders - always show first */}
+          {/* XP Leaders - always show first, full width */}
           <LeaderboardCard
             competition={getByCategory('xp')}
             title={CATEGORY_CONFIG.xp.title}
@@ -85,42 +85,45 @@ export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPage
             emptyMessage="No XP earned yet"
           />
 
-          {/* Streaks - only show for "all time" */}
+          {/* Streaks - only show for "all time", full width */}
           {period === 'all' && (
             <StreakCard entries={streakEntries} />
           )}
 
-          {/* Git Activity */}
-          <LeaderboardCard
-            competition={getByCategory('commits')}
-            title={CATEGORY_CONFIG.commits.title}
-            unit={CATEGORY_CONFIG.commits.unit}
-            emptyMessage="No commits yet"
-          />
+          {/* Other leaderboards in 2-column grid on md+ */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Git Activity */}
+            <LeaderboardCard
+              competition={getByCategory('commits')}
+              title={CATEGORY_CONFIG.commits.title}
+              unit={CATEGORY_CONFIG.commits.unit}
+              emptyMessage="No commits yet"
+            />
 
-          {/* Tests */}
-          <LeaderboardCard
-            competition={getByCategory('tests')}
-            title={CATEGORY_CONFIG.tests.title}
-            unit={CATEGORY_CONFIG.tests.unit}
-            emptyMessage="No tests run yet"
-          />
+            {/* Tests */}
+            <LeaderboardCard
+              competition={getByCategory('tests')}
+              title={CATEGORY_CONFIG.tests.title}
+              unit={CATEGORY_CONFIG.tests.unit}
+              emptyMessage="No tests run yet"
+            />
 
-          {/* Tools */}
-          <LeaderboardCard
-            competition={getByCategory('tools')}
-            title={CATEGORY_CONFIG.tools.title}
-            unit={CATEGORY_CONFIG.tools.unit}
-            emptyMessage="No tools used yet"
-          />
+            {/* Tools */}
+            <LeaderboardCard
+              competition={getByCategory('tools')}
+              title={CATEGORY_CONFIG.tools.title}
+              unit={CATEGORY_CONFIG.tools.unit}
+              emptyMessage="No tools used yet"
+            />
 
-          {/* Prompts */}
-          <LeaderboardCard
-            competition={getByCategory('prompts')}
-            title={CATEGORY_CONFIG.prompts.title}
-            unit={CATEGORY_CONFIG.prompts.unit}
-            emptyMessage="No prompts sent yet"
-          />
+            {/* Prompts */}
+            <LeaderboardCard
+              competition={getByCategory('prompts')}
+              title={CATEGORY_CONFIG.prompts.title}
+              unit={CATEGORY_CONFIG.prompts.unit}
+              emptyMessage="No prompts sent yet"
+            />
+          </div>
         </div>
       )}
 

@@ -982,6 +982,21 @@ const server = http.createServer(async (req, res) => {
         } else {
           // Regular prompt: use buffer + paste + Enter
           await sendPromptToTmux(pane.target, prompt)
+
+          // Update lastPrompt immediately so UI shows what was sent
+          if (session && prompt) {
+            const truncatedPrompt = prompt.length > 100 ? prompt.slice(0, 100) + '...' : prompt
+            const updated = updateClaudeSession(pane.id, {
+              lastPrompt: truncatedPrompt,
+              terminalPrompt: undefined,
+              status: 'working',
+            })
+            if (updated) {
+              pane.process.claudeSession = updated
+              savePanesCache()
+              broadcast({ type: 'pane_update', payload: pane })
+            }
+          }
         }
 
         // Handle legacy pending question state (for backwards compatibility)
