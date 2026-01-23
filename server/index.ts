@@ -250,7 +250,7 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent & { paneId?: string } {
       return { ...base, type: 'subagent_stop' }
 
     case 'session_start':
-      return { ...base, type: 'session_start' }
+      return { ...base, type: 'session_start', source: raw.source }
 
     case 'session_end':
       return { ...base, type: 'session_end' }
@@ -462,11 +462,16 @@ async function handleEvent(rawEvent: RawHookEvent) {
         // Don't change status - main agent is still running
       } else if (event.type === 'session_start') {
         // New or resumed session - reset to idle state
+        const startEvent = event as import('../shared/types.js').SessionStartEvent
         sessionInfo.status = 'idle'
         sessionInfo.currentTool = undefined
         sessionInfo.currentFile = undefined
         sessionInfo.pendingQuestion = undefined
         sessionInfo.lastError = undefined
+        // Set lastPrompt to show the command that triggered the new session
+        if (startEvent.source === 'clear') {
+          sessionInfo.lastPrompt = '/clear'
+        }
       } else if (event.type === 'session_end') {
         // Session ended - remove from cache
         removeClaudeSession(pane.id)

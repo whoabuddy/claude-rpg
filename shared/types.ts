@@ -279,6 +279,7 @@ export interface NotificationEvent extends BaseEvent {
 
 export interface SessionStartEvent extends BaseEvent {
   type: 'session_start'
+  source?: string // e.g., 'clear' when session started via /clear command
 }
 
 export interface SessionEndEvent extends BaseEvent {
