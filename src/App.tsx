@@ -32,55 +32,35 @@ export default function App() {
     notify,
   })
 
+  // Pane action handlers - wrap imported functions to discard return values
   const handleSendPrompt = useCallback(
-    async (paneId: string, prompt: string) => {
-      await sendPromptToPane(paneId, prompt)
-    },
+    (paneId: string, prompt: string) => { sendPromptToPane(paneId, prompt) },
     []
   )
-
   const handleSendSignal = useCallback(
-    async (paneId: string, signal: string) => {
-      await sendSignalToPane(paneId, signal)
-    },
+    (paneId: string, signal: string) => { sendSignalToPane(paneId, signal) },
     []
   )
-
   const handleDismissWaiting = useCallback(
-    async (paneId: string) => {
-      await dismissWaiting(paneId)
-    },
+    (paneId: string) => { dismissWaiting(paneId) },
     []
   )
-
   const handleRefreshPane = useCallback(
-    async (paneId: string) => {
-      await refreshPane(paneId)
-    },
+    (paneId: string) => { refreshPane(paneId) },
     []
   )
-
   const handleClosePane = useCallback(
-    async (paneId: string) => {
-      await closePane(paneId)
-    },
+    (paneId: string) => { closePane(paneId) },
     []
   )
-
   const handleNewPane = useCallback(
-    async (windowId: string) => {
-      await createPaneInWindow(windowId)
-    },
+    (windowId: string) => { createPaneInWindow(windowId) },
     []
   )
-
   const handleNewClaude = useCallback(
-    async (windowId: string) => {
-      await createClaudeInWindow(windowId)
-    },
+    (windowId: string) => { createClaudeInWindow(windowId) },
     []
   )
-
   const handleCreateWindow = useCallback(
     async (sessionName: string, windowName: string): Promise<boolean> => {
       const result = await createWindow(sessionName, windowName)
@@ -89,21 +69,11 @@ export default function App() {
     []
   )
 
-  const handleExpandPane = useCallback((paneId: string) => {
-    setFullscreenPaneId(paneId)
-  }, [])
-
-  const handleCloseFullscreen = useCallback(() => {
-    setFullscreenPaneId(null)
-  }, [])
-
-  const handleNavigateToCompetitions = useCallback(() => {
-    setActiveTab('competitions')
-  }, [])
-
-  const handleNavigateToDashboard = useCallback(() => {
-    setActiveTab('dashboard')
-  }, [])
+  // Navigation handlers
+  const handleExpandPane = useCallback((paneId: string) => setFullscreenPaneId(paneId), [])
+  const handleCloseFullscreen = useCallback(() => setFullscreenPaneId(null), [])
+  const handleNavigateToCompetitions = useCallback(() => setActiveTab('competitions'), [])
+  const handleNavigateToDashboard = useCallback(() => setActiveTab('dashboard'), [])
 
   // Find the fullscreen pane and its window
   const fullscreenData = useMemo(() => {

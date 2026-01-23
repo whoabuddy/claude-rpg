@@ -268,7 +268,7 @@ export function useVoiceInput(): UseVoiceInputReturn {
     }
 
     if (audioContextRef.current) {
-      audioContextRef.current.close()
+      audioContextRef.current.close().catch(() => {})
       audioContextRef.current = null
     }
 

@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import type { TmuxWindow, TmuxPane, ServerMessage } from '@shared/types'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import type { TmuxWindow, TmuxPane } from '@shared/types'
 
 const API_URL = '' // Same origin, proxied by Vite in dev
 
@@ -106,15 +106,19 @@ export function useWindows() {
   // Get selected pane
   const selectedPane = selectedWindow?.panes.find(p => p.id === selectedPaneId)
 
-  // Get all Claude panes across all windows
-  const claudePanes = windows.flatMap(w =>
-    w.panes.filter(p => p.process.type === 'claude')
+  // Get all Claude panes across all windows (memoized to prevent unnecessary re-renders)
+  const claudePanes = useMemo(() =>
+    windows.flatMap(w => w.panes.filter(p => p.process.type === 'claude')),
+    [windows]
   )
 
   // Get panes that need attention (waiting or error)
-  const attentionPanes = claudePanes.filter(p =>
-    p.process.claudeSession?.status === 'waiting' ||
-    p.process.claudeSession?.status === 'error'
+  const attentionPanes = useMemo(() =>
+    claudePanes.filter(p =>
+      p.process.claudeSession?.status === 'waiting' ||
+      p.process.claudeSession?.status === 'error'
+    ),
+    [claudePanes]
   )
 
   return {

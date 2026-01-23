@@ -5,6 +5,18 @@ import type { ClaudeEvent, ServerMessage } from '@shared/types'
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
 const WS_URL = `${WS_PROTOCOL}//${window.location.host}/ws`
 
+// Clean up WebSocket handlers and close connection
+function cleanupWebSocket(ws: WebSocket | null): void {
+  if (!ws) return
+  ws.onopen = null
+  ws.onmessage = null
+  ws.onclose = null
+  ws.onerror = null
+  if (ws.readyState !== WebSocket.CLOSED) {
+    ws.close()
+  }
+}
+
 export function useWebSocket() {
   const [connected, setConnected] = useState(false)
   const [events, setEvents] = useState<ClaudeEvent[]>([])
@@ -15,19 +27,8 @@ export function useWebSocket() {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
     // Clean up existing WebSocket before creating new one
-    if (wsRef.current) {
-      const oldWs = wsRef.current
-      // Clear handlers to prevent memory leaks
-      oldWs.onopen = null
-      oldWs.onmessage = null
-      oldWs.onclose = null
-      oldWs.onerror = null
-      // Close if not already closed
-      if (oldWs.readyState !== WebSocket.CLOSED) {
-        oldWs.close()
-      }
-      wsRef.current = null
-    }
+    cleanupWebSocket(wsRef.current)
+    wsRef.current = null
 
     const ws = new WebSocket(WS_URL)
 
@@ -107,22 +108,12 @@ export function useWebSocket() {
     connect()
 
     return () => {
-      // Clear reconnect timeout
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
         reconnectTimeoutRef.current = undefined
       }
-      // Clean up WebSocket
-      if (wsRef.current) {
-        const ws = wsRef.current
-        // Clear handlers to prevent memory leaks and reconnection attempts
-        ws.onopen = null
-        ws.onmessage = null
-        ws.onclose = null
-        ws.onerror = null
-        ws.close()
-        wsRef.current = null
-      }
+      cleanupWebSocket(wsRef.current)
+      wsRef.current = null
     }
   }, [connect])
 

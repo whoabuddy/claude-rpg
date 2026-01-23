@@ -1,40 +1,24 @@
 import { useState, useEffect } from 'react'
 import type { TerminalOutput } from '@shared/types'
 
-// Store terminal content by pane ID (bounded LRU-style cache)
-const MAX_CACHED_PANES = 50
+// Store terminal content by pane ID (bounded LRU cache using Map insertion order)
+const MAX_CACHE_SIZE = 50
 const terminalContentByPane = new Map<string, string>()
-const paneAccessOrder: string[] = [] // Track access order for LRU eviction
 
 // Initialization state
 let initialized = false
 let cleanupFn: (() => void) | null = null
 
+// Update cache with LRU eviction (Map maintains insertion order)
 function updateCache(paneId: string, content: string): void {
-  // Update access order (move to end)
-  const existingIndex = paneAccessOrder.indexOf(paneId)
-  if (existingIndex !== -1) {
-    paneAccessOrder.splice(existingIndex, 1)
-  }
-  paneAccessOrder.push(paneId)
-
-  // Store content
+  // Delete and re-add to move entry to end (most recently used)
+  terminalContentByPane.delete(paneId)
   terminalContentByPane.set(paneId, content)
 
-  // Evict oldest if over limit
-  while (paneAccessOrder.length > MAX_CACHED_PANES) {
-    const oldest = paneAccessOrder.shift()
-    if (oldest) {
-      terminalContentByPane.delete(oldest)
-    }
-  }
-}
-
-function removeFromCache(paneId: string): void {
-  terminalContentByPane.delete(paneId)
-  const index = paneAccessOrder.indexOf(paneId)
-  if (index !== -1) {
-    paneAccessOrder.splice(index, 1)
+  // Evict oldest entries (first in Map) if over limit
+  while (terminalContentByPane.size > MAX_CACHE_SIZE) {
+    const oldest = terminalContentByPane.keys().next().value
+    if (oldest) terminalContentByPane.delete(oldest)
   }
 }
 
@@ -84,7 +68,7 @@ export function initTerminalCache(): () => void {
   }
 
   const handlePaneRemoved = (e: CustomEvent<{ paneId: string }>) => {
-    removeFromCache(e.detail.paneId)
+    terminalContentByPane.delete(e.detail.paneId)
   }
 
   window.addEventListener('terminal_output', handleTerminalOutput as EventListener)
@@ -94,7 +78,6 @@ export function initTerminalCache(): () => void {
     window.removeEventListener('terminal_output', handleTerminalOutput as EventListener)
     window.removeEventListener('pane_removed', handlePaneRemoved as EventListener)
     terminalContentByPane.clear()
-    paneAccessOrder.length = 0
     initialized = false
     cleanupFn = null
   }
