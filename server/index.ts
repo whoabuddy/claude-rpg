@@ -187,6 +187,7 @@ interface RawHookEvent {
   tool_response?: Record<string, unknown>
   prompt?: string
   message?: string
+  source?: string
 }
 
 // Map hook names to internal event types
@@ -500,13 +501,19 @@ async function handleEvent(rawEvent: RawHookEvent) {
       companion.streak = updateStreak(companion.streak, activityDate)
     }
 
-    saveCompanions(DATA_DIR, companions)
-    broadcast({ type: 'companion_update', payload: companion })
+    // Skip saves/broadcasts during historical event loading (startup perf)
+    if (!isLoadingHistoricalEvents) {
+      saveCompanions(DATA_DIR, companions)
+      broadcast({ type: 'companion_update', payload: companion })
+    }
 
     if (xpGain) {
-      broadcast({ type: 'xp_gain', payload: xpGain })
-      // Update competitions leaderboard when XP changes (use full event history)
-      broadcast({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) })
+      // Skip broadcasts during historical loading - O(n²) performance issue
+      if (!isLoadingHistoricalEvents) {
+        broadcast({ type: 'xp_gain', payload: xpGain })
+        // Update competitions leaderboard when XP changes (use full event history)
+        broadcast({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) })
+      }
 
       // Also update session stats if we have an active session
       if (pane && pane.process.claudeSession?.stats) {
@@ -727,6 +734,9 @@ function loadEventsFromFile() {
 
   isLoadingHistoricalEvents = false
   lastFileSize = content.length
+
+  // Save companions once after processing all historical events
+  saveCompanions(DATA_DIR, companions)
 }
 
 // Cache for full event history (used for competitions)
@@ -1221,51 +1231,55 @@ const server = http.createServer(async (req, res) => {
 
   // Create new window in session
   if (url.pathname === '/api/windows/create' && req.method === 'POST') {
-    try {
-      const body = await parseJsonBody<{ sessionName: string; windowName: string }>(req)
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', async () => {
+      try {
+        const { sessionName: rawSessionName, windowName: rawWindowName } = JSON.parse(body)
 
-      if (!body.sessionName || !body.windowName) {
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: 'sessionName and windowName are required' }))
-        return
+        if (!rawSessionName || !rawWindowName) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: 'sessionName and windowName are required' }))
+          return
+        }
+
+        // Sanitize inputs to prevent command injection
+        const sessionName = rawSessionName.replace(/[^a-zA-Z0-9_-]/g, '')
+        const windowName = rawWindowName.replace(/[^a-zA-Z0-9_-]/g, '')
+
+        if (!sessionName || !windowName) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: 'Invalid session or window name (alphanumeric, dash, underscore only)' }))
+          return
+        }
+
+        // Check if session exists
+        const sessionExists = windows.some(w => w.sessionName === sessionName)
+        if (!sessionExists) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: `Session "${sessionName}" not found` }))
+          return
+        }
+
+        // Check if window name already exists in session
+        const windowExists = windows.some(w => w.sessionName === sessionName && w.windowName === windowName)
+        if (windowExists) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: `Window "${windowName}" already exists in session "${sessionName}"` }))
+          return
+        }
+
+        // Create new window in the session with the given name
+        // -t specifies the target session, -n names the window
+        await execAsync(`tmux new-window -t "${sessionName}:" -n "${windowName}"`)
+
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true, sessionName, windowName }))
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: String(e) }))
       }
-
-      // Sanitize inputs to prevent command injection
-      const sessionName = body.sessionName.replace(/[^a-zA-Z0-9_-]/g, '')
-      const windowName = body.windowName.replace(/[^a-zA-Z0-9_-]/g, '')
-
-      if (!sessionName || !windowName) {
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: 'Invalid session or window name (alphanumeric, dash, underscore only)' }))
-        return
-      }
-
-      // Check if session exists
-      const sessionExists = windows.some(w => w.sessionName === sessionName)
-      if (!sessionExists) {
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: `Session "${sessionName}" not found` }))
-        return
-      }
-
-      // Check if window name already exists in session
-      const windowExists = windows.some(w => w.sessionName === sessionName && w.windowName === windowName)
-      if (windowExists) {
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: `Window "${windowName}" already exists in session "${sessionName}"` }))
-        return
-      }
-
-      // Create new window in the session with the given name
-      // -t specifies the target session, -n names the window
-      await execAsync(`tmux new-window -t "${sessionName}:" -n "${windowName}"`)
-
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: true, sessionName, windowName }))
-    } catch (e) {
-      res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: String(e) }))
-    }
+    })
     return
   }
 
