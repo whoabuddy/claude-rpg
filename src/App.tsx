@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { OverviewDashboard } from './components/OverviewDashboard'
 import { FullScreenPane } from './components/FullScreenPane'
 import { CompetitionsPage } from './components/CompetitionsPage'
@@ -9,15 +9,18 @@ import { useNotifications, usePaneNotifications } from './hooks/useNotifications
 
 type ViewTab = 'dashboard' | 'competitions'
 
-// Initialize terminal cache once
-initTerminalCache()
-
 export default function App() {
   const { connected } = useWebSocket()
   const { windows, attentionPanes } = useWindows()
   const [notificationsDismissed, setNotificationsDismissed] = useState(false)
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard')
+
+  // Initialize terminal cache with proper cleanup
+  useEffect(() => {
+    const cleanup = initTerminalCache()
+    return cleanup
+  }, [])
 
   // Notifications
   const { permission, requestPermission, notify } = useNotifications()

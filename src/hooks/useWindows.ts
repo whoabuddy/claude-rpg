@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { TmuxWindow, TmuxPane, ServerMessage } from '@shared/types'
 
 const API_URL = '' // Same origin, proxied by Vite in dev
@@ -38,6 +38,10 @@ export function useWindows() {
   const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null)
   const [selectedPaneId, setSelectedPaneId] = useState<string | null>(null)
 
+  // Use ref to track selectedPaneId in event handlers without re-attaching listeners
+  const selectedPaneIdRef = useRef<string | null>(null)
+  selectedPaneIdRef.current = selectedPaneId
+
   // Fetch windows on mount
   useEffect(() => {
     fetch(`${API_URL}/api/windows`)
@@ -54,7 +58,7 @@ export function useWindows() {
       .catch(e => console.error('[claude-rpg] Error fetching windows:', e))
   }, [])
 
-  // Listen for windows updates via custom event
+  // Listen for windows updates via custom event (stable - no deps that change)
   useEffect(() => {
     const handleWindowsUpdate = (e: CustomEvent<TmuxWindow[]>) => {
       // Only update state if windows actually changed (prevents unnecessary re-renders)
@@ -79,8 +83,8 @@ export function useWindows() {
           panes: window.panes.filter(pane => pane.id !== e.detail.paneId),
         }))
       })
-      // Deselect if removed pane was selected
-      if (selectedPaneId === e.detail.paneId) {
+      // Deselect if removed pane was selected (use ref to avoid dependency)
+      if (selectedPaneIdRef.current === e.detail.paneId) {
         setSelectedPaneId(null)
       }
     }
@@ -94,7 +98,7 @@ export function useWindows() {
       window.removeEventListener('pane_update', handlePaneUpdate as EventListener)
       window.removeEventListener('pane_removed', handlePaneRemoved as EventListener)
     }
-  }, [selectedPaneId])
+  }, []) // Empty deps - listeners only attached once
 
   // Get selected window
   const selectedWindow = windows.find(w => w.id === selectedWindowId)

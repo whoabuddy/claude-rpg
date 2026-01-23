@@ -14,6 +14,21 @@ export function useWebSocket() {
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
+    // Clean up existing WebSocket before creating new one
+    if (wsRef.current) {
+      const oldWs = wsRef.current
+      // Clear handlers to prevent memory leaks
+      oldWs.onopen = null
+      oldWs.onmessage = null
+      oldWs.onclose = null
+      oldWs.onerror = null
+      // Close if not already closed
+      if (oldWs.readyState !== WebSocket.CLOSED) {
+        oldWs.close()
+      }
+      wsRef.current = null
+    }
+
     const ws = new WebSocket(WS_URL)
 
     ws.onopen = () => {
@@ -76,7 +91,6 @@ export function useWebSocket() {
     ws.onclose = () => {
       console.log('[claude-rpg] Disconnected from server')
       setConnected(false)
-      wsRef.current = null
 
       // Reconnect after delay
       reconnectTimeoutRef.current = window.setTimeout(connect, 2000)
@@ -93,10 +107,22 @@ export function useWebSocket() {
     connect()
 
     return () => {
+      // Clear reconnect timeout
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = undefined
       }
-      wsRef.current?.close()
+      // Clean up WebSocket
+      if (wsRef.current) {
+        const ws = wsRef.current
+        // Clear handlers to prevent memory leaks and reconnection attempts
+        ws.onopen = null
+        ws.onmessage = null
+        ws.onclose = null
+        ws.onerror = null
+        ws.close()
+        wsRef.current = null
+      }
     }
   }, [connect])
 

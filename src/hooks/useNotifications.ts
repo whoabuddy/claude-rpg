@@ -73,6 +73,9 @@ interface UsePaneNotificationsOptions {
   notify: (title: string, options?: NotificationOptions) => Notification | null
 }
 
+// Maximum tracked panes to prevent unbounded growth
+const MAX_TRACKED_PANES = 100
+
 export function usePaneNotifications({
   windows,
   enabled,
@@ -192,5 +195,20 @@ export function usePaneNotifications({
         tracker.delete(key)
       }
     }
+
+    // Safety limit: if tracker somehow grows too large, clear oldest entries
+    if (tracker.size > MAX_TRACKED_PANES) {
+      const keysToDelete = Array.from(tracker.keys()).slice(0, tracker.size - MAX_TRACKED_PANES)
+      for (const key of keysToDelete) {
+        tracker.delete(key)
+      }
+    }
   }, [windows, enabled, notify])
+
+  // Clear tracker on unmount
+  useEffect(() => {
+    return () => {
+      trackerRef.current.clear()
+    }
+  }, [])
 }

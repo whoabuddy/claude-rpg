@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
 interface UseVoiceInputReturn {
   isRecording: boolean
@@ -276,6 +276,34 @@ export function useVoiceInput(): UseVoiceInputReturn {
     setIsProcessing(false)
     setError(null)
   }, [isRecording])
+
+  // Cleanup on unmount to prevent resource leaks
+  useEffect(() => {
+    return () => {
+      // Stop any active media tracks
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop())
+        streamRef.current = null
+      }
+      // Close audio context
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {})
+        audioContextRef.current = null
+      }
+      // Clear recorder
+      if (mediaRecorderRef.current) {
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          try {
+            mediaRecorderRef.current.stop()
+          } catch {
+            // Ignore errors if already stopped
+          }
+        }
+        mediaRecorderRef.current = null
+      }
+      chunksRef.current = []
+    }
+  }, [])
 
   return {
     isRecording,
