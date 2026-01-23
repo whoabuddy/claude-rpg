@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.0](https://github.com/whoabuddy/claude-rpg/compare/v1.2.0...v1.3.0) (2026-01-23)
+
+
+### Features
+
+* add create window button and remove pro mode toggle ([1c4aef4](https://github.com/whoabuddy/claude-rpg/commit/1c4aef41e7a837cec5f7c74114ba10150074fd6b))
+* add multi-VM deployment scripts ([b281293](https://github.com/whoabuddy/claude-rpg/commit/b281293e6c3f4407b8e9df15b2171ef283a8f8e0))
+
+
+### Bug Fixes
+
+* improve leaderboard layout and prompt display ([212e05e](https://github.com/whoabuddy/claude-rpg/commit/212e05e90f0755967122bd5287140bf40a10a291))
+* show /clear in Prompt field when session is cleared ([1759ef6](https://github.com/whoabuddy/claude-rpg/commit/1759ef64eee7dea0f4147a07dcd16dd911d8bc58))
+* use full event history for competition stats ([6be7868](https://github.com/whoabuddy/claude-rpg/commit/6be7868a657c8e431e4a3631c8cf95671450b54e)), closes [#49](https://github.com/whoabuddy/claude-rpg/issues/49)
+
 ## [1.2.0](https://github.com/whoabuddy/claude-rpg/compare/v1.1.0...v1.2.0) (2026-01-22)
 
 
