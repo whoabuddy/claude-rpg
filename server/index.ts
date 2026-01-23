@@ -500,8 +500,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
 
     if (xpGain) {
       broadcast({ type: 'xp_gain', payload: xpGain })
-      // Update competitions leaderboard when XP changes
-      broadcast({ type: 'competitions', payload: getAllCompetitions(companions, events) })
+      // Update competitions leaderboard when XP changes (use full event history)
+      broadcast({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) })
 
       // Also update session stats if we have an active session
       if (pane && pane.process.claudeSession?.stats) {
@@ -722,6 +722,50 @@ function loadEventsFromFile() {
 
   isLoadingHistoricalEvents = false
   lastFileSize = content.length
+}
+
+// Cache for full event history (used for competitions)
+let allEventsCache: ClaudeEvent[] = []
+let allEventsCacheTime = 0
+const ALL_EVENTS_CACHE_TTL_MS = 5000 // 5 second cache
+
+function getAllEventsFromFile(): ClaudeEvent[] {
+  const now = Date.now()
+
+  // Return cached if still valid
+  if (now - allEventsCacheTime < ALL_EVENTS_CACHE_TTL_MS && allEventsCache.length > 0) {
+    return allEventsCache
+  }
+
+  if (!existsSync(EVENTS_FILE)) return []
+
+  const content = readFileSync(EVENTS_FILE, 'utf-8')
+  const lines = content.trim().split('\n').filter(Boolean)
+
+  const allEvents: ClaudeEvent[] = []
+  for (const line of lines) {
+    try {
+      const raw = JSON.parse(line)
+      // Basic normalization for timestamp
+      const event: ClaudeEvent = {
+        ...raw,
+        timestamp: raw.timestamp || 0,
+        sessionId: raw.session_id || raw.sessionId || '',
+        cwd: raw.cwd || '',
+        type: raw.type || (raw.hook_event_name === 'PostToolUse' ? 'post_tool_use' : 'pre_tool_use'),
+        tool: raw.tool_name || raw.tool || '',
+        toolUseId: raw.tool_use_id || raw.toolUseId || '',
+        toolInput: raw.tool_input || raw.toolInput,
+      }
+      allEvents.push(event)
+    } catch {
+      // Skip malformed lines
+    }
+  }
+
+  allEventsCache = allEvents
+  allEventsCacheTime = now
+  return allEvents
 }
 
 function watchEventsFile() {
@@ -1257,8 +1301,10 @@ const server = http.createServer(async (req, res) => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   // Get all competitions (all categories, all periods)
+  // Use full event history from file for accurate period-based stats
   if (url.pathname === '/api/competitions' && req.method === 'GET') {
-    const competitions = getAllCompetitions(companions, events)
+    const allEvents = getAllEventsFromFile()
+    const competitions = getAllCompetitions(companions, allEvents)
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true, data: competitions }))
     return
@@ -1284,7 +1330,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     const period = (url.searchParams.get('period') || 'all') as TimePeriod
-    const competition = getCompetition(companions, events, category, period)
+    const allEvents = getAllEventsFromFile()
+    const competition = getCompetition(companions, allEvents, category, period)
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true, data: competition }))
     return
@@ -1308,7 +1355,7 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'connected' } satisfies ServerMessage))
   ws.send(JSON.stringify({ type: 'windows', payload: windows } satisfies ServerMessage))
   ws.send(JSON.stringify({ type: 'companions', payload: companions } satisfies ServerMessage))
-  ws.send(JSON.stringify({ type: 'competitions', payload: getAllCompetitions(companions, events) } satisfies ServerMessage))
+  ws.send(JSON.stringify({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) } satisfies ServerMessage))
   ws.send(JSON.stringify({ type: 'history', payload: events.slice(-100) } satisfies ServerMessage))
 
   // Send current terminal content for all panes
