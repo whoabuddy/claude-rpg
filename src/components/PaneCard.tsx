@@ -33,11 +33,10 @@ interface PaneCardProps {
   onExpandPane?: (paneId: string) => void
   onRefreshPane?: (paneId: string) => void
   onClosePane?: (paneId: string) => void
-  proMode?: boolean
   compact?: boolean
 }
 
-export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onClosePane, proMode = false, compact = false }: PaneCardProps) {
+export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onClosePane, compact = false }: PaneCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [confirmClose, setConfirmClose] = useState(false)
@@ -241,11 +240,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
         <div className="flex items-center gap-3">
           {/* Avatar/Icon */}
           {isClaudePane && session ? (
-            proMode ? (
-              <div className="w-8 h-8 rounded bg-rpg-accent/20 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                C
-              </div>
-            ) : session.avatarSvg ? (
+            session.avatarSvg ? (
               <div
                 className="w-10 h-10 rounded-full overflow-hidden bg-rpg-bg flex-shrink-0"
                 dangerouslySetInnerHTML={{ __html: session.avatarSvg }}
@@ -268,11 +263,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
               {isClaudePane && session ? (
                 <span className="flex items-center gap-1.5">
                   <span className="text-xs px-1 py-0.5 rounded bg-rpg-accent/20 text-rpg-accent font-medium" title="Worker">W</span>
-                  {proMode ? (
-                    <span className="font-medium text-sm">Claude</span>
-                  ) : (
-                    <span className="font-medium text-sm">{session.name}</span>
-                  )}
+                  <span className="font-medium text-sm">{session.name}</span>
                 </span>
               ) : (
                 <span className="font-mono text-sm">{pane.process.command}</span>
@@ -548,7 +539,6 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
   )
 }, (prev, next) => {
   // Custom comparison - only re-render when visible state changes
-  if (prev.proMode !== next.proMode) return false
   if (prev.compact !== next.compact) return false
   if (prev.pane.id !== next.pane.id) return false
   if (prev.pane.process.type !== next.pane.process.type) return false

@@ -228,3 +228,17 @@ export async function createClaudeInWindow(windowId: string): Promise<{ ok: bool
     return { ok: false, error: 'Network error' }
   }
 }
+
+// Helper to create new window in session
+export async function createWindow(sessionName: string, windowName: string): Promise<{ ok: boolean; sessionName?: string; windowName?: string; error?: string }> {
+  try {
+    const res = await fetch(`${API_URL}/api/windows/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionName, windowName }),
+    })
+    return await res.json()
+  } catch {
+    return { ok: false, error: 'Network error' }
+  }
+}

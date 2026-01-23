@@ -3,7 +3,7 @@ import { OverviewDashboard } from './components/OverviewDashboard'
 import { FullScreenPane } from './components/FullScreenPane'
 import { CompetitionsPage } from './components/CompetitionsPage'
 import { useWebSocket } from './hooks/useWebSocket'
-import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refreshPane, closePane, createPaneInWindow, createClaudeInWindow } from './hooks/useWindows'
+import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refreshPane, closePane, createPaneInWindow, createClaudeInWindow, createWindow } from './hooks/useWindows'
 import { initTerminalCache } from './hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
 
@@ -18,10 +18,6 @@ export default function App() {
   const [notificationsDismissed, setNotificationsDismissed] = useState(false)
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard')
-  const [proMode, setProMode] = useState(() => {
-    // Persist pro mode preference
-    return localStorage.getItem('claude-rpg-pro-mode') === 'true'
-  })
 
   // Notifications
   const { permission, requestPermission, notify } = useNotifications()
@@ -82,13 +78,13 @@ export default function App() {
     []
   )
 
-  const handleToggleProMode = useCallback(() => {
-    setProMode(prev => {
-      const next = !prev
-      localStorage.setItem('claude-rpg-pro-mode', String(next))
-      return next
-    })
-  }, [])
+  const handleCreateWindow = useCallback(
+    async (sessionName: string, windowName: string): Promise<boolean> => {
+      const result = await createWindow(sessionName, windowName)
+      return result.ok
+    },
+    []
+  )
 
   const handleExpandPane = useCallback((paneId: string) => {
     setFullscreenPaneId(paneId)
@@ -156,7 +152,6 @@ export default function App() {
             windows={windows}
             attentionCount={attentionPanes.length}
             connected={connected}
-            proMode={proMode}
             onSendPrompt={handleSendPrompt}
             onSendSignal={handleSendSignal}
             onDismissWaiting={handleDismissWaiting}
@@ -165,7 +160,7 @@ export default function App() {
             onClosePane={handleClosePane}
             onNewPane={handleNewPane}
             onNewClaude={handleNewClaude}
-            onToggleProMode={handleToggleProMode}
+            onCreateWindow={handleCreateWindow}
             onNavigateToCompetitions={handleNavigateToCompetitions}
           />
         ) : (
@@ -187,7 +182,6 @@ export default function App() {
           onSendSignal={handleSendSignal}
           onDismissWaiting={handleDismissWaiting}
           onClosePane={handleClosePane}
-          proMode={proMode}
         />
       )}
     </div>

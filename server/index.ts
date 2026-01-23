@@ -1196,6 +1196,60 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Window Creation Endpoint
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Create new window in session
+  if (url.pathname === '/api/windows/create' && req.method === 'POST') {
+    try {
+      const body = await parseJsonBody<{ sessionName: string; windowName: string }>(req)
+
+      if (!body.sessionName || !body.windowName) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: 'sessionName and windowName are required' }))
+        return
+      }
+
+      // Sanitize inputs to prevent command injection
+      const sessionName = body.sessionName.replace(/[^a-zA-Z0-9_-]/g, '')
+      const windowName = body.windowName.replace(/[^a-zA-Z0-9_-]/g, '')
+
+      if (!sessionName || !windowName) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: 'Invalid session or window name (alphanumeric, dash, underscore only)' }))
+        return
+      }
+
+      // Check if session exists
+      const sessionExists = windows.some(w => w.sessionName === sessionName)
+      if (!sessionExists) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: `Session "${sessionName}" not found` }))
+        return
+      }
+
+      // Check if window name already exists in session
+      const windowExists = windows.some(w => w.sessionName === sessionName && w.windowName === windowName)
+      if (windowExists) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: `Window "${windowName}" already exists in session "${sessionName}"` }))
+        return
+      }
+
+      // Create new window in the session with the given name
+      // -t specifies the target session, -n names the window
+      await execAsync(`tmux new-window -t "${sessionName}:" -n "${windowName}"`)
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, sessionName, windowName }))
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: String(e) }))
+    }
+    return
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Window-level Pane Creation Endpoints
   // ═══════════════════════════════════════════════════════════════════════════
 

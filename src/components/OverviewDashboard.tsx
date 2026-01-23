@@ -10,7 +10,6 @@ interface OverviewDashboardProps {
   windows: TmuxWindow[]
   attentionCount: number
   connected: boolean
-  proMode: boolean
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
@@ -19,7 +18,7 @@ interface OverviewDashboardProps {
   onClosePane: (paneId: string) => void
   onNewPane: (windowId: string) => void
   onNewClaude: (windowId: string) => void
-  onToggleProMode: () => void
+  onCreateWindow: (sessionName: string, windowName: string) => Promise<boolean>
   onNavigateToCompetitions: () => void
 }
 
@@ -67,7 +66,6 @@ export function OverviewDashboard({
   windows,
   attentionCount,
   connected,
-  proMode,
   onSendPrompt,
   onSendSignal,
   onDismissWaiting,
@@ -76,20 +74,27 @@ export function OverviewDashboard({
   onClosePane,
   onNewPane,
   onNewClaude,
-  onToggleProMode,
+  onCreateWindow,
   onNavigateToCompetitions,
 }: OverviewDashboardProps) {
   const [collapsedWindows, setCollapsedWindows] = useState<Set<string>>(new Set())
+  const [showCreateWindow, setShowCreateWindow] = useState(false)
+  const [newWindowName, setNewWindowName] = useState('')
+  const [selectedSession, setSelectedSession] = useState('')
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
 
-  // Group panes by window, sort panes by attention first
-  const { windowGroups, stats } = useMemo(() => {
+  // Group panes by window, extract unique sessions
+  const { windowGroups, stats, sessions } = useMemo(() => {
     const groups: WindowGroup[] = []
+    const sessionSet = new Set<string>()
     let totalPanes = 0
     let claudeCount = 0
 
     for (const window of windows) {
       const panes = [...window.panes]
       totalPanes += panes.length
+      sessionSet.add(window.sessionName)
 
       for (const pane of panes) {
         if (pane.process.type === 'claude') claudeCount++
@@ -116,6 +121,7 @@ export function OverviewDashboard({
         claude: claudeCount,
         windows: windows.length,
       },
+      sessions: Array.from(sessionSet).sort(),
     }
   }, [windows])
 
@@ -140,6 +146,43 @@ export function OverviewDashboard({
     }
   }
 
+  const handleOpenCreateWindow = () => {
+    setShowCreateWindow(true)
+    setNewWindowName('')
+    setCreateError(null)
+    // Default to first session if available
+    if (sessions.length > 0 && !selectedSession) {
+      setSelectedSession(sessions[0])
+    }
+  }
+
+  const handleCreateWindow = async () => {
+    if (!selectedSession || !newWindowName.trim()) {
+      setCreateError('Session and window name are required')
+      return
+    }
+
+    setIsCreating(true)
+    setCreateError(null)
+
+    const success = await onCreateWindow(selectedSession, newWindowName.trim())
+
+    setIsCreating(false)
+
+    if (success) {
+      setShowCreateWindow(false)
+      setNewWindowName('')
+    } else {
+      setCreateError('Failed to create window')
+    }
+  }
+
+  const handleCancelCreate = () => {
+    setShowCreateWindow(false)
+    setNewWindowName('')
+    setCreateError(null)
+  }
+
   return (
     <div className="p-4 space-y-4">
       {/* Header */}
@@ -155,6 +198,15 @@ export function OverviewDashboard({
           )}
         </div>
         <div className="flex items-center gap-3">
+          {sessions.length > 0 && (
+            <button
+              onClick={handleOpenCreateWindow}
+              className="px-2 py-1 text-xs rounded bg-rpg-accent/20 hover:bg-rpg-accent/30 text-rpg-accent transition-colors"
+              title="Create new window"
+            >
+              + Window
+            </button>
+          )}
           {windowGroups.length > 1 && (
             <button
               onClick={toggleAllWindows}
@@ -171,20 +223,73 @@ export function OverviewDashboard({
           >
             Leaderboard
           </button>
-          <button
-            onClick={onToggleProMode}
-            className={`px-2 py-1 text-xs rounded transition-colors ${
-              proMode
-                ? 'bg-rpg-accent/20 text-rpg-accent'
-                : 'bg-rpg-card text-rpg-text-muted hover:text-rpg-text'
-            }`}
-            title={proMode ? "Show Bitcoin faces" : "Hide Bitcoin faces"}
-          >
-            {proMode ? 'Pro' : 'RPG'}
-          </button>
           <ConnectionStatus connected={connected} />
         </div>
       </div>
+
+      {/* Create Window Form */}
+      {showCreateWindow && (
+        <div className="rounded-lg border border-rpg-accent bg-rpg-card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-rpg-text">Create New Window</span>
+            <button
+              onClick={handleCancelCreate}
+              className="text-rpg-text-muted hover:text-rpg-text text-xs"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Session Select */}
+            <div className="flex-1">
+              <label className="block text-xs text-rpg-text-muted mb-1">Session</label>
+              <select
+                value={selectedSession}
+                onChange={(e) => setSelectedSession(e.target.value)}
+                className="w-full px-3 py-2 text-sm rounded bg-rpg-bg-elevated border border-rpg-border text-rpg-text focus:outline-none focus:border-rpg-accent"
+              >
+                {sessions.map(session => (
+                  <option key={session} value={session}>{session}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Window Name Input */}
+            <div className="flex-1">
+              <label className="block text-xs text-rpg-text-muted mb-1">Window Name</label>
+              <input
+                type="text"
+                value={newWindowName}
+                onChange={(e) => setNewWindowName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateWindow()}
+                placeholder="my-project"
+                autoFocus
+                className="w-full px-3 py-2 text-sm rounded bg-rpg-bg-elevated border border-rpg-border text-rpg-text placeholder:text-rpg-text-dim focus:outline-none focus:border-rpg-accent"
+              />
+            </div>
+
+            {/* Create Button */}
+            <div className="flex items-end">
+              <button
+                onClick={handleCreateWindow}
+                disabled={isCreating || !newWindowName.trim()}
+                className={`px-4 py-2 text-sm rounded transition-colors ${
+                  isCreating || !newWindowName.trim()
+                    ? 'bg-rpg-accent/30 text-rpg-accent/50 cursor-not-allowed'
+                    : 'bg-rpg-accent hover:bg-rpg-accent/80 text-rpg-bg'
+                }`}
+              >
+                {isCreating ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+
+          {createError && (
+            <p className="text-xs text-rpg-error">{createError}</p>
+          )}
+        </div>
+      )}
 
       {/* Empty state */}
       {windowGroups.length === 0 ? (
@@ -208,7 +313,6 @@ export function OverviewDashboard({
               key={group.window.id}
               group={group}
               collapsed={collapsedWindows.has(group.window.id)}
-              proMode={proMode}
               maxPanes={MAX_PANES_PER_WINDOW}
               onToggleWindow={() => toggleWindow(group.window.id)}
               onSendPrompt={onSendPrompt}
@@ -230,7 +334,6 @@ export function OverviewDashboard({
 interface WindowSectionProps {
   group: WindowGroup
   collapsed: boolean
-  proMode: boolean
   maxPanes: number
   onToggleWindow: () => void
   onSendPrompt: (paneId: string, prompt: string) => void
@@ -246,7 +349,6 @@ interface WindowSectionProps {
 const WindowSection = memo(function WindowSection({
   group,
   collapsed,
-  proMode,
   maxPanes,
   onToggleWindow,
   onSendPrompt,
@@ -339,7 +441,6 @@ const WindowSection = memo(function WindowSection({
               onExpandPane={onExpandPane}
               onRefreshPane={onRefreshPane}
               onClosePane={onClosePane}
-              proMode={proMode}
             />
           ))}
         </div>

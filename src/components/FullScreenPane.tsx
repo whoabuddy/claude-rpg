@@ -29,7 +29,6 @@ interface FullScreenPaneProps {
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
   onClosePane?: (paneId: string) => void
-  proMode: boolean
 }
 
 export function FullScreenPane({
@@ -41,7 +40,6 @@ export function FullScreenPane({
   onSendSignal,
   onDismissWaiting,
   onClosePane,
-  proMode,
 }: FullScreenPaneProps) {
   const [inputValue, setInputValue] = useState('')
   const [confirmClose, setConfirmClose] = useState(false)
@@ -164,11 +162,7 @@ export function FullScreenPane({
 
         {/* Avatar */}
         {isClaudePane && session ? (
-          proMode ? (
-            <div className="w-10 h-10 rounded-full bg-rpg-accent/20 flex items-center justify-center text-lg font-bold flex-shrink-0">
-              C
-            </div>
-          ) : session.avatarSvg ? (
+          session.avatarSvg ? (
             <div
               className="w-10 h-10 rounded-full overflow-hidden bg-rpg-bg flex-shrink-0"
               dangerouslySetInnerHTML={{ __html: session.avatarSvg }}
@@ -188,7 +182,7 @@ export function FullScreenPane({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium">
-              {isClaudePane && session ? (proMode ? 'Claude' : session.name) : pane.process.command}
+              {isClaudePane && session ? session.name : pane.process.command}
             </span>
             {pane.repo && (
               <div className="flex items-center gap-1.5 text-sm truncate">
