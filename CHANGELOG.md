@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/whoabuddy/claude-rpg/compare/v1.3.0...v1.3.1) (2026-01-23)
+
+
+### Bug Fixes
+
+* prevent O(n²) startup hang with large event history ([2e7771e](https://github.com/whoabuddy/claude-rpg/commit/2e7771e36c032db1988245b2f515b37437c8d31e))
+* resolve memory leaks causing SIGILL after overnight use ([b53cc78](https://github.com/whoabuddy/claude-rpg/commit/b53cc780b7d29946718f1f64fb75153d7ec955f7)), closes [#51](https://github.com/whoabuddy/claude-rpg/issues/51)
+
 ## [1.3.0](https://github.com/whoabuddy/claude-rpg/compare/v1.2.0...v1.3.0) (2026-01-23)
 
 
