@@ -79,7 +79,7 @@ const clients = new Set<WebSocket>()
 const seenEventIds = new Set<string>()
 
 // Polling intervals
-const TMUX_POLL_INTERVAL_MS = 1000 // 1 second
+const TMUX_POLL_INTERVAL_MS = 250 // 250ms for responsive UI (like webmux)
 const TERMINAL_ACTIVE_INTERVAL_MS = 500 // 500ms for active panes
 const TERMINAL_IDLE_INTERVAL_MS = 2000 // 2s for idle panes
 const PASTE_SETTLE_MS = 100 // Delay after paste before sending Enter
@@ -133,10 +133,34 @@ function broadcast(message: ServerMessage) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Tmux Polling
+// Tmux Polling with Change Detection
 // ═══════════════════════════════════════════════════════════════════════════
 
 let previousPaneIds = new Set<string>()
+let previousWindowsHash = ''
+
+/**
+ * Generate a hash of window/pane structure for change detection.
+ * Only includes properties that indicate structural changes.
+ */
+function hashWindowState(wins: TmuxWindow[]): string {
+  // Create a minimal representation for comparison
+  const structure = wins.map(w => ({
+    id: w.id,
+    name: w.windowName,
+    panes: w.panes.map(p => ({
+      id: p.id,
+      type: p.process.type,
+      cmd: p.process.command,
+      status: p.process.claudeSession?.status,
+      tool: p.process.claudeSession?.currentTool,
+      hasQuestion: !!p.process.claudeSession?.pendingQuestion,
+      hasTerminalPrompt: !!p.process.claudeSession?.terminalPrompt,
+      hasError: !!p.process.claudeSession?.lastError,
+    })),
+  }))
+  return JSON.stringify(structure)
+}
 
 async function pollTmux(): Promise<void> {
   const newWindows = await pollTmuxState()
@@ -149,9 +173,11 @@ async function pollTmux(): Promise<void> {
     }
   }
 
+  // Broadcast pane_removed for each removed pane
+  let hasRemovals = false
   for (const paneId of previousPaneIds) {
     if (!currentPaneIds.has(paneId)) {
-      // Pane was removed
+      hasRemovals = true
       removeClaudeSession(paneId)
       broadcast({ type: 'pane_removed', payload: { paneId } })
     }
@@ -160,7 +186,15 @@ async function pollTmux(): Promise<void> {
   previousPaneIds = currentPaneIds
   windows = newWindows
 
-  // Broadcast windows update
+  // Check if state actually changed before broadcasting
+  const currentHash = hashWindowState(newWindows)
+  if (currentHash === previousWindowsHash && !hasRemovals) {
+    // No changes - skip broadcast to reduce WebSocket traffic
+    return
+  }
+  previousWindowsHash = currentHash
+
+  // Broadcast windows update only when changed
   broadcast({ type: 'windows', payload: windows })
 }
 
