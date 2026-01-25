@@ -646,11 +646,8 @@ async function broadcastTerminalUpdates() {
       // All Claude panes get fast capture, others get slow
       const isClaudePane = pane.process.type === 'claude'
 
-      // Skip Claude panes when control mode is active - they get streaming updates
-      if (isClaudePane && controlModeActive) {
-        continue
-      }
-
+      // Always poll all panes - control mode just supplements with faster detection
+      // Don't skip Claude panes even when control mode is active (it's not 100% reliable)
       const interval = isClaudePane ? TERMINAL_ACTIVE_INTERVAL_MS : TERMINAL_IDLE_INTERVAL_MS
 
       // Check per-pane rate limiting

@@ -186,25 +186,25 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   return (
     <div className="p-4 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-rpg-text-muted">
-            {stats.windows} Window{stats.windows !== 1 ? 's' : ''} / {stats.total} Pane{stats.total !== 1 ? 's' : ''}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-rpg-text-muted whitespace-nowrap">
+            {stats.windows}W / {stats.total}P
           </span>
           {attentionCount > 0 && (
-            <span className="px-2 py-0.5 rounded status-bg-waiting text-rpg-waiting text-xs font-medium animate-pulse">
-              {attentionCount} need{attentionCount !== 1 ? '' : 's'} attention
+            <span className="px-2 py-0.5 rounded status-bg-waiting text-rpg-waiting text-xs font-medium animate-pulse whitespace-nowrap">
+              {attentionCount} waiting
             </span>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           {sessions.length > 0 && (
             <button
               onClick={handleOpenCreateWindow}
               className="px-2 py-1 text-xs rounded bg-rpg-accent/20 hover:bg-rpg-accent/30 text-rpg-accent transition-colors"
               title="Create new window"
             >
-              + Window
+              +Win
             </button>
           )}
           {windowGroups.length > 1 && (
@@ -213,15 +213,15 @@ export const OverviewDashboard = memo(function OverviewDashboard({
               className="px-2 py-1 text-xs rounded bg-rpg-card text-rpg-text-muted hover:text-rpg-text hover:bg-rpg-card-hover transition-colors"
               title={allCollapsed ? 'Expand all windows' : 'Collapse all windows'}
             >
-              {allCollapsed ? '▼ All' : '▲ All'}
+              {allCollapsed ? '▼' : '▲'}
             </button>
           )}
           <button
             onClick={onNavigateToCompetitions}
-            className="px-2 py-1 text-xs rounded bg-rpg-card text-rpg-text-muted hover:text-rpg-accent hover:bg-rpg-card-hover transition-colors"
+            className="px-2 py-1 text-xs rounded bg-rpg-card text-rpg-text-muted hover:text-rpg-accent hover:bg-rpg-card-hover transition-colors hidden sm:block"
             title="View Competitions"
           >
-            Leaderboard
+            LB
           </button>
           <ConnectionStatus connected={connected} />
         </div>
