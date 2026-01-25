@@ -92,10 +92,35 @@ export function inferStateFromTerminal(content: string): 'idle' | 'working' | 'w
   const claudeIdlePatterns = [
     /^>\s*$/,                          // Just ">"
     /^>\s+$/,                          // "> " with space
+    />\s*$/,                           // Line ending with ">"
   ]
 
   for (const pattern of claudeIdlePatterns) {
     if (pattern.test(lastLine)) {
+      return 'idle'
+    }
+  }
+
+  // Fallback: if no working indicators found and last line is short/empty,
+  // likely idle (Claude finished and is waiting for input)
+  const hasNoWorkingIndicators = !workingPatterns.some(p => p.test(cleaned))
+  const hasNoWaitingIndicators = !waitingPatterns.some(p => p.test(cleaned))
+  const lastLineIsShort = lastLine.length < 80
+
+  // If terminal is stable (no spinners, no prompts) and ends with a short line,
+  // it's probably idle
+  if (hasNoWorkingIndicators && hasNoWaitingIndicators && lastLineIsShort) {
+    // Check for common "finished" indicators
+    const finishedPatterns = [
+      /completed/i,
+      /done/i,
+      /finished/i,
+      /successfully/i,
+      /✓/,
+      /✔/,
+    ]
+    const recentText = lastLines.slice(-3).join('\n')
+    if (finishedPatterns.some(p => p.test(recentText))) {
       return 'idle'
     }
   }
@@ -115,6 +140,15 @@ export function reconcileSessionState(
   const terminalPrompt = parseTerminalForPrompt(terminalContent)
   const terminalState = inferStateFromTerminal(terminalContent)
   const now = Date.now()
+  const timeSinceActivity = now - (hookState.lastActivity ?? now)
+
+  // Debug log for troubleshooting state reconciliation
+  if (hookState.status === 'working' && terminalState !== 'working') {
+    console.log(
+      `[reconciler] ${pane.id}: hook=${hookState.status} terminal=${terminalState} ` +
+      `timeSince=${Math.round(timeSinceActivity / 1000)}s`
+    )
+  }
 
   // Case 1: Terminal shows prompt, hook says working
   // Trust terminal - a prompt is visible, user should respond
@@ -206,6 +240,22 @@ export function reconcileSessionState(
           confidence: 'low',
           reason: 'Stale error state, terminal shows idle',
         }
+      }
+    }
+  }
+
+  // Case 6: Hook says working but terminal state is unknown for extended time
+  // Fallback when we can't detect terminal state but work should have finished
+  const EXTENDED_IDLE_THRESHOLD_MS = 10000 // 10 seconds
+  if (hookState.status === 'working' && terminalState === 'unknown') {
+    const timeSinceActivity = now - (hookState.lastActivity ?? now)
+
+    if (timeSinceActivity > EXTENDED_IDLE_THRESHOLD_MS) {
+      return {
+        stateChanged: true,
+        newStatus: 'idle',
+        confidence: 'low',
+        reason: 'No hook activity for 10s, assuming work finished',
       }
     }
   }

@@ -254,7 +254,9 @@ export function updateClaudeSession(
     console.log(`[claude-rpg] New Claude session "${session.name}" in pane ${paneId}`)
   } else if (session) {
     // Update existing session
-    Object.assign(session, sessionInfo, { lastActivity: Date.now() })
+    // Note: Don't automatically update lastActivity - callers should pass it explicitly
+    // when there's actual hook activity to enable proper reconciliation timing
+    Object.assign(session, sessionInfo)
   }
 
   return session

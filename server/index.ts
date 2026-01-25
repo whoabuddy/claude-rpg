@@ -527,6 +527,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
         removeClaudeSession(pane.id)
       }
 
+      // Update lastActivity since this is actual hook activity
+      sessionInfo.lastActivity = event.timestamp
       const updatedSession = updateClaudeSession(pane.id, sessionInfo)
       savePanesCache()
 
@@ -1009,6 +1011,7 @@ const server = http.createServer(async (req, res) => {
             const updated = updateClaudeSession(pane.id, {
               terminalPrompt: undefined,
               status: 'working',
+              lastActivity: Date.now(),
             })
             if (updated) {
               pane.process.claudeSession = updated
@@ -1027,6 +1030,7 @@ const server = http.createServer(async (req, res) => {
               lastPrompt: truncatedPrompt,
               terminalPrompt: undefined,
               status: 'working',
+              lastActivity: Date.now(),
             })
             if (updated) {
               pane.process.claudeSession = updated
@@ -1113,6 +1117,7 @@ const server = http.createServer(async (req, res) => {
               pendingQuestion: undefined,
               currentTool: undefined,
               currentFile: undefined,
+              lastActivity: Date.now(),
             })
             if (updated) {
               pane.process.claudeSession = updated
