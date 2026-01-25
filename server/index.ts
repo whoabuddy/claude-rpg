@@ -1653,8 +1653,9 @@ loadPanesCache()
 loadEventsFromFile()
 watchEventsFile()
 
-// Initialize control mode (non-blocking)
-initControlMode()
+// Control mode disabled - was causing tmux scrollback issues in some terminals
+// TODO: Investigate why control mode affects scrollback in ConnectBot
+// initControlMode()
 
 // Initial tmux poll
 pollTmux().catch(e => console.error('[claude-rpg] Initial poll error:', e))
