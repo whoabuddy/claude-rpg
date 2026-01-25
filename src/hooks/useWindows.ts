@@ -143,8 +143,12 @@ export async function sendPromptToPane(paneId: string, prompt: string): Promise<
       body: JSON.stringify({ prompt }),
     })
     const data = await res.json()
+    if (!data.ok) {
+      console.error('[sendPromptToPane] Server returned error:', data.error)
+    }
     return data.ok
-  } catch {
+  } catch (e) {
+    console.error('[sendPromptToPane] Request failed:', e)
     return false
   }
 }

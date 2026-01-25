@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { Competition, LeaderboardEntry } from '@shared/types'
 
 interface LeaderboardCardProps {
@@ -108,7 +109,7 @@ function EntryRow({ entry, unit }: { entry: LeaderboardEntry; unit: string }) {
   )
 }
 
-export function LeaderboardCard({
+export const LeaderboardCard = memo(function LeaderboardCard({
   competition,
   title,
   unit,
@@ -140,7 +141,7 @@ export function LeaderboardCard({
       </div>
     </div>
   )
-}
+})
 
 // Fire icon for streaks
 function FireIcon() {
@@ -164,7 +165,7 @@ interface StreakCardProps {
   entries: LeaderboardEntry[]
 }
 
-export function StreakCard({ entries }: StreakCardProps) {
+export const StreakCard = memo(function StreakCard({ entries }: StreakCardProps) {
   // Sort entries by current streak descending
   const sortedEntries = [...entries]
     .filter(e => e.streak.current > 0)
@@ -228,4 +229,4 @@ export function StreakCard({ entries }: StreakCardProps) {
       </div>
     </div>
   )
-}
+})

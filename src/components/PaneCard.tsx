@@ -4,25 +4,10 @@ import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
 import { VoiceButton } from './VoiceButton'
+import { isPasswordPrompt } from '../utils/password-detection'
 
-// Server port - matches DEFAULTS.SERVER_PORT but browser-compatible
-const API_BASE = 'http://localhost:4011'
-
-// Detect if terminal is showing a password prompt
-const PASSWORD_PATTERNS = [
-  /\[sudo\] password for/i,
-  /password:/i,
-  /enter passphrase/i,
-  /enter pin/i,
-  /authentication required/i,
-]
-
-function isPasswordPrompt(terminalContent: string | undefined): boolean {
-  if (!terminalContent) return false
-  // Check last few lines for password prompt
-  const lastLines = terminalContent.split('\n').slice(-5).join('\n')
-  return PASSWORD_PATTERNS.some(pattern => pattern.test(lastLines))
-}
+// Use same-origin requests (proxied by Vite in dev, same server in prod)
+const API_BASE = ''
 
 interface PaneCardProps {
   pane: TmuxPane
@@ -79,26 +64,40 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
   }, [onSendPrompt, pane.id])
 
   // Handler for terminal-detected prompts (permissions use single keys)
-  const handleTerminalPromptAnswer = useCallback((answer: string, isPermission?: boolean) => {
+  const handleTerminalPromptAnswer = useCallback(async (answer: string, isPermission?: boolean) => {
     // For permissions, we need to signal that this is a single-key response
     // The server will send just the key without Enter
-    fetch(`${API_BASE}/api/panes/${encodeURIComponent(pane.id)}/prompt`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt: answer,
-        ...(isPermission && { isPermissionResponse: true }),
-      }),
-    })
+    try {
+      const res = await fetch(`${API_BASE}/api/panes/${encodeURIComponent(pane.id)}/prompt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: answer,
+          ...(isPermission && { isPermissionResponse: true }),
+        }),
+      })
+      if (!res.ok) {
+        console.error('[PaneCard] Prompt failed:', res.status, await res.text())
+      }
+    } catch (e) {
+      console.error('[PaneCard] Prompt error:', e)
+    }
   }, [pane.id])
 
-  const handleCancelPrompt = useCallback(() => {
+  const handleCancelPrompt = useCallback(async () => {
     // Send Escape to cancel the prompt
-    fetch(`${API_BASE}/api/panes/${encodeURIComponent(pane.id)}/prompt`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: 'Escape' }),
-    })
+    try {
+      const res = await fetch(`${API_BASE}/api/panes/${encodeURIComponent(pane.id)}/prompt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Escape' }),
+      })
+      if (!res.ok) {
+        console.error('[PaneCard] Cancel failed:', res.status, await res.text())
+      }
+    } catch (e) {
+      console.error('[PaneCard] Cancel error:', e)
+    }
   }, [pane.id])
 
   const handleDismiss = useCallback((e: React.MouseEvent) => {

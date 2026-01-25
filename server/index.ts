@@ -24,6 +24,7 @@ import type {
   TerminalPrompt,
 } from '../shared/types.js'
 import { parseTerminalForPrompt, hasPromptChanged } from './terminal-parser.js'
+import { reconcileSessionState } from './state-reconciler.js'
 import { processEvent, detectCommandXP } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName } from './companions.js'
 import { getAllCompetitions, getCompetition, getStreakLeaderboard, updateStreak } from './competitions.js'
@@ -38,6 +39,7 @@ import {
   setSessionCache,
 } from './tmux.js'
 import { findWindowById } from './utils.js'
+import { getControlClient } from './tmux-control.js'
 
 // Maximum panes per window (keeps tmux TUI manageable)
 const MAX_PANES_PER_WINDOW = 4
@@ -79,10 +81,16 @@ const clients = new Set<WebSocket>()
 const seenEventIds = new Set<string>()
 
 // Polling intervals
-const TMUX_POLL_INTERVAL_MS = 1000 // 1 second
+const TMUX_POLL_INTERVAL_MS = 250 // 250ms for responsive UI (like webmux)
+const TMUX_POLL_INTERVAL_WITH_CONTROL_MS = 2000 // Slower when control mode is active
 const TERMINAL_ACTIVE_INTERVAL_MS = 500 // 500ms for active panes
 const TERMINAL_IDLE_INTERVAL_MS = 2000 // 2s for idle panes
 const PASTE_SETTLE_MS = 100 // Delay after paste before sending Enter
+const CONTROL_MODE_BROADCAST_DEBOUNCE_MS = 50 // Debounce streaming output broadcasts
+
+// Control mode state
+let controlModeActive = false
+let currentPollInterval = TMUX_POLL_INTERVAL_MS
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Pane Cache Persistence
@@ -133,10 +141,34 @@ function broadcast(message: ServerMessage) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Tmux Polling
+// Tmux Polling with Change Detection
 // ═══════════════════════════════════════════════════════════════════════════
 
 let previousPaneIds = new Set<string>()
+let previousWindowsHash = ''
+
+/**
+ * Generate a hash of window/pane structure for change detection.
+ * Only includes properties that indicate structural changes.
+ */
+function hashWindowState(wins: TmuxWindow[]): string {
+  // Create a minimal representation for comparison
+  const structure = wins.map(w => ({
+    id: w.id,
+    name: w.windowName,
+    panes: w.panes.map(p => ({
+      id: p.id,
+      type: p.process.type,
+      cmd: p.process.command,
+      status: p.process.claudeSession?.status,
+      tool: p.process.claudeSession?.currentTool,
+      hasQuestion: !!p.process.claudeSession?.pendingQuestion,
+      hasTerminalPrompt: !!p.process.claudeSession?.terminalPrompt,
+      hasError: !!p.process.claudeSession?.lastError,
+    })),
+  }))
+  return JSON.stringify(structure)
+}
 
 async function pollTmux(): Promise<void> {
   const newWindows = await pollTmuxState()
@@ -149,9 +181,11 @@ async function pollTmux(): Promise<void> {
     }
   }
 
+  // Broadcast pane_removed for each removed pane
+  let hasRemovals = false
   for (const paneId of previousPaneIds) {
     if (!currentPaneIds.has(paneId)) {
-      // Pane was removed
+      hasRemovals = true
       removeClaudeSession(paneId)
       broadcast({ type: 'pane_removed', payload: { paneId } })
     }
@@ -160,12 +194,27 @@ async function pollTmux(): Promise<void> {
   previousPaneIds = currentPaneIds
   windows = newWindows
 
-  // Broadcast windows update
+  // Check if state actually changed before broadcasting
+  const currentHash = hashWindowState(newWindows)
+  if (currentHash === previousWindowsHash && !hasRemovals) {
+    // No changes - skip broadcast to reduce WebSocket traffic
+    return
+  }
+  previousWindowsHash = currentHash
+
+  // Broadcast windows update only when changed
   broadcast({ type: 'windows', payload: windows })
 }
 
-// Start tmux polling
-setInterval(pollTmux, TMUX_POLL_INTERVAL_MS)
+// Start tmux polling with dynamic interval
+// Uses slower polling when control mode is active (streaming handles output)
+function schedulePoll(): void {
+  setTimeout(async () => {
+    await pollTmux().catch(e => console.error('[claude-rpg] Poll error:', e))
+    schedulePoll()
+  }, currentPollInterval)
+}
+schedulePoll()
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Event Normalization (Claude Code hooks → internal format)
@@ -596,6 +645,12 @@ async function broadcastTerminalUpdates() {
       // Determine capture rate based on pane type
       // All Claude panes get fast capture, others get slow
       const isClaudePane = pane.process.type === 'claude'
+
+      // Skip Claude panes when control mode is active - they get streaming updates
+      if (isClaudePane && controlModeActive) {
+        continue
+      }
+
       const interval = isClaudePane ? TERMINAL_ACTIVE_INTERVAL_MS : TERMINAL_IDLE_INTERVAL_MS
 
       // Check per-pane rate limiting
@@ -629,37 +684,7 @@ async function broadcastTerminalUpdates() {
       // Terminal-based prompt detection for Claude panes
       // This is the source of truth for prompt state
       if (isClaudePane && pane.process.claudeSession) {
-        const session = pane.process.claudeSession
-        const newPrompt = parseTerminalForPrompt(content)
-        const oldPrompt = session.terminalPrompt
-
-        if (hasPromptChanged(oldPrompt ?? null, newPrompt)) {
-          if (newPrompt) {
-            // Prompt detected → set waiting status
-            const updated = updateClaudeSession(pane.id, {
-              terminalPrompt: newPrompt,
-              status: 'waiting',
-            })
-            if (updated) {
-              pane.process.claudeSession = updated
-              savePanesCache()
-              broadcast({ type: 'pane_update', payload: pane })
-            }
-          } else if (oldPrompt) {
-            // Prompt cleared → update status based on other signals
-            // If we were waiting, go back to idle (prompt was answered)
-            const newStatus = session.status === 'waiting' ? 'idle' : session.status
-            const updated = updateClaudeSession(pane.id, {
-              terminalPrompt: undefined,
-              status: newStatus,
-            })
-            if (updated) {
-              pane.process.claudeSession = updated
-              savePanesCache()
-              broadcast({ type: 'pane_update', payload: pane })
-            }
-          }
-        }
+        processClaudePaneContent(pane, content)
       }
 
       // Only broadcast terminal content if changed
@@ -1463,12 +1488,176 @@ wss.on('connection', (ws) => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Tmux Control Mode Integration
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Debounced terminal capture triggered by control mode output detection
+// Control mode tells us WHEN output happened, but we use capture-pane
+// to get the RENDERED content (control mode gives raw terminal data
+// with cursor movement sequences that we can't easily interpret)
+const pendingCaptures = new Map<string, NodeJS.Timeout>()
+
+async function triggerTerminalCapture(paneId: string, target: string): Promise<void> {
+  // Clear existing timeout for this pane
+  const existing = pendingCaptures.get(paneId)
+  if (existing) clearTimeout(existing)
+
+  // Debounce rapid output events
+  pendingCaptures.set(paneId, setTimeout(async () => {
+    pendingCaptures.delete(paneId)
+
+    // Use capture-pane to get rendered content
+    const content = await captureTerminal(target)
+    if (!content) return
+
+    // Check if content actually changed
+    const oldContent = lastTerminalContent.get(paneId)
+    if (oldContent === content) return
+
+    lastTerminalContent.set(paneId, content)
+
+    const output: TerminalOutput = {
+      paneId,
+      target,
+      content,
+      timestamp: Date.now(),
+    }
+
+    broadcast({ type: 'terminal_output', payload: output })
+
+    // Also trigger prompt detection for Claude panes
+    const pane = findPaneById(windows, paneId)
+    if (pane?.process.type === 'claude' && pane.process.claudeSession) {
+      processClaudePaneContent(pane, content)
+    }
+  }, CONTROL_MODE_BROADCAST_DEBOUNCE_MS))
+}
+
+// Process Claude pane content for prompt detection (shared with polling)
+function processClaudePaneContent(pane: TmuxPane, content: string): void {
+  const session = pane.process.claudeSession
+  if (!session) return
+
+  const newPrompt = parseTerminalForPrompt(content)
+  const oldPrompt = session.terminalPrompt
+
+  if (hasPromptChanged(oldPrompt ?? null, newPrompt)) {
+    if (newPrompt) {
+      const updated = updateClaudeSession(pane.id, {
+        terminalPrompt: newPrompt,
+        status: 'waiting',
+      })
+      if (updated) {
+        pane.process.claudeSession = updated
+        savePanesCache()
+        broadcast({ type: 'pane_update', payload: pane })
+      }
+    } else if (oldPrompt) {
+      const newStatus = session.status === 'waiting' ? 'idle' : session.status
+      const updated = updateClaudeSession(pane.id, {
+        terminalPrompt: undefined,
+        status: newStatus,
+      })
+      if (updated) {
+        pane.process.claudeSession = updated
+        savePanesCache()
+        broadcast({ type: 'pane_update', payload: pane })
+      }
+    }
+  } else {
+    // Run reconciliation
+    const reconciliation = reconcileSessionState(pane, content, session)
+    if (reconciliation.stateChanged && reconciliation.newStatus) {
+      console.log(
+        `[reconciler] ${pane.id}: ${session.status} → ${reconciliation.newStatus} ` +
+        `(${reconciliation.confidence}: ${reconciliation.reason})`
+      )
+
+      const updates: Partial<typeof session> = {
+        status: reconciliation.newStatus,
+      }
+      if (reconciliation.newPrompt !== undefined) {
+        updates.terminalPrompt = reconciliation.newPrompt ?? undefined
+      }
+      if (reconciliation.clearPrompt) {
+        updates.terminalPrompt = undefined
+        updates.pendingQuestion = undefined
+      }
+
+      const updated = updateClaudeSession(pane.id, updates)
+      if (updated) {
+        pane.process.claudeSession = updated
+        savePanesCache()
+        broadcast({ type: 'pane_update', payload: pane })
+      }
+    }
+  }
+}
+
+function initControlMode(): void {
+  const controlClient = getControlClient()
+
+  controlClient.on('connected', () => {
+    console.log('[claude-rpg] Tmux control mode connected')
+    controlModeActive = true
+    currentPollInterval = TMUX_POLL_INTERVAL_WITH_CONTROL_MS
+  })
+
+  controlClient.on('disconnected', (reason) => {
+    console.log('[claude-rpg] Tmux control mode disconnected:', reason)
+    controlModeActive = false
+    currentPollInterval = TMUX_POLL_INTERVAL_MS
+  })
+
+  controlClient.on('error', (err) => {
+    console.error('[claude-rpg] Tmux control mode error:', err.message)
+  })
+
+  controlClient.on('notification', (notification) => {
+    switch (notification.type) {
+      case 'output': {
+        // Control mode detected output - trigger a capture to get rendered content
+        // We don't use the raw streaming data because it contains cursor movements
+        // that would require a full terminal emulator to interpret correctly
+        const pane = findPaneById(windows, notification.paneId)
+        if (pane) {
+          triggerTerminalCapture(notification.paneId, pane.target)
+        }
+        break
+      }
+
+      case 'sessions-changed':
+      case 'window-add':
+      case 'window-close':
+        // Trigger immediate structure poll
+        pollTmux().catch(e => console.error('[claude-rpg] Poll error:', e))
+        break
+
+      case 'pane-exited':
+        // Clean up state for exited pane
+        lastTerminalContent.delete(notification.paneId)
+        pendingCaptures.delete(notification.paneId)
+        break
+    }
+  })
+
+  // Start control mode connection
+  controlClient.connect().catch((err) => {
+    console.warn('[claude-rpg] Control mode unavailable:', err.message)
+    console.log('[claude-rpg] Falling back to polling-only mode')
+  })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Start Server
 // ═══════════════════════════════════════════════════════════════════════════
 
 loadPanesCache()
 loadEventsFromFile()
 watchEventsFile()
+
+// Initialize control mode (non-blocking)
+initControlMode()
 
 // Initial tmux poll
 pollTmux().catch(e => console.error('[claude-rpg] Initial poll error:', e))
