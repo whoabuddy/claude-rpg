@@ -78,10 +78,6 @@ export class TmuxControlClient extends EventEmitter {
   private maxReconnectAttempts: number = 5
   private reconnectDelayMs: number = 1000
 
-  constructor() {
-    super()
-  }
-
   /**
    * Connect to tmux in control mode
    */
@@ -336,6 +332,7 @@ export class TmuxControlClient extends EventEmitter {
     console.log(`[tmux-control] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
 
     this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null  // Clear before async operation
       this.connect().catch((err) => {
         console.error('[tmux-control] Reconnect failed:', err.message)
       })

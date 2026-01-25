@@ -143,7 +143,7 @@ export function reconcileSessionState(
   // Case 3: Hook says waiting but no prompt visible in terminal
   // The prompt may have been answered and we missed the post_tool_use hook
   if (!terminalPrompt && hookState.status === 'waiting') {
-    const questionTimestamp = hookState.pendingQuestion?.timestamp || hookState.lastActivity
+    const questionTimestamp = hookState.pendingQuestion?.timestamp ?? hookState.lastActivity ?? now
     const timeSinceQuestion = now - questionTimestamp
 
     // Wait a bit before reconciling to avoid race conditions
@@ -172,7 +172,7 @@ export function reconcileSessionState(
   // Case 4: Hook says working but terminal shows idle for a while
   // Claude may have finished and we missed the Stop hook
   if (hookState.status === 'working' && terminalState === 'idle') {
-    const timeSinceActivity = now - hookState.lastActivity
+    const timeSinceActivity = now - (hookState.lastActivity ?? now)
 
     // Only reconcile if no activity for IDLE_DETECTION_THRESHOLD_MS
     if (timeSinceActivity > IDLE_DETECTION_THRESHOLD_MS) {
