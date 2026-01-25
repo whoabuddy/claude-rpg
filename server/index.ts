@@ -39,8 +39,7 @@ import {
   setSessionCache,
 } from './tmux.js'
 import { findWindowById } from './utils.js'
-import { getControlClient, TmuxControlClient } from './tmux-control.js'
-import { getBufferManager } from './terminal-buffer.js'
+import { getControlClient } from './tmux-control.js'
 
 // Maximum panes per window (keeps tmux TUI manageable)
 const MAX_PANES_PER_WINDOW = 4
@@ -1552,24 +1551,26 @@ wss.on('connection', (ws) => {
 // Tmux Control Mode Integration
 // ═══════════════════════════════════════════════════════════════════════════
 
-const bufferManager = getBufferManager()
+// Debounced terminal capture triggered by control mode output detection
+// Control mode tells us WHEN output happened, but we use capture-pane
+// to get the RENDERED content (control mode gives raw terminal data
+// with cursor movement sequences that we can't easily interpret)
+const pendingCaptures = new Map<string, NodeJS.Timeout>()
 
-// Debounced broadcast for streaming output
-const pendingBroadcasts = new Map<string, NodeJS.Timeout>()
-
-function debouncedBroadcastTerminal(paneId: string, target: string): void {
+async function triggerTerminalCapture(paneId: string, target: string): Promise<void> {
   // Clear existing timeout for this pane
-  const existing = pendingBroadcasts.get(paneId)
+  const existing = pendingCaptures.get(paneId)
   if (existing) clearTimeout(existing)
 
-  // Set new debounced broadcast
-  pendingBroadcasts.set(paneId, setTimeout(() => {
-    pendingBroadcasts.delete(paneId)
+  // Debounce rapid output events
+  pendingCaptures.set(paneId, setTimeout(async () => {
+    pendingCaptures.delete(paneId)
 
-    const content = bufferManager.getLastLines(paneId, 30)
+    // Use capture-pane to get rendered content
+    const content = await captureTerminal(target)
     if (!content) return
 
-    // Update lastTerminalContent for consistency with polling path
+    // Check if content actually changed
     const oldContent = lastTerminalContent.get(paneId)
     if (oldContent === content) return
 
@@ -1675,15 +1676,13 @@ function initControlMode(): void {
   controlClient.on('notification', (notification) => {
     switch (notification.type) {
       case 'output': {
-        // Append to buffer
-        bufferManager.append(notification.paneId, notification.data)
-
-        // Find the pane to get its target
+        // Control mode detected output - trigger a capture to get rendered content
+        // We don't use the raw streaming data because it contains cursor movements
+        // that would require a full terminal emulator to interpret correctly
         const pane = findPaneById(windows, notification.paneId)
-        const target = pane?.target || ''
-
-        // Debounced broadcast
-        debouncedBroadcastTerminal(notification.paneId, target)
+        if (pane) {
+          triggerTerminalCapture(notification.paneId, pane.target)
+        }
         break
       }
 
@@ -1695,8 +1694,9 @@ function initControlMode(): void {
         break
 
       case 'pane-exited':
-        // Clean up buffer for exited pane
-        bufferManager.remove(notification.paneId)
+        // Clean up state for exited pane
+        lastTerminalContent.delete(notification.paneId)
+        pendingCaptures.delete(notification.paneId)
         break
     }
   })

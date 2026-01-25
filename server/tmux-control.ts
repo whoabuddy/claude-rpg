@@ -305,12 +305,20 @@ export class TmuxControlClient extends EventEmitter {
   /**
    * Unescape tmux control mode output
    * Converts octal escapes (\xxx) back to characters
+   * Also handles escaped backslashes (\\)
    */
   private unescapeOutput(escaped: string): string {
-    return escaped.replace(/\\(\d{3})/g, (_, oct) => {
+    // First handle octal escapes: \033, \015, \012, etc.
+    // The pattern matches a literal backslash followed by 1-3 octal digits
+    let result = escaped.replace(/\\([0-7]{1,3})/g, (_, oct) => {
       const code = parseInt(oct, 8)
       return String.fromCharCode(code)
     })
+
+    // Handle escaped backslashes
+    result = result.replace(/\\\\/g, '\\')
+
+    return result
   }
 
   /**
