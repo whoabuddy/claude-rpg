@@ -24,6 +24,7 @@ import type {
   TerminalPrompt,
 } from '../shared/types.js'
 import { parseTerminalForPrompt, hasPromptChanged } from './terminal-parser.js'
+import { reconcileSessionState } from './state-reconciler.js'
 import { processEvent, detectCommandXP } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName } from './companions.js'
 import { getAllCompetitions, getCompetition, getStreakLeaderboard, updateStreak } from './competitions.js'
@@ -687,6 +688,36 @@ async function broadcastTerminalUpdates() {
               terminalPrompt: undefined,
               status: newStatus,
             })
+            if (updated) {
+              pane.process.claudeSession = updated
+              savePanesCache()
+              broadcast({ type: 'pane_update', payload: pane })
+            }
+          }
+        } else {
+          // No prompt change detected, but check for other state drift
+          // This catches cases where hooks were missed
+          const reconciliation = reconcileSessionState(pane, content, session)
+
+          if (reconciliation.stateChanged && reconciliation.newStatus) {
+            console.log(
+              `[reconciler] ${pane.id}: ${session.status} → ${reconciliation.newStatus} ` +
+              `(${reconciliation.confidence}: ${reconciliation.reason})`
+            )
+
+            const updates: Partial<typeof session> = {
+              status: reconciliation.newStatus,
+            }
+
+            if (reconciliation.newPrompt !== undefined) {
+              updates.terminalPrompt = reconciliation.newPrompt ?? undefined
+            }
+            if (reconciliation.clearPrompt) {
+              updates.terminalPrompt = undefined
+              updates.pendingQuestion = undefined
+            }
+
+            const updated = updateClaudeSession(pane.id, updates)
             if (updated) {
               pane.process.claudeSession = updated
               savePanesCache()
