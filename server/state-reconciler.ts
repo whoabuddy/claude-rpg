@@ -8,6 +8,12 @@
 import type { TmuxPane, ClaudeSessionInfo, SessionStatus } from '../shared/types.js'
 import type { TerminalPrompt } from './terminal-parser.js'
 import { parseTerminalForPrompt } from './terminal-parser.js'
+import { stripAnsi } from './utils.js'
+
+// Reconciliation timing constants
+const PROMPT_RECONCILE_DELAY_MS = 2000    // Wait before reconciling cleared prompts
+const IDLE_DETECTION_THRESHOLD_MS = 5000   // Time before assuming work finished
+const ERROR_STALE_THRESHOLD_MS = 10000     // Time before error state is considered stale
 
 export interface ReconciliationResult {
   stateChanged: boolean
@@ -16,12 +22,6 @@ export interface ReconciliationResult {
   clearPrompt?: boolean
   confidence: 'high' | 'medium' | 'low'
   reason?: string
-}
-
-// Strip ANSI escape codes for cleaner analysis
-function stripAnsi(str: string): string {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
 }
 
 /**
@@ -147,7 +147,7 @@ export function reconcileSessionState(
     const timeSinceQuestion = now - questionTimestamp
 
     // Wait a bit before reconciling to avoid race conditions
-    if (timeSinceQuestion > 2000) {
+    if (timeSinceQuestion > PROMPT_RECONCILE_DELAY_MS) {
       // Check what the terminal actually shows
       if (terminalState === 'working') {
         return {
@@ -174,8 +174,8 @@ export function reconcileSessionState(
   if (hookState.status === 'working' && terminalState === 'idle') {
     const timeSinceActivity = now - hookState.lastActivity
 
-    // Only reconcile if no activity for 5 seconds
-    if (timeSinceActivity > 5000) {
+    // Only reconcile if no activity for IDLE_DETECTION_THRESHOLD_MS
+    if (timeSinceActivity > IDLE_DETECTION_THRESHOLD_MS) {
       return {
         stateChanged: true,
         newStatus: 'idle',
@@ -191,7 +191,7 @@ export function reconcileSessionState(
     const errorTimestamp = hookState.lastError?.timestamp || hookState.lastActivity
     const timeSinceError = now - errorTimestamp
 
-    if (timeSinceError > 10000) { // 10 seconds
+    if (timeSinceError > ERROR_STALE_THRESHOLD_MS) {
       if (terminalState === 'working') {
         return {
           stateChanged: true,

@@ -4,25 +4,10 @@ import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
 import { VoiceButton } from './VoiceButton'
+import { isPasswordPrompt } from '../utils/password-detection'
 
 // Use same-origin requests (proxied by Vite in dev, same server in prod)
 const API_BASE = ''
-
-// Detect if terminal is showing a password prompt
-const PASSWORD_PATTERNS = [
-  /\[sudo\] password for/i,
-  /password:/i,
-  /enter passphrase/i,
-  /enter pin/i,
-  /authentication required/i,
-]
-
-function isPasswordPrompt(terminalContent: string | undefined): boolean {
-  if (!terminalContent) return false
-  // Check last few lines for password prompt
-  const lastLines = terminalContent.split('\n').slice(-5).join('\n')
-  return PASSWORD_PATTERNS.some(pattern => pattern.test(lastLines))
-}
 
 interface PaneCardProps {
   pane: TmuxPane

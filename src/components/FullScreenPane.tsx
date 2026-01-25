@@ -1,24 +1,9 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react'
 import type { TmuxPane, TmuxWindow } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { STATUS_LABELS, getStatusColor } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
-
-// Detect if terminal is showing a password prompt
-const PASSWORD_PATTERNS = [
-  /\[sudo\] password for/i,
-  /password:/i,
-  /enter passphrase/i,
-  /enter pin/i,
-  /authentication required/i,
-]
-
-function isPasswordPrompt(terminalContent: string | undefined): boolean {
-  if (!terminalContent) return false
-  // Check last few lines for password prompt
-  const lastLines = terminalContent.split('\n').slice(-5).join('\n')
-  return PASSWORD_PATTERNS.some(pattern => pattern.test(lastLines))
-}
+import { isPasswordPrompt } from '../utils/password-detection'
 
 interface FullScreenPaneProps {
   pane: TmuxPane
@@ -31,7 +16,7 @@ interface FullScreenPaneProps {
   onClosePane?: (paneId: string) => void
 }
 
-export function FullScreenPane({
+export const FullScreenPane = memo(function FullScreenPane({
   pane,
   window,
   attentionCount,
@@ -357,4 +342,30 @@ export function FullScreenPane({
       </div>
     </div>
   )
-}
+}, (prev, next) => {
+  // Custom comparison to avoid unnecessary re-renders
+  if (prev.pane.id !== next.pane.id) return false
+  if (prev.attentionCount !== next.attentionCount) return false
+  if (prev.window.id !== next.window.id) return false
+
+  // Compare Claude session state if present
+  const prevSession = prev.pane.process.claudeSession
+  const nextSession = next.pane.process.claudeSession
+  if (!!prevSession !== !!nextSession) return false
+  if (prevSession && nextSession) {
+    if (prevSession.status !== nextSession.status) return false
+    if (prevSession.name !== nextSession.name) return false
+    if (prevSession.currentTool !== nextSession.currentTool) return false
+    if (prevSession.lastPrompt !== nextSession.lastPrompt) return false
+    if (!!prevSession.pendingQuestion !== !!nextSession.pendingQuestion) return false
+    if (prevSession.pendingQuestion?.toolUseId !== nextSession.pendingQuestion?.toolUseId) return false
+    if (prevSession.lastError?.timestamp !== nextSession.lastError?.timestamp) return false
+    if (prevSession.terminalPrompt?.contentHash !== nextSession.terminalPrompt?.contentHash) return false
+  }
+
+  // Compare process state
+  if (prev.pane.process.type !== next.pane.process.type) return false
+  if (prev.pane.process.typing !== next.pane.process.typing) return false
+
+  return true
+})

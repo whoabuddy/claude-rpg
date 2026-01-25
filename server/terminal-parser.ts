@@ -9,6 +9,8 @@
  * This is the source of truth for prompt state - terminal shows actual current prompt.
  */
 
+import { stripAnsi, simpleHash } from './utils.js'
+
 export interface TerminalPromptOption {
   label: string
   key: string  // The key to press (1, 2, y, n, etc.)
@@ -24,23 +26,6 @@ export interface TerminalPrompt {
   footer?: string            // "Esc to cancel", etc.
   detectedAt: number
   contentHash: string        // For change detection
-}
-
-// Simple hash for change detection
-function hashContent(content: string): string {
-  let hash = 0
-  for (let i = 0; i < content.length; i++) {
-    const char = content.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash // Convert to 32-bit integer
-  }
-  return hash.toString(16)
-}
-
-// Strip ANSI escape codes for cleaner parsing
-function stripAnsi(str: string): string {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
 }
 
 /**
@@ -179,7 +164,7 @@ function parsePermissionPrompt(reversedLines: string[]): TerminalPrompt | null {
     multiSelect: false,
     footer: 'Esc to cancel',
     detectedAt: Date.now(),
-    contentHash: hashContent(boxContent.join('\n')),
+    contentHash: simpleHash(boxContent.join('\n')),
   }
 }
 
@@ -285,7 +270,7 @@ function parseQuestionPrompt(reversedLines: string[]): TerminalPrompt | null {
     multiSelect,
     footer: 'Tab to add context',
     detectedAt: Date.now(),
-    contentHash: hashContent(boxContent.join('\n')),
+    contentHash: simpleHash(boxContent.join('\n')),
   }
 }
 

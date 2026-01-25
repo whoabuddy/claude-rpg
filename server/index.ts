@@ -684,67 +684,7 @@ async function broadcastTerminalUpdates() {
       // Terminal-based prompt detection for Claude panes
       // This is the source of truth for prompt state
       if (isClaudePane && pane.process.claudeSession) {
-        const session = pane.process.claudeSession
-        const newPrompt = parseTerminalForPrompt(content)
-        const oldPrompt = session.terminalPrompt
-
-        if (hasPromptChanged(oldPrompt ?? null, newPrompt)) {
-          if (newPrompt) {
-            // Prompt detected → set waiting status
-            const updated = updateClaudeSession(pane.id, {
-              terminalPrompt: newPrompt,
-              status: 'waiting',
-            })
-            if (updated) {
-              pane.process.claudeSession = updated
-              savePanesCache()
-              broadcast({ type: 'pane_update', payload: pane })
-            }
-          } else if (oldPrompt) {
-            // Prompt cleared → update status based on other signals
-            // If we were waiting, go back to idle (prompt was answered)
-            const newStatus = session.status === 'waiting' ? 'idle' : session.status
-            const updated = updateClaudeSession(pane.id, {
-              terminalPrompt: undefined,
-              status: newStatus,
-            })
-            if (updated) {
-              pane.process.claudeSession = updated
-              savePanesCache()
-              broadcast({ type: 'pane_update', payload: pane })
-            }
-          }
-        } else {
-          // No prompt change detected, but check for other state drift
-          // This catches cases where hooks were missed
-          const reconciliation = reconcileSessionState(pane, content, session)
-
-          if (reconciliation.stateChanged && reconciliation.newStatus) {
-            console.log(
-              `[reconciler] ${pane.id}: ${session.status} → ${reconciliation.newStatus} ` +
-              `(${reconciliation.confidence}: ${reconciliation.reason})`
-            )
-
-            const updates: Partial<typeof session> = {
-              status: reconciliation.newStatus,
-            }
-
-            if (reconciliation.newPrompt !== undefined) {
-              updates.terminalPrompt = reconciliation.newPrompt ?? undefined
-            }
-            if (reconciliation.clearPrompt) {
-              updates.terminalPrompt = undefined
-              updates.pendingQuestion = undefined
-            }
-
-            const updated = updateClaudeSession(pane.id, updates)
-            if (updated) {
-              pane.process.claudeSession = updated
-              savePanesCache()
-              broadcast({ type: 'pane_update', payload: pane })
-            }
-          }
-        }
+        processClaudePaneContent(pane, content)
       }
 
       // Only broadcast terminal content if changed

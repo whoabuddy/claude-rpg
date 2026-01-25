@@ -227,3 +227,32 @@ export function findWindowById(
 ): TmuxWindow | undefined {
   return windows.find(w => w.id === windowId)
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// String Utilities
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Strip ANSI escape codes from a string
+ * Used for parsing terminal output for content analysis
+ */
+export function stripAnsi(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+}
+
+/**
+ * Simple hash function for change detection
+ * @param str - String to hash
+ * @param maxLength - Optional max chars to hash (for efficiency with large strings)
+ */
+export function simpleHash(str: string, maxLength?: number): string {
+  const sample = maxLength ? str.slice(-maxLength) : str
+  let hash = 0
+  for (let i = 0; i < sample.length; i++) {
+    const char = sample.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32-bit integer
+  }
+  return hash.toString(16)
+}

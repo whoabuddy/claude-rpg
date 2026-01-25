@@ -62,7 +62,7 @@ function getPrimaryRepo(panes: TmuxPane[]): string | null {
   return null
 }
 
-export function OverviewDashboard({
+export const OverviewDashboard = memo(function OverviewDashboard({
   windows,
   attentionCount,
   connected,
@@ -329,7 +329,7 @@ export function OverviewDashboard({
       )}
     </div>
   )
-}
+})
 
 interface WindowSectionProps {
   group: WindowGroup
