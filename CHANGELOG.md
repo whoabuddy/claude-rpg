@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0](https://github.com/whoabuddy/claude-rpg/compare/v1.4.0...v1.5.0) (2026-01-26)
+
+
+### Features
+
+* production deploy with dev backend proxy ([a83eff9](https://github.com/whoabuddy/claude-rpg/commit/a83eff9253904771a7a1247e6385a929a2410181))
+
+
+### Bug Fixes
+
+* correct compiled output paths for dist/server/server/ layout ([4cc9b07](https://github.com/whoabuddy/claude-rpg/commit/4cc9b07af089f5dec97b240baef5508191d108ab))
+
 ## [1.4.0](https://github.com/whoabuddy/claude-rpg/compare/v1.3.1...v1.4.0) (2026-01-26)
 
 
