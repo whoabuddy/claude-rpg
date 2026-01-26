@@ -139,6 +139,7 @@ export default function App() {
           pane={fullscreenData.pane}
           window={fullscreenData.window}
           attentionCount={otherAttentionCount}
+          rpgEnabled={rpgEnabled}
           onClose={handleCloseFullscreen}
           onSendPrompt={sendPromptToPane}
           onSendSignal={sendSignalToPane}

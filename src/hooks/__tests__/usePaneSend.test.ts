@@ -3,13 +3,15 @@ import { renderHook, act } from '@testing-library/react'
 import { usePaneSend } from '../usePaneSend'
 import { lastPromptByPane } from '../../utils/prompt-history'
 
+type SendPromptFn = (paneId: string, prompt: string) => Promise<{ ok: boolean; error?: string }>
+
 describe('usePaneSend', () => {
   const paneId = '%1'
-  let mockSendPrompt: ReturnType<typeof vi.fn>
+  let mockSendPrompt: SendPromptFn & ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     lastPromptByPane.clear()
-    mockSendPrompt = vi.fn().mockResolvedValue({ ok: true })
+    mockSendPrompt = vi.fn<SendPromptFn>().mockResolvedValue({ ok: true })
   })
 
   it('initializes with empty input', () => {
@@ -53,7 +55,7 @@ describe('usePaneSend', () => {
   })
 
   it('shows inline error on failure and keeps input', async () => {
-    mockSendPrompt.mockResolvedValue({ ok: false, error: 'Send failed' })
+    mockSendPrompt = vi.fn<SendPromptFn>().mockResolvedValue({ ok: false, error: 'Send failed' })
     const { result } = renderHook(() => usePaneSend(paneId, mockSendPrompt))
 
     act(() => {
@@ -82,7 +84,7 @@ describe('usePaneSend', () => {
   })
 
   it('clears inline error manually', async () => {
-    mockSendPrompt.mockResolvedValue({ ok: false, error: 'oops' })
+    mockSendPrompt = vi.fn<SendPromptFn>().mockResolvedValue({ ok: false, error: 'oops' })
     const { result } = renderHook(() => usePaneSend(paneId, mockSendPrompt))
 
     act(() => {
