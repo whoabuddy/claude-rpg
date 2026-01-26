@@ -9,7 +9,8 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 const CLAUDE_SETTINGS_PATH = join(homedir(), '.claude', 'settings.json')
-const HOOK_SOURCE = join(__dirname, '..', 'hooks', 'claude-rpg-hook.sh')
+// Compiled to dist/server/server/cli.js → hooks at project root hooks/
+const HOOK_SOURCE = join(__dirname, '..', '..', '..', 'hooks', 'claude-rpg-hook.sh')
 const HOOK_DEST = join(homedir(), '.claude-rpg', 'hooks', 'claude-rpg-hook.sh')
 
 async function setup() {

@@ -7,7 +7,8 @@ Type=simple
 WorkingDirectory=%h/dev/whoabuddy/claude-rpg
 Environment=NODE_ENV=production
 Environment=CLAUDE_RPG_PORT=4011
-ExecStart=/usr/bin/node dist/server/index.js
+Environment=PATH=%h/.nvm/versions/node/v24.5.0/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/.nvm/versions/node/v24.5.0/bin/node dist/server/server/index.js
 Restart=always
 RestartSec=5
 StandardOutput=journal

@@ -4,7 +4,7 @@
   "description": "Mobile-first companion for Claude Code with RPG progression",
   "type": "module",
   "bin": {
-    "claude-rpg": "./dist/server/cli.js"
+    "claude-rpg": "./dist/server/server/cli.js"
   },
   "scripts": {
     "dev": "CLAUDE_RPG_PORT=4012 concurrently \"npm run dev:server\" \"npm run dev:client\"",
@@ -13,8 +13,8 @@
     "build": "npm run build:server && npm run build:client",
     "build:server": "tsc -p tsconfig.server.json",
     "build:client": "vite build",
-    "start": "node dist/server/index.js",
-    "setup": "node dist/server/cli.js setup",
+    "start": "node dist/server/server/index.js",
+    "setup": "node dist/server/server/cli.js setup",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
     "deploy": "./deploy/deploy.sh"

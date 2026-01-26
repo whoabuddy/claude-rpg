@@ -1081,9 +1081,9 @@ function watchEventsFile() {
 // Static File Serving
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Compiled to dist/server/index.js → static files at dist/client/
+// Compiled to dist/server/server/index.js → static files at dist/client/
 const __server_dir = dirname(fileURLToPath(import.meta.url))
-const STATIC_DIR = join(__server_dir, '..', 'client')
+const STATIC_DIR = join(__server_dir, '..', '..', 'client')
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html',
