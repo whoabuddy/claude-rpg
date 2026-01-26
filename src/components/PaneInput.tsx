@@ -22,11 +22,7 @@ export const PaneInput = memo(function PaneInput({ paneId, pane, onSendPrompt, o
   const session = pane.process.claudeSession
   const isPassword = useMemo(() => isPasswordPrompt(terminalContent), [terminalContent])
 
-  const showInput = (isClaudePane && session?.status !== 'working') || !isClaudePane
-  const showCtrlC = (isClaudePane && session?.status === 'working') || pane.process.type === 'process'
-
-  // Don't show regular input when there's an active prompt
-  const hasActivePrompt = !!(session?.terminalPrompt || session?.pendingQuestion)
+  const canInterrupt = (isClaudePane && session?.status === 'working') || pane.process.type === 'process'
 
   const handleCtrlC = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -42,10 +38,8 @@ export const PaneInput = memo(function PaneInput({ paneId, pane, onSendPrompt, o
 
   return (
     <div className="space-y-2">
-      {/* Regular input (when no prompt active) */}
-      {showInput && !hasActivePrompt && (
-        <>
-          {isPassword ? (
+      {/* Input area - always visible */}
+      {isPassword ? (
             /* Password input - masked */
             <div className="flex gap-2 items-center">
               <span className="text-rpg-waiting text-sm">🔒</span>
@@ -172,18 +166,19 @@ export const PaneInput = memo(function PaneInput({ paneId, pane, onSendPrompt, o
               </button>
             )}
           </div>
-        </>
-      )}
 
-      {/* Interrupt button (when working) */}
-      {showCtrlC && (
-        <button
-          onClick={handleCtrlC}
-          className={`${isFullscreen ? 'ml-auto px-6 py-3 rounded-lg' : 'w-full sm:w-auto px-4 py-2 rounded'} text-sm bg-rpg-error/20 hover:bg-rpg-error/40 text-rpg-error transition-colors active:scale-95 min-h-[44px]`}
-        >
-          Interrupt
-        </button>
-      )}
+      {/* Interrupt button - always visible, dimmed when not applicable */}
+      <button
+        onClick={handleCtrlC}
+        disabled={!canInterrupt}
+        className={`${isFullscreen ? 'ml-auto px-6 py-3 rounded-lg' : 'w-full sm:w-auto px-4 py-2 rounded'} text-sm transition-colors active:scale-95 min-h-[44px] ${
+          canInterrupt
+            ? 'bg-rpg-error/20 hover:bg-rpg-error/40 text-rpg-error'
+            : 'opacity-30 cursor-not-allowed bg-rpg-error/10 text-rpg-error/50'
+        }`}
+      >
+        Interrupt
+      </button>
 
       {/* Inline error banner */}
       {send.inlineError && (
