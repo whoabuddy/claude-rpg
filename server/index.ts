@@ -40,6 +40,7 @@ import {
 } from './tmux.js'
 import { findWindowById } from './utils.js'
 import { getControlClient } from './tmux-control.js'
+import { sendKeysLiteral, isSafeForLiteral, batchCommands, buildBufferCommands } from './tmux-batch.js'
 
 // Maximum panes per window (keeps tmux TUI manageable)
 const MAX_PANES_PER_WINDOW = 4
@@ -128,21 +129,118 @@ function savePanesCache(): void {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// WebSocket Broadcasting
+// WebSocket Broadcasting with Backpressure
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Flow control thresholds (bytes)
+const WS_HIGH_WATER_MARK = 64 * 1024   // 64KB - pause sending
+const WS_LOW_WATER_MARK = 16 * 1024    // 16KB - resume sending
+
+// Track paused state per client
+const pausedClients = new WeakSet<WebSocket>()
+
+// Message priority levels
+type MessagePriority = 'high' | 'normal' | 'low'
+
+/**
+ * Get priority for a message type
+ * - High: always send (critical state updates)
+ * - Normal: send unless paused (important updates)
+ * - Low: skip if paused (high-frequency updates)
+ */
+function getMessagePriority(type: ServerMessage['type']): MessagePriority {
+  switch (type) {
+    case 'pane_update':
+    case 'pane_removed':
+      return 'high'
+    case 'windows':
+    case 'companion_update':
+    case 'companions':
+    case 'competitions':
+    case 'xp_gain':
+    case 'connected':
+    case 'history':
+      return 'normal'
+    case 'terminal_output':
+    case 'event':
+      return 'low'
+    default:
+      return 'normal'
+  }
+}
+
+/**
+ * Broadcast message to all connected clients with backpressure handling
+ */
 function broadcast(message: ServerMessage) {
   const data = JSON.stringify(message)
+  const priority = getMessagePriority(message.type)
+
   for (const client of clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(data)
+    if (client.readyState !== WebSocket.OPEN) continue
+
+    const isPaused = pausedClients.has(client)
+    const bufferedAmount = client.bufferedAmount || 0
+
+    // Check if we should pause
+    if (bufferedAmount > WS_HIGH_WATER_MARK && !isPaused) {
+      pausedClients.add(client)
+      // Schedule check to resume
+      scheduleResumeCheck(client)
     }
+
+    // Apply priority rules
+    if (isPaused) {
+      // High priority: always send
+      // Normal priority: skip (let buffer drain)
+      // Low priority: skip (high-frequency, can miss)
+      if (priority !== 'high') continue
+    }
+
+    client.send(data)
   }
+}
+
+/**
+ * Schedule periodic check to resume a paused client
+ */
+function scheduleResumeCheck(client: WebSocket) {
+  const checkInterval = 100 // 100ms
+
+  const check = () => {
+    if (client.readyState !== WebSocket.OPEN) {
+      pausedClients.delete(client)
+      return
+    }
+
+    const bufferedAmount = client.bufferedAmount || 0
+    if (bufferedAmount < WS_LOW_WATER_MARK) {
+      pausedClients.delete(client)
+      return
+    }
+
+    // Still above threshold, check again
+    setTimeout(check, checkInterval)
+  }
+
+  setTimeout(check, checkInterval)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Tmux Polling with Change Detection
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Clean up all ephemeral state for a removed/exited pane
+ */
+function cleanupPaneState(paneId: string): void {
+  consecutiveNoChange.delete(paneId)
+  lastContentChange.delete(paneId)
+  lastTerminalContent.delete(paneId)
+  lastTypingActivity.delete(paneId)
+  lastPaneCapture.delete(paneId)
+  pendingCaptures.delete(paneId)
+}
 
 let previousPaneIds = new Set<string>()
 let previousWindowsHash = ''
@@ -187,6 +285,7 @@ async function pollTmux(): Promise<void> {
     if (!currentPaneIds.has(paneId)) {
       hasRemovals = true
       removeClaudeSession(paneId)
+      cleanupPaneState(paneId)
       broadcast({ type: 'pane_removed', payload: { paneId } })
     }
   }
@@ -624,13 +723,67 @@ const lastTerminalContent = new Map<string, string>()
 const lastTypingActivity = new Map<string, number>()
 const TYPING_IDLE_TIMEOUT_MS = 3000 // Revert to idle after 3s of no typing
 
-async function captureTerminal(target: string): Promise<string | null> {
+// Adaptive capture scheduling state
+const consecutiveNoChange = new Map<string, number>()
+const lastContentChange = new Map<string, number>()
+
+// Adaptive capture intervals based on activity state
+const CAPTURE_INTERVAL_ACTIVE_MS = 250  // Content changed within 2s
+const CAPTURE_INTERVAL_NORMAL_MS = 500  // Claude pane working/waiting
+const CAPTURE_INTERVAL_IDLE_MS = 2000   // Non-Claude or stable
+const CAPTURE_INTERVAL_BACKOFF_MS = 5000 // 10+ consecutive no-changes
+
+// Thresholds
+const ACTIVE_WINDOW_MS = 2000           // Consider "active" if changed within 2s
+const BACKOFF_THRESHOLD = 10            // Start backoff after 10 no-changes
+
+/**
+ * Calculate capture interval for a pane based on activity state
+ */
+function getCaptureInterval(paneId: string, isClaudePane: boolean, claudeStatus?: string): number {
+  const now = Date.now()
+  const noChangeCount = consecutiveNoChange.get(paneId) || 0
+  const lastChange = lastContentChange.get(paneId) || 0
+  const recentlyActive = (now - lastChange) < ACTIVE_WINDOW_MS
+
+  // Backoff: many consecutive no-changes
+  if (noChangeCount >= BACKOFF_THRESHOLD) {
+    return CAPTURE_INTERVAL_BACKOFF_MS
+  }
+
+  // Active: content changed recently
+  if (recentlyActive) {
+    return CAPTURE_INTERVAL_ACTIVE_MS
+  }
+
+  // Claude panes in working/waiting states get normal interval
+  if (isClaudePane && (claudeStatus === 'working' || claudeStatus === 'waiting')) {
+    return CAPTURE_INTERVAL_NORMAL_MS
+  }
+
+  // Everything else: idle interval
+  return CAPTURE_INTERVAL_IDLE_MS
+}
+
+/**
+ * Capture terminal content from a tmux pane
+ * @param target - tmux pane target (e.g., "work:1.0")
+ * @param fullScrollback - if true, capture entire scrollback buffer
+ * @returns trimmed content or null on error
+ */
+async function captureTerminal(target: string, fullScrollback = false): Promise<string | null> {
   try {
+    // Flags:
+    // -p: print to stdout
+    // -J: join wrapped lines (cleaner parsing)
+    // -S -50: capture last 50 lines (default) or -S - -E - for full scrollback
+    const scrollFlags = fullScrollback ? '-S - -E -' : '-S -50'
     const { stdout } = await execAsync(
-      `tmux capture-pane -p -t "${target}" -S -30 2>/dev/null || echo ""`,
+      `tmux capture-pane -p -J -t "${target}" ${scrollFlags} 2>/dev/null || echo ""`,
       { timeout: 1000 }
     )
-    return stdout.trim()
+    // Use trimEnd to preserve leading whitespace (important for indentation detection)
+    return stdout.trimEnd()
   } catch {
     return null
   }
@@ -644,13 +797,11 @@ async function broadcastTerminalUpdates() {
 
   for (const window of windows) {
     for (const pane of window.panes) {
-      // Determine capture rate based on pane type
-      // All Claude panes get fast capture, others get slow
       const isClaudePane = pane.process.type === 'claude'
+      const claudeStatus = pane.process.claudeSession?.status
 
-      // Always poll all panes - control mode just supplements with faster detection
-      // Don't skip Claude panes even when control mode is active (it's not 100% reliable)
-      const interval = isClaudePane ? TERMINAL_ACTIVE_INTERVAL_MS : TERMINAL_IDLE_INTERVAL_MS
+      // Adaptive interval based on activity state
+      const interval = getCaptureInterval(pane.id, isClaudePane, claudeStatus)
 
       // Check per-pane rate limiting
       const lastCapture = lastPaneCapture.get(pane.id) || 0
@@ -662,6 +813,15 @@ async function broadcastTerminalUpdates() {
 
       const contentChanged = lastTerminalContent.get(pane.id) !== content
       const lastTyping = lastTypingActivity.get(pane.id) || 0
+
+      // Update adaptive scheduling state
+      if (contentChanged) {
+        consecutiveNoChange.set(pane.id, 0)
+        lastContentChange.set(pane.id, now)
+      } else {
+        const count = consecutiveNoChange.get(pane.id) || 0
+        consecutiveNoChange.set(pane.id, count + 1)
+      }
 
       // Detect typing for NON-Claude panes only
       // Claude pane status is managed by hook events (pre_tool_use, stop, etc.)
@@ -719,16 +879,30 @@ async function sendPromptToTmux(target: string, prompt: string): Promise<void> {
     return
   }
 
-  // For non-empty prompts, use buffer to handle special characters
+  // Simple prompts: use send-keys -l (literal mode) with batched Enter
+  // This avoids temp file overhead for common cases
+  if (isSafeForLiteral(prompt)) {
+    await sendKeysLiteral(target, prompt, { withEnter: true })
+    return
+  }
+
+  // Complex prompts: use buffer approach for special characters
+  // Batch the load-buffer + paste-buffer + delete-buffer + send-keys Enter
   const tempFile = `/tmp/claude-rpg-prompt-${Date.now()}.txt`
+  const bufferName = `rpg-${Date.now()}`
   writeFileSync(tempFile, prompt)
 
-  await execAsync(`tmux load-buffer ${tempFile}`)
-  await execAsync(`tmux paste-buffer -t "${target}"`)
-  await new Promise(r => setTimeout(r, PASTE_SETTLE_MS))
-  await execAsync(`tmux send-keys -t "${target}" Enter`)
+  try {
+    // Build batched commands for buffer operations
+    const bufferCmds = buildBufferCommands(bufferName, target, tempFile)
+    await batchCommands(bufferCmds)
 
-  await unlink(tempFile).catch(() => {})
+    // Small settle delay before Enter (paste can be async in terminal)
+    await new Promise(r => setTimeout(r, PASTE_SETTLE_MS))
+    await execAsync(`tmux send-keys -t "${target}" Enter`)
+  } finally {
+    await unlink(tempFile).catch(() => {})
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1199,8 +1373,8 @@ const server = http.createServer(async (req, res) => {
       // Clear typing state
       pane.process.typing = false
 
-      // Force fresh terminal capture
-      const content = await captureTerminal(pane.target)
+      // Force fresh terminal capture with full scrollback
+      const content = await captureTerminal(pane.target, true)
       if (content !== null) {
         lastTerminalContent.set(pane.id, content)
         pane.terminalContent = content
@@ -1636,9 +1810,7 @@ function initControlMode(): void {
         break
 
       case 'pane-exited':
-        // Clean up state for exited pane
-        lastTerminalContent.delete(notification.paneId)
-        pendingCaptures.delete(notification.paneId)
+        cleanupPaneState(notification.paneId)
         break
     }
   })

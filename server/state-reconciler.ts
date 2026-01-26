@@ -14,6 +14,7 @@ import { stripAnsi } from './utils.js'
 const PROMPT_RECONCILE_DELAY_MS = 2000    // Wait before reconciling cleared prompts
 const IDLE_DETECTION_THRESHOLD_MS = 5000   // Time before assuming work finished
 const ERROR_STALE_THRESHOLD_MS = 10000     // Time before error state is considered stale
+const EXTENDED_IDLE_THRESHOLD_MS = 10000   // Time before assuming work finished (unknown terminal state)
 
 export interface ReconciliationResult {
   stateChanged: boolean
@@ -206,8 +207,6 @@ export function reconcileSessionState(
   // Case 4: Hook says working but terminal shows idle for a while
   // Claude may have finished and we missed the Stop hook
   if (hookState.status === 'working' && terminalState === 'idle') {
-    const timeSinceActivity = now - (hookState.lastActivity ?? now)
-
     // Only reconcile if no activity for IDLE_DETECTION_THRESHOLD_MS
     if (timeSinceActivity > IDLE_DETECTION_THRESHOLD_MS) {
       return {
@@ -246,10 +245,7 @@ export function reconcileSessionState(
 
   // Case 6: Hook says working but terminal state is unknown for extended time
   // Fallback when we can't detect terminal state but work should have finished
-  const EXTENDED_IDLE_THRESHOLD_MS = 10000 // 10 seconds
   if (hookState.status === 'working' && terminalState === 'unknown') {
-    const timeSinceActivity = now - (hookState.lastActivity ?? now)
-
     if (timeSinceActivity > EXTENDED_IDLE_THRESHOLD_MS) {
       return {
         stateChanged: true,

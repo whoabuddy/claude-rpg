@@ -1,7 +1,7 @@
 import { useMemo, useState, memo } from 'react'
 import type { TmuxWindow, TmuxPane } from '@shared/types'
 import { PaneCard } from './PaneCard'
-import { ConnectionStatus } from './ConnectionStatus'
+import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
 
 // Maximum panes per window (must match server constant)
 const MAX_PANES_PER_WINDOW = 4
@@ -223,9 +223,12 @@ export const OverviewDashboard = memo(function OverviewDashboard({
           >
             LB
           </button>
-          <ConnectionStatus connected={connected} />
+          <ConnectionDot connected={connected} />
         </div>
       </div>
+
+      {/* Disconnected banner */}
+      <ConnectionBanner connected={connected} />
 
       {/* Create Window Form */}
       {showCreateWindow && (
@@ -291,42 +294,45 @@ export const OverviewDashboard = memo(function OverviewDashboard({
         </div>
       )}
 
-      {/* Empty state */}
-      {windowGroups.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-rpg-text-muted">
-          {!connected ? (
-            <>
-              <p className="text-lg mb-2">Server not connected</p>
-              <p className="text-sm text-rpg-text-dim">Start the server with: npm run dev</p>
-            </>
-          ) : (
-            <>
-              <p className="text-lg mb-2">No tmux panes found</p>
-              <p className="text-sm text-rpg-text-dim">Start Claude Code in a tmux session to begin!</p>
-            </>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {windowGroups.map(group => (
-            <WindowSection
-              key={group.window.id}
-              group={group}
-              collapsed={collapsedWindows.has(group.window.id)}
-              maxPanes={MAX_PANES_PER_WINDOW}
-              onToggleWindow={() => toggleWindow(group.window.id)}
-              onSendPrompt={onSendPrompt}
-              onSendSignal={onSendSignal}
-              onDismissWaiting={onDismissWaiting}
-              onExpandPane={onExpandPane}
-              onRefreshPane={onRefreshPane}
-              onClosePane={onClosePane}
-              onNewPane={onNewPane}
-              onNewClaude={onNewClaude}
-            />
-          ))}
-        </div>
-      )}
+      {/* Main content - dimmed when disconnected */}
+      <div className={!connected ? 'opacity-60 pointer-events-none' : undefined}>
+        {/* Empty state */}
+        {windowGroups.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-rpg-text-muted">
+            {!connected ? (
+              <>
+                <p className="text-lg mb-2">Server not connected</p>
+                <p className="text-sm text-rpg-text-dim">Start the server with: npm run dev</p>
+              </>
+            ) : (
+              <>
+                <p className="text-lg mb-2">No tmux panes found</p>
+                <p className="text-sm text-rpg-text-dim">Start Claude Code in a tmux session to begin!</p>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {windowGroups.map(group => (
+              <WindowSection
+                key={group.window.id}
+                group={group}
+                collapsed={collapsedWindows.has(group.window.id)}
+                maxPanes={MAX_PANES_PER_WINDOW}
+                onToggleWindow={() => toggleWindow(group.window.id)}
+                onSendPrompt={onSendPrompt}
+                onSendSignal={onSendSignal}
+                onDismissWaiting={onDismissWaiting}
+                onExpandPane={onExpandPane}
+                onRefreshPane={onRefreshPane}
+                onClosePane={onClosePane}
+                onNewPane={onNewPane}
+                onNewClaude={onNewClaude}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 })

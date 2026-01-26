@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { TimePeriod, LeaderboardEntry } from '@shared/types'
 import { useCompetitions } from '../hooks/useCompetitions'
 import { LeaderboardCard, StreakCard } from './LeaderboardCard'
-import { ConnectionStatus } from './ConnectionStatus'
+import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
 
 interface CompetitionsPageProps {
   connected: boolean
@@ -47,8 +47,11 @@ export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPage
           </button>
           <h1 className="text-lg font-medium text-rpg-text">Competitions</h1>
         </div>
-        <ConnectionStatus connected={connected} />
+        <ConnectionDot connected={connected} />
       </div>
+
+      {/* Disconnected banner */}
+      <ConnectionBanner connected={connected} />
 
       {/* Time Period Selector */}
       <div className="flex gap-1 p-1 bg-rpg-card rounded-lg">
@@ -67,73 +70,76 @@ export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPage
         ))}
       </div>
 
-      {/* Loading state */}
-      {loading && (
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin w-6 h-6 border-2 border-rpg-accent border-t-transparent rounded-full" />
-        </div>
-      )}
-
-      {/* Leaderboards */}
-      {!loading && (
-        <div className="space-y-4">
-          {/* XP Leaders - always show first, full width */}
-          <LeaderboardCard
-            competition={getByCategory('xp')}
-            title={CATEGORY_CONFIG.xp.title}
-            unit={CATEGORY_CONFIG.xp.unit}
-            emptyMessage="No XP earned yet"
-          />
-
-          {/* Streaks - only show for "all time", full width */}
-          {period === 'all' && (
-            <StreakCard entries={streakEntries} />
-          )}
-
-          {/* Other leaderboards in 2-column grid on md+ */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Git Activity */}
-            <LeaderboardCard
-              competition={getByCategory('commits')}
-              title={CATEGORY_CONFIG.commits.title}
-              unit={CATEGORY_CONFIG.commits.unit}
-              emptyMessage="No commits yet"
-            />
-
-            {/* Tests */}
-            <LeaderboardCard
-              competition={getByCategory('tests')}
-              title={CATEGORY_CONFIG.tests.title}
-              unit={CATEGORY_CONFIG.tests.unit}
-              emptyMessage="No tests run yet"
-            />
-
-            {/* Tools */}
-            <LeaderboardCard
-              competition={getByCategory('tools')}
-              title={CATEGORY_CONFIG.tools.title}
-              unit={CATEGORY_CONFIG.tools.unit}
-              emptyMessage="No tools used yet"
-            />
-
-            {/* Prompts */}
-            <LeaderboardCard
-              competition={getByCategory('prompts')}
-              title={CATEGORY_CONFIG.prompts.title}
-              unit={CATEGORY_CONFIG.prompts.unit}
-              emptyMessage="No prompts sent yet"
-            />
+      {/* Main content - dimmed when disconnected */}
+      <div className={!connected ? 'opacity-60 pointer-events-none' : undefined}>
+        {/* Loading state */}
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin w-6 h-6 border-2 border-rpg-accent border-t-transparent rounded-full" />
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Empty state */}
-      {!loading && competitions.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 text-rpg-text-muted">
-          <p className="text-lg mb-2">No competition data yet</p>
-          <p className="text-sm text-rpg-text-dim">Start using Claude Code to earn XP and climb the leaderboards!</p>
-        </div>
-      )}
+        {/* Leaderboards */}
+        {!loading && (
+          <div className="space-y-4">
+            {/* XP Leaders - always show first, full width */}
+            <LeaderboardCard
+              competition={getByCategory('xp')}
+              title={CATEGORY_CONFIG.xp.title}
+              unit={CATEGORY_CONFIG.xp.unit}
+              emptyMessage="No XP earned yet"
+            />
+
+            {/* Streaks - only show for "all time", full width */}
+            {period === 'all' && (
+              <StreakCard entries={streakEntries} />
+            )}
+
+            {/* Other leaderboards in 2-column grid on md+ */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Git Activity */}
+              <LeaderboardCard
+                competition={getByCategory('commits')}
+                title={CATEGORY_CONFIG.commits.title}
+                unit={CATEGORY_CONFIG.commits.unit}
+                emptyMessage="No commits yet"
+              />
+
+              {/* Tests */}
+              <LeaderboardCard
+                competition={getByCategory('tests')}
+                title={CATEGORY_CONFIG.tests.title}
+                unit={CATEGORY_CONFIG.tests.unit}
+                emptyMessage="No tests run yet"
+              />
+
+              {/* Tools */}
+              <LeaderboardCard
+                competition={getByCategory('tools')}
+                title={CATEGORY_CONFIG.tools.title}
+                unit={CATEGORY_CONFIG.tools.unit}
+                emptyMessage="No tools used yet"
+              />
+
+              {/* Prompts */}
+              <LeaderboardCard
+                competition={getByCategory('prompts')}
+                title={CATEGORY_CONFIG.prompts.title}
+                unit={CATEGORY_CONFIG.prompts.unit}
+                emptyMessage="No prompts sent yet"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && competitions.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 text-rpg-text-muted">
+            <p className="text-lg mb-2">No competition data yet</p>
+            <p className="text-sm text-rpg-text-dim">Start using Claude Code to earn XP and climb the leaderboards!</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

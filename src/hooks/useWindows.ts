@@ -67,12 +67,21 @@ export function useWindows() {
 
     const handlePaneUpdate = (e: CustomEvent<TmuxPane>) => {
       setWindows(prev => {
-        return prev.map(window => ({
-          ...window,
-          panes: window.panes.map(pane =>
-            pane.id === e.detail.id ? e.detail : pane
-          ),
-        }))
+        const windowIndex = prev.findIndex(w =>
+          w.panes.some(p => p.id === e.detail.id)
+        )
+        if (windowIndex === -1) return prev
+
+        const targetWindow = prev[windowIndex]
+        const paneIndex = targetWindow.panes.findIndex(p => p.id === e.detail.id)
+        if (paneIndex === -1) return prev
+
+        const newPanes = [...targetWindow.panes]
+        newPanes[paneIndex] = e.detail
+
+        const newWindows = [...prev]
+        newWindows[windowIndex] = { ...targetWindow, panes: newPanes }
+        return newWindows
       })
     }
 
