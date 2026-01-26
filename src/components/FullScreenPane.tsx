@@ -5,6 +5,7 @@ import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { useConfirmAction } from '../hooks/useConfirmAction'
 import { getPaneStatus, paneEqual } from '../utils/pane-status'
 import { STATUS_LABELS, getStatusColor } from '../constants/status'
+import { usePaneActions } from '../contexts/PaneActionsContext'
 import { QuestionInput } from './QuestionInput'
 import { TerminalDisplay } from './TerminalDisplay'
 import { PaneAvatar } from './PaneAvatar'
@@ -19,29 +20,20 @@ interface FullScreenPaneProps {
   pane: TmuxPane
   window: TmuxWindow
   attentionCount: number
-  rpgEnabled?: boolean
   onClose: () => void
-  onSendPrompt: (paneId: string, prompt: string) => Promise<{ ok: boolean; error?: string }>
-  onSendSignal: (paneId: string, signal: string) => void
-  onDismissWaiting: (paneId: string) => void
-  onClosePane?: (paneId: string) => void
 }
 
 export const FullScreenPane = memo(function FullScreenPane({
   pane,
   window,
   attentionCount,
-  rpgEnabled = true,
   onClose,
-  onSendPrompt,
-  onSendSignal,
-  onDismissWaiting,
-  onClosePane,
 }: FullScreenPaneProps) {
+  const { onSendPrompt, onSendSignal, onDismissWaiting, onClosePane, rpgEnabled } = usePaneActions()
   const terminalContent = usePaneTerminal(pane.id)
 
   const closeConfirm = useConfirmAction(useCallback(() => {
-    onClosePane?.(pane.id)
+    onClosePane(pane.id)
     onClose()
   }, [onClosePane, onClose, pane.id]))
 
@@ -121,35 +113,33 @@ export const FullScreenPane = memo(function FullScreenPane({
         </div>
 
         {/* Pane close control */}
-        {onClosePane && (
-          <div className="flex items-center gap-1">
-            {closeConfirm.confirming ? (
-              <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
-                <span className="text-rpg-error">Close?</span>
-                <button
-                  onClick={closeConfirm.handleCancel}
-                  className="px-1.5 py-0.5 bg-rpg-idle/30 hover:bg-rpg-idle/50 rounded transition-colors"
-                >
-                  No
-                </button>
-                <button
-                  onClick={closeConfirm.handleClick}
-                  className="px-1.5 py-0.5 bg-rpg-error/50 hover:bg-rpg-error/70 text-white rounded transition-colors"
-                >
-                  Yes
-                </button>
-              </div>
-            ) : (
+        <div className="flex items-center gap-1">
+          {closeConfirm.confirming ? (
+            <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
+              <span className="text-rpg-error">Close?</span>
+              <button
+                onClick={closeConfirm.handleCancel}
+                className="px-1.5 py-0.5 bg-rpg-idle/30 hover:bg-rpg-idle/50 rounded transition-colors"
+              >
+                No
+              </button>
               <button
                 onClick={closeConfirm.handleClick}
-                className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
-                title="Close pane"
+                className="px-1.5 py-0.5 bg-rpg-error/50 hover:bg-rpg-error/70 text-white rounded transition-colors"
               >
-                ×
+                Yes
               </button>
-            )}
-          </div>
-        )}
+            </div>
+          ) : (
+            <button
+              onClick={closeConfirm.handleClick}
+              className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
+              title="Close pane"
+            >
+              ×
+            </button>
+          )}
+        </div>
 
         {/* Status */}
         <div className="flex items-center gap-2">

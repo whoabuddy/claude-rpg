@@ -5,6 +5,7 @@ import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { useConfirmAction } from '../hooks/useConfirmAction'
 import { getPaneStatus, paneEqual } from '../utils/pane-status'
 import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
+import { usePaneActions } from '../contexts/PaneActionsContext'
 import { QuestionInput } from './QuestionInput'
 import { TerminalDisplay } from './TerminalDisplay'
 import { PaneAvatar } from './PaneAvatar'
@@ -19,21 +20,15 @@ import { SessionStatsBar } from './SessionStatsBar'
 interface PaneCardProps {
   pane: TmuxPane
   window: TmuxWindow
-  rpgEnabled?: boolean
-  onSendPrompt: (paneId: string, prompt: string) => Promise<{ ok: boolean; error?: string }>
-  onSendSignal: (paneId: string, signal: string) => void
-  onDismissWaiting?: (paneId: string) => void
-  onExpandPane?: (paneId: string) => void
-  onRefreshPane?: (paneId: string) => void
-  onClosePane?: (paneId: string) => void
   compact?: boolean
 }
 
-export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onClosePane, compact = false }: PaneCardProps) {
+export const PaneCard = memo(function PaneCard({ pane, window, compact = false }: PaneCardProps) {
+  const { onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onClosePane, rpgEnabled } = usePaneActions()
   const [expanded, setExpanded] = useState(false)
   const terminalContent = usePaneTerminal(pane.id)
 
-  const closeConfirm = useConfirmAction(useCallback(() => onClosePane?.(pane.id), [onClosePane, pane.id]))
+  const closeConfirm = useConfirmAction(useCallback(() => onClosePane(pane.id), [onClosePane, pane.id]))
 
   const isClaudePane = pane.process.type === 'claude'
   const session = pane.process.claudeSession
@@ -46,17 +41,17 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
 
   const handleDismiss = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    onDismissWaiting?.(pane.id)
+    onDismissWaiting(pane.id)
   }, [onDismissWaiting, pane.id])
 
   const handleExpand = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    onExpandPane?.(pane.id)
+    onExpandPane(pane.id)
   }, [onExpandPane, pane.id])
 
   const handleRefresh = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    onRefreshPane?.(pane.id)
+    onRefreshPane(pane.id)
   }, [onRefreshPane, pane.id])
 
   const handleCloseClick = useCallback((e: React.MouseEvent) => {
@@ -132,7 +127,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
 
               {pane.repo && <RepoStatusBar repo={pane.repo} compact />}
 
-              <StatusIndicator status={status} onDismiss={onDismissWaiting ? handleDismiss : undefined} />
+              <StatusIndicator status={status} onDismiss={handleDismiss} />
             </div>
 
             {/* Activity line */}
@@ -167,33 +162,27 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
               </div>
             ) : (
               <>
-                {onClosePane && (
-                  <button
-                    onClick={handleCloseClick}
-                    className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
-                    title="Close pane"
-                  >
-                    ×
-                  </button>
-                )}
-                {onRefreshPane && (
-                  <button
-                    onClick={handleRefresh}
-                    className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
-                    title="Refresh pane"
-                  >
-                    ↻
-                  </button>
-                )}
-                {onExpandPane && (
-                  <button
-                    onClick={handleExpand}
-                    className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
-                    title="Full screen"
-                  >
-                    ⛶
-                  </button>
-                )}
+                <button
+                  onClick={handleCloseClick}
+                  className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
+                  title="Close pane"
+                >
+                  ×
+                </button>
+                <button
+                  onClick={handleRefresh}
+                  className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
+                  title="Refresh pane"
+                >
+                  ↻
+                </button>
+                <button
+                  onClick={handleExpand}
+                  className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
+                  title="Full screen"
+                >
+                  ⛶
+                </button>
               </>
             )}
             <span className="text-rpg-text-dim text-xs w-4 text-center">
