@@ -52,18 +52,19 @@ npm run dev
 ```
 
 Opens:
-- Client: http://localhost:4010 (HTTPS when certs configured)
-- Server: http://localhost:4011
+- Client: http://localhost:4010 (Vite dev server, HTTPS when certs configured)
+- Server: http://localhost:4012 (dev backend, proxied by Vite)
 
 ## HTTPS Configuration
 
 HTTPS is required for voice input from mobile devices (browser security policy).
 
-### Auto-Generated Certificate (Default)
+### No HTTPS (Default)
 
-Vite automatically generates a self-signed certificate. On first visit, accept the browser security warning.
+By default, Vite runs plain HTTP. This works for local development and when
+accessing through a Cloudflare tunnel (which provides TLS at the edge).
 
-### mkcert (Recommended)
+### mkcert (For Direct LAN Access with Voice Input)
 
 For certificates trusted by your browser without warnings:
 
@@ -88,16 +89,18 @@ The server automatically loads certificates from `~/.claude-rpg/certs/` if prese
 
 ## Running as a Service (Optional)
 
-For persistent operation, use a process manager:
+For persistent production operation, use the systemd service:
 
 ```bash
-# pm2 (recommended)
-npm install -g pm2
-pm2 start npm --name "claude-rpg" -- run dev
-pm2 startup && pm2 save  # auto-start on boot
+# Full setup (Node, deps, build, hooks, systemd, firewall)
+./deploy/install.sh
+
+# Or just deploy after code changes
+npm run deploy
 ```
 
-Alternatives: systemd service, or a detached tmux session (`tmux new-session -d -s claude-rpg "npm run dev"`).
+See [deploy/README.md](./deploy/README.md) for systemd management, Cloudflare
+tunnel setup, and dev proxy mode.
 
 ## Voice Input (Optional)
 

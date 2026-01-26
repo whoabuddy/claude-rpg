@@ -68,12 +68,16 @@ For detailed setup including HTTPS certificates, voice input, and mobile access,
 ## Development
 
 ```bash
-npm run dev          # Start server + client
-npm run dev:server   # Server only
-npm run dev:client   # Client only
-npm run typecheck    # Type check
+npm run dev          # Start dev server (:4012) + Vite client (:4010)
+npm run dev:server   # Dev server only
+npm run dev:client   # Vite client only
 npm run build        # Production build
+npm run start        # Run production server (:4011)
+npm run deploy       # Build + restart systemd service
+npm run typecheck    # Type check
 ```
+
+For production deployment with systemd and Cloudflare tunnel, see [deploy/README.md](./deploy/README.md).
 
 ## License
 

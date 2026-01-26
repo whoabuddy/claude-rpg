@@ -44,7 +44,7 @@ Tmux Polling (250ms)    Claude Hooks (HTTP POST)
 ```
 claude-rpg/
 ├── server/               # Node.js backend
-│   ├── index.ts          # Main server, HTTP/WS, event processing, all API endpoints
+│   ├── index.ts          # Main server, HTTP/WS, event processing, static serving, dev proxy
 │   ├── tmux.ts           # Tmux polling, pane/window discovery, process detection
 │   ├── tmux-batch.ts     # Batched tmux commands (send-keys, buffer ops)
 │   ├── tmux-control.ts   # Tmux control mode client (pane events)
@@ -58,11 +58,17 @@ claude-rpg/
 │   └── utils.ts          # Shared utilities (stripAnsi, findWindowById)
 ├── src/                  # React frontend
 │   ├── App.tsx           # Root component, page routing
-│   ├── components/       # UI components (PaneCard, Dashboard, Leaderboards)
+│   ├── components/       # UI components (PaneCard, Dashboard, BackendSelector, etc.)
 │   ├── hooks/            # React hooks (useWebSocket, useWindows, useNotifications)
 │   └── styles/           # Tailwind CSS
 ├── shared/
 │   └── types.ts          # All TypeScript interfaces (shared between server + client)
+├── deploy/               # Production deployment
+│   ├── claude-rpg.service # systemd user service
+│   ├── deploy.sh         # Build + restart service
+│   ├── install.sh        # First-time setup on Ubuntu Server
+│   ├── update.sh         # Pull latest + rebuild + restart
+│   └── README.md         # Deployment docs (tunnel, dev proxy, ports)
 └── hooks/
     └── claude-rpg-hook.sh  # Claude Code hook script (installed to ~/.claude-rpg/hooks/)
 ```
@@ -148,6 +154,27 @@ To audit: compare Claude Code release notes (focus on hooks, terminal UI, and pr
 | `/api/competitions/:category` | GET | Single category, optional `?period=` query |
 | `/api/competitions/streaks` | GET | All companion streaks |
 | `/api/transcribe` | POST | Transcribe audio via whisper.cpp |
+| `/api/admin/backends` | GET | Probe production (:4011) and dev (:4012) backends |
+| `/api/admin/backend` | POST | Switch active backend (`{ mode: "production" \| "dev" }`) |
+
+### Static File Serving
+
+In production, the server serves built client assets from `dist/client/`:
+- Hashed assets (`/assets/*`): immutable cache (1 year)
+- `index.html`: no-cache (SPA fallback for all non-API routes)
+- Supported MIME types: `.js`, `.css`, `.html`, `.svg`, `.json`, `.png`, `.ico`, `.woff2`
+
+### Dev Proxy Mode
+
+The production server (port 4011) can proxy API/WS requests to a dev server on
+port 4012. This allows testing backend changes remotely through a single
+Cloudflare tunnel without needing a second route.
+
+- Toggle via `POST /api/admin/backend` or the BackendSelector UI component
+- Admin endpoints (`/api/admin/*`) are never proxied
+- Static files are always served from production's `dist/client/`
+- WebSocket connections are proxied bidirectionally
+- Auto-reverts to production if dev WebSocket fails
 
 ## WebSocket Messages
 
