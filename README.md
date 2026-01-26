@@ -56,14 +56,6 @@ Then open http://localhost:4010 on your phone (same network).
 
 > **Note:** HTTPS is required for voice input. See [SETUP.md](./SETUP.md#https-configuration) for certificate options.
 
-## How It Works
-
-1. Run Claude Code sessions in tmux panes
-2. The server polls tmux to detect Claude instances
-3. Claude Code hooks send events (tool usage, questions, etc.)
-4. The React UI displays all panes with real-time updates
-5. Tap a pane card to expand and interact
-
 ## Configuration
 
 | Env Var | Default | Description |
@@ -82,12 +74,6 @@ npm run dev:client   # Client only
 npm run typecheck    # Type check
 npm run build        # Production build
 ```
-
-## Tech Stack
-
-- **Frontend**: React, Tailwind CSS, Vite
-- **Backend**: Node.js, WebSocket
-- **Integration**: tmux, Claude Code hooks
 
 ## License
 

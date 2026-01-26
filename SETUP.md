@@ -4,21 +4,12 @@ Complete setup instructions for Claude RPG.
 
 ## Prerequisites
 
-### Required
-
 | Dependency | Version | Check Command |
 |------------|---------|---------------|
 | Node.js | 18+ | `node --version` |
 | npm | 9+ | `npm --version` |
 | tmux | 3.0+ | `tmux -V` |
 | Claude Code | Latest | `claude --version` |
-
-### Optional (for voice input)
-
-| Dependency | Version | Check Command |
-|------------|---------|---------------|
-| cmake | 3.10+ | `cmake --version` |
-| whisper.cpp | Latest | `whisper --help` |
 
 ## Installation
 
@@ -35,10 +26,6 @@ npm install
 ```bash
 npm run build
 ```
-
-This compiles:
-- TypeScript server to `dist/server/`
-- React client to `dist/client/`
 
 ### 3. Setup Hooks
 
@@ -72,40 +59,16 @@ Opens:
 
 HTTPS is required for voice input from mobile devices (browser security policy).
 
-### Option A: Vite Auto-Generated Certificate (Default)
+### Auto-Generated Certificate (Default)
 
-Vite automatically generates a self-signed certificate. On first visit:
-1. Browser shows security warning
-2. Click "Advanced" → "Proceed to localhost"
-3. Accept the certificate
+Vite automatically generates a self-signed certificate. On first visit, accept the browser security warning.
 
-### Option B: Custom Certificates
+### mkcert (Recommended)
 
-For a cleaner experience, generate your own certificates:
+For certificates trusted by your browser without warnings:
 
 ```bash
-# Create certs directory
-mkdir -p ~/.claude-rpg/certs
-cd ~/.claude-rpg/certs
-
-# Generate self-signed certificate (valid 365 days)
-openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes \
-  -subj "/CN=claude-rpg" \
-  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:$(hostname -I | awk '{print $1}')"
-```
-
-The server automatically loads certificates from `~/.claude-rpg/certs/` if present.
-
-### Option C: mkcert (Recommended for Development)
-
-For certificates trusted by your browser:
-
-```bash
-# Install mkcert
-brew install mkcert  # macOS
-# or: sudo apt install mkcert  # Ubuntu/Debian
-
-# Install local CA
+# Install mkcert (brew install mkcert / sudo apt install mkcert)
 mkcert -install
 
 # Generate certificates
@@ -114,189 +77,40 @@ cd ~/.claude-rpg/certs
 mkcert -key-file key.pem -cert-file cert.pem localhost $(hostname -I | awk '{print $1}')
 ```
 
+The server automatically loads certificates from `~/.claude-rpg/certs/` if present.
+
 ## Mobile Access
 
-### Find Your Local IP
-
-```bash
-# Linux
-hostname -I | awk '{print $1}'
-
-# macOS
-ipconfig getifaddr en0
-```
-
-### Access from Phone
-
 1. Connect phone to same WiFi network as your computer
-2. Open `https://<your-ip>:4010` in mobile browser
-3. Accept the security warning (self-signed certificate)
+2. Open `http://<your-ip>:4010` in mobile browser (use `hostname -I` to find your IP)
+3. Accept the security warning if using HTTPS with self-signed certificates
 4. Add to home screen for app-like experience
-
-### Firewall
-
-If you can't connect, ensure port 4010 is open:
-
-```bash
-# Ubuntu/Debian (ufw)
-sudo ufw allow 4010
-
-# Fedora/RHEL (firewalld)
-sudo firewall-cmd --add-port=4010/tcp --permanent
-sudo firewall-cmd --reload
-```
 
 ## Running as a Service (Optional)
 
-For persistent operation, run the server as a service that auto-restarts and ensures only one instance.
-
-### Option A: pm2 (Recommended)
-
-pm2 is a Node.js process manager with automatic restart and log management.
+For persistent operation, use a process manager:
 
 ```bash
-# Install pm2 globally
+# pm2 (recommended)
 npm install -g pm2
-
-# Start claude-rpg (from the claude-rpg directory)
 pm2 start npm --name "claude-rpg" -- run dev
-
-# Useful commands
-pm2 status          # Check status
-pm2 logs claude-rpg # View logs
-pm2 restart claude-rpg
-pm2 stop claude-rpg
-
-# Auto-start on boot
-pm2 startup         # Follow the instructions it prints
-pm2 save            # Save current process list
+pm2 startup && pm2 save  # auto-start on boot
 ```
 
-### Option B: systemd (Linux)
+Alternatives: systemd service, or a detached tmux session (`tmux new-session -d -s claude-rpg "npm run dev"`).
 
-Create a systemd service for system-level management.
+## Voice Input (Optional)
 
-```bash
-# Create service file
-sudo tee /etc/systemd/system/claude-rpg.service << 'EOF'
-[Unit]
-Description=Claude RPG Server
-After=network.target
-
-[Service]
-Type=simple
-User=YOUR_USERNAME
-WorkingDirectory=/path/to/claude-rpg
-ExecStart=/usr/bin/npm run dev
-Restart=on-failure
-RestartSec=5
-Environment=NODE_ENV=production
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Update YOUR_USERNAME and /path/to/claude-rpg, then:
-sudo systemctl daemon-reload
-sudo systemctl enable claude-rpg
-sudo systemctl start claude-rpg
-
-# Useful commands
-sudo systemctl status claude-rpg
-sudo journalctl -u claude-rpg -f  # View logs
-```
-
-### Option C: tmux/screen Session
-
-Simple approach using a detached terminal session.
+Voice input requires [whisper.cpp](https://github.com/ggerganov/whisper.cpp) for local speech-to-text. Follow their build instructions, then:
 
 ```bash
-# Start in detached tmux session
-tmux new-session -d -s claude-rpg "cd /path/to/claude-rpg && npm run dev"
-
-# Attach to view logs
-tmux attach -t claude-rpg
-
-# Detach: Ctrl+B, then D
-```
-
-## Voice Input Setup (Optional)
-
-Voice input requires whisper.cpp for local speech-to-text transcription.
-
-### 1. Install Build Dependencies
-
-```bash
-# Ubuntu/Debian
-sudo apt install cmake build-essential
-
-# Fedora/RHEL
-sudo dnf install cmake gcc-c++ make
-
-# macOS
-brew install cmake
-```
-
-### 2. Build whisper.cpp
-
-```bash
-# Clone whisper.cpp
-cd ~/
-git clone https://github.com/ggerganov/whisper.cpp.git
-cd whisper.cpp
-
-# Build
-cmake -B build
-cmake --build build --config Release
-
-# Install (adds 'whisper' to PATH)
-sudo cp build/bin/whisper /usr/local/bin/
-```
-
-### 3. Download Model
-
-```bash
-# Create models directory
+# Download the base English model
 mkdir -p ~/.claude-rpg/models
-
-# Download base English model (~142MB)
 curl -L -o ~/.claude-rpg/models/ggml-base.en.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
 ```
 
-### 4. Verify Installation
-
-```bash
-# Check whisper is available
-whisper --help
-
-# Check model exists
-ls -la ~/.claude-rpg/models/ggml-base.en.bin
-```
-
-Voice input will be automatically enabled when whisper is detected.
-
-## Directory Structure
-
-After setup, your directories will look like:
-
-```
-~/.claude-rpg/
-├── data/
-│   ├── companions.json    # Companion XP and stats
-│   ├── panes-cache.json   # Session cache (avatars)
-│   └── events.jsonl       # Event history
-├── hooks/
-│   └── claude-rpg-hook.sh # Hook script
-├── certs/                 # Optional: HTTPS certificates
-│   ├── key.pem
-│   └── cert.pem
-└── models/                # Optional: Whisper model
-    └── ggml-base.en.bin
-
-~/.claude/
-└── settings.json          # Claude Code settings (hooks configured here)
-```
+Voice input is automatically enabled when `whisper` is on PATH and the model file exists.
 
 ## Troubleshooting
 
@@ -304,7 +118,6 @@ After setup, your directories will look like:
 
 1. Ensure the server is running: `npm run dev`
 2. Check if ports are in use: `lsof -i :4010 -i :4011`
-3. Try restarting: `Ctrl+C` then `npm run dev`
 
 ### "Hooks not firing"
 
@@ -318,19 +131,6 @@ After setup, your directories will look like:
 2. Grant microphone permission when prompted
 3. Check whisper installation: `whisper --help`
 4. Verify model exists: `ls ~/.claude-rpg/models/`
-
-### "Can't access from phone"
-
-1. Verify same WiFi network
-2. Check local IP: `hostname -I`
-3. Test connection: `curl -k https://<ip>:4010` from another machine
-4. Check firewall rules
-
-### "Certificate errors"
-
-1. For self-signed certs, accept the browser warning
-2. On iOS: Settings → General → About → Certificate Trust Settings
-3. Consider using mkcert for trusted local certificates
 
 ## Uninstalling
 
