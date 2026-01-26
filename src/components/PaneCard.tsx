@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react'
-import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, RepoInfo, SessionStats, TerminalPrompt } from '@shared/types'
+import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, RepoInfo, SessionStats, TerminalPrompt, PaneError } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
+import { ansiToHtml } from '../utils/ansi'
 import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
 import { VoiceButton } from './VoiceButton'
@@ -12,6 +13,7 @@ const API_BASE = ''
 interface PaneCardProps {
   pane: TmuxPane
   window: TmuxWindow
+  rpgEnabled?: boolean
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting?: (paneId: string) => void
@@ -21,10 +23,11 @@ interface PaneCardProps {
   compact?: boolean
 }
 
-export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onClosePane, compact = false }: PaneCardProps) {
+export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onClosePane, compact = false }: PaneCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [confirmClose, setConfirmClose] = useState(false)
+  const [inlineError, setInlineError] = useState<string | null>(null)
   const terminalContent = usePaneTerminal(pane.id)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const passwordInputRef = useRef<HTMLInputElement>(null)
@@ -153,6 +156,19 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
       }
     }
   }, [])
+
+  // Listen for pane_error events matching this pane
+  useEffect(() => {
+    const handlePaneError = (e: CustomEvent<PaneError>) => {
+      if (e.detail.paneId === pane.id) {
+        setInlineError(e.detail.message)
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => setInlineError(null), 5000)
+      }
+    }
+    globalThis.addEventListener('pane_error', handlePaneError as EventListener)
+    return () => globalThis.removeEventListener('pane_error', handlePaneError as EventListener)
+  }, [pane.id])
 
   const handleVoiceTranscription = useCallback((text: string) => {
     // Append transcribed text to input
@@ -404,7 +420,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
           )}
 
           {/* Session stats bar for Claude sessions */}
-          {isClaudePane && session && (
+          {rpgEnabled && isClaudePane && session && (
             <SessionStatsBar stats={session.stats} />
           )}
 
@@ -531,6 +547,19 @@ export const PaneCard = memo(function PaneCard({ pane, window, onSendPrompt, onS
                 Interrupt
               </button>
             )}
+
+            {/* Inline error banner */}
+            {inlineError && (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-rpg-error/20 border border-rpg-error/50 rounded text-sm text-rpg-error">
+                <span>{inlineError}</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setInlineError(null) }}
+                  className="text-rpg-error/60 hover:text-rpg-error text-xs px-1"
+                >
+                  ×
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -654,7 +683,9 @@ const GitHubLinks = memo(function GitHubLinks({ repo }: { repo: RepoInfo }) {
 
 // Expanded terminal view
 const ExpandedTerminal = memo(function ExpandedTerminal({ content, onTerminalClick }: { content: string | undefined, onTerminalClick?: () => void }) {
-  const terminalRef = useRef<HTMLPreElement>(null)
+  const terminalRef = useRef<HTMLDivElement>(null)
+
+  const htmlContent = useMemo(() => content ? ansiToHtml(content) : null, [content])
 
   useEffect(() => {
     if (!terminalRef.current) return
@@ -666,13 +697,17 @@ const ExpandedTerminal = memo(function ExpandedTerminal({ content, onTerminalCli
   }, [content])
 
   return (
-    <pre
+    <div
       ref={terminalRef}
       onClick={onTerminalClick}
       className="bg-rpg-bg rounded p-3 text-xs font-mono text-rpg-working overflow-auto max-h-64 whitespace-pre-wrap border border-rpg-border-dim cursor-text"
     >
-      {content || <span className="text-rpg-text-dim">Waiting for activity...</span>}
-    </pre>
+      {htmlContent ? (
+        <pre className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: htmlContent }} />
+      ) : (
+        <pre className="whitespace-pre-wrap"><span className="text-rpg-text-dim">Waiting for activity...</span></pre>
+      )}
+    </div>
   )
 })
 

@@ -12,6 +12,7 @@ export const DEFAULTS = {
   MAX_EVENTS: 1000,
   WHISPER_MODEL: join(homedir(), '.claude-rpg', 'models', 'ggml-base.en.bin'),
   WHISPER_TIMEOUT_MS: 30000,
+  RPG_FEATURES: true,
 }
 
 export function expandPath(path: string): string {

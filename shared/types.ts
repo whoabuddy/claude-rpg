@@ -370,11 +370,18 @@ export interface TerminalOutput {
   timestamp: number
 }
 
+export interface PaneError {
+  paneId: string
+  message: string
+  timestamp: number
+}
+
 export type ServerMessage =
   | { type: 'connected' }
   | { type: 'windows'; payload: TmuxWindow[] }
   | { type: 'pane_update'; payload: TmuxPane }
   | { type: 'pane_removed'; payload: { paneId: string } }
+  | { type: 'pane_error'; payload: PaneError }
   | { type: 'companions'; payload: Companion[] }
   | { type: 'companion_update'; payload: Companion }
   | { type: 'event'; payload: ClaudeEvent }

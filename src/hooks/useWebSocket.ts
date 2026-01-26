@@ -80,6 +80,10 @@ export function useWebSocket() {
             window.dispatchEvent(new CustomEvent('terminal_output', { detail: message.payload }))
             break
 
+          case 'pane_error':
+            window.dispatchEvent(new CustomEvent('pane_error', { detail: message.payload }))
+            break
+
           case 'competitions':
             window.dispatchEvent(new CustomEvent('competitions_update', { detail: message.payload }))
             break

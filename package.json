@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "ansi_up": "^6.0.6",
     "chokidar": "^3.5.3",
     "ws": "^8.14.2"
   },

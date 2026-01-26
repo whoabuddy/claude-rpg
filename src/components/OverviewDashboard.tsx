@@ -10,6 +10,7 @@ interface OverviewDashboardProps {
   windows: TmuxWindow[]
   attentionCount: number
   connected: boolean
+  rpgEnabled?: boolean
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
@@ -66,6 +67,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   windows,
   attentionCount,
   connected,
+  rpgEnabled = true,
   onSendPrompt,
   onSendSignal,
   onDismissWaiting,
@@ -216,13 +218,15 @@ export const OverviewDashboard = memo(function OverviewDashboard({
               {allCollapsed ? '▼' : '▲'}
             </button>
           )}
-          <button
-            onClick={onNavigateToCompetitions}
-            className="px-2 py-1 text-xs rounded bg-rpg-card text-rpg-text-muted hover:text-rpg-accent hover:bg-rpg-card-hover transition-colors hidden sm:block"
-            title="View Competitions"
-          >
-            LB
-          </button>
+          {rpgEnabled && (
+            <button
+              onClick={onNavigateToCompetitions}
+              className="px-2 py-1 text-xs rounded bg-rpg-card text-rpg-text-muted hover:text-rpg-accent hover:bg-rpg-card-hover transition-colors hidden sm:block"
+              title="View Competitions"
+            >
+              LB
+            </button>
+          )}
           <ConnectionDot connected={connected} />
         </div>
       </div>
@@ -319,6 +323,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
                 group={group}
                 collapsed={collapsedWindows.has(group.window.id)}
                 maxPanes={MAX_PANES_PER_WINDOW}
+                rpgEnabled={rpgEnabled}
                 onToggleWindow={() => toggleWindow(group.window.id)}
                 onSendPrompt={onSendPrompt}
                 onSendSignal={onSendSignal}
@@ -341,6 +346,7 @@ interface WindowSectionProps {
   group: WindowGroup
   collapsed: boolean
   maxPanes: number
+  rpgEnabled?: boolean
   onToggleWindow: () => void
   onSendPrompt: (paneId: string, prompt: string) => void
   onSendSignal: (paneId: string, signal: string) => void
@@ -356,6 +362,7 @@ const WindowSection = memo(function WindowSection({
   group,
   collapsed,
   maxPanes,
+  rpgEnabled = true,
   onToggleWindow,
   onSendPrompt,
   onSendSignal,
@@ -441,6 +448,7 @@ const WindowSection = memo(function WindowSection({
               key={pane.id}
               pane={pane}
               window={group.window}
+              rpgEnabled={rpgEnabled}
               onSendPrompt={onSendPrompt}
               onSendSignal={onSendSignal}
               onDismissWaiting={onDismissWaiting}

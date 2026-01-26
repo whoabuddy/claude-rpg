@@ -75,6 +75,54 @@ html, body, #root {
   background-color: #3a342a; /* rpg-card-hover */
 }
 
+/* === ANSI COLOR CLASSES (ansi_up use_classes mode) === */
+/* Standard foreground colors - matched to dark theme palette */
+.ansi-black-fg { color: #504945; }
+.ansi-red-fg { color: #ff6b6b; }
+.ansi-green-fg { color: #6bcb77; }
+.ansi-yellow-fg { color: #ff9f43; }
+.ansi-blue-fg { color: #5bcefa; }
+.ansi-magenta-fg { color: #c792ea; }
+.ansi-cyan-fg { color: #89ddff; }
+.ansi-white-fg { color: #e0d6c8; }
+
+/* Bright foreground colors */
+.ansi-bright-black-fg { color: #7c6f64; }
+.ansi-bright-red-fg { color: #ff8787; }
+.ansi-bright-green-fg { color: #8ee09f; }
+.ansi-bright-yellow-fg { color: #ffb86c; }
+.ansi-bright-blue-fg { color: #82e0ff; }
+.ansi-bright-magenta-fg { color: #d4a6f5; }
+.ansi-bright-cyan-fg { color: #a6edff; }
+.ansi-bright-white-fg { color: #f5f0e8; }
+
+/* Standard background colors */
+.ansi-black-bg { background-color: #1a1816; }
+.ansi-red-bg { background-color: rgba(255, 107, 107, 0.3); }
+.ansi-green-bg { background-color: rgba(107, 203, 119, 0.3); }
+.ansi-yellow-bg { background-color: rgba(255, 159, 67, 0.3); }
+.ansi-blue-bg { background-color: rgba(91, 206, 250, 0.3); }
+.ansi-magenta-bg { background-color: rgba(199, 146, 234, 0.3); }
+.ansi-cyan-bg { background-color: rgba(137, 221, 255, 0.3); }
+.ansi-white-bg { background-color: rgba(224, 214, 200, 0.3); }
+
+/* Bright background colors */
+.ansi-bright-black-bg { background-color: rgba(124, 111, 100, 0.3); }
+.ansi-bright-red-bg { background-color: rgba(255, 135, 135, 0.3); }
+.ansi-bright-green-bg { background-color: rgba(142, 224, 159, 0.3); }
+.ansi-bright-yellow-bg { background-color: rgba(255, 184, 108, 0.3); }
+.ansi-bright-blue-bg { background-color: rgba(130, 224, 255, 0.3); }
+.ansi-bright-magenta-bg { background-color: rgba(212, 166, 245, 0.3); }
+.ansi-bright-cyan-bg { background-color: rgba(166, 237, 255, 0.3); }
+.ansi-bright-white-bg { background-color: rgba(245, 240, 232, 0.3); }
+
+/* Text decorations */
+.ansi-bold { font-weight: bold; }
+.ansi-underline { text-decoration: underline; }
+.ansi-dim { opacity: 0.7; }
+.ansi-italic { font-style: italic; }
+.ansi-strikethrough { text-decoration: line-through; }
+
 /* Mobile touch feedback */
 @media (hover: none) {
   .touch-feedback:active {

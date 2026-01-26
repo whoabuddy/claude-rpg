@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react'
+import { ansiToHtml } from '../utils/ansi'
 import type { TmuxPane, TmuxWindow } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { STATUS_LABELS, getStatusColor } from '../constants/status'
@@ -29,12 +30,15 @@ export const FullScreenPane = memo(function FullScreenPane({
   const [inputValue, setInputValue] = useState('')
   const [confirmClose, setConfirmClose] = useState(false)
   const terminalContent = usePaneTerminal(pane.id)
-  const terminalRef = useRef<HTMLPreElement>(null)
+  const terminalRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Detect password prompt in terminal
   const isPassword = useMemo(() => isPasswordPrompt(terminalContent), [terminalContent])
+
+  // Convert ANSI to HTML
+  const htmlContent = useMemo(() => terminalContent ? ansiToHtml(terminalContent) : null, [terminalContent])
 
   const isClaudePane = pane.process.type === 'claude'
   const session = pane.process.claudeSession
@@ -264,13 +268,17 @@ export const FullScreenPane = memo(function FullScreenPane({
 
       {/* Terminal - takes remaining space */}
       <div className="flex-1 overflow-hidden p-4">
-        <pre
+        <div
           ref={terminalRef}
           onClick={() => inputRef.current?.focus()}
           className="h-full bg-rpg-bg rounded-lg p-4 text-sm font-mono text-rpg-working overflow-auto whitespace-pre-wrap border border-rpg-border-dim cursor-text"
         >
-          {terminalContent || <span className="text-rpg-text-dim">Waiting for activity...</span>}
-        </pre>
+          {htmlContent ? (
+            <pre className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: htmlContent }} />
+          ) : (
+            <pre className="whitespace-pre-wrap"><span className="text-rpg-text-dim">Waiting for activity...</span></pre>
+          )}
+        </div>
       </div>
 
       {/* Input area - always at bottom */}

@@ -15,11 +15,24 @@ export default function App() {
   const [notificationsDismissed, setNotificationsDismissed] = useState(false)
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard')
+  const [rpgEnabled, setRpgEnabled] = useState(true)
 
   // Initialize terminal cache with proper cleanup
   useEffect(() => {
     const cleanup = initTerminalCache()
     return cleanup
+  }, [])
+
+  // Fetch RPG feature flag from server
+  useEffect(() => {
+    fetch('/health')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok && data.rpgFeatures !== undefined) {
+          setRpgEnabled(data.rpgFeatures)
+        }
+      })
+      .catch(() => {})
   }, [])
 
   // Notifications
@@ -125,6 +138,7 @@ export default function App() {
             windows={windows}
             attentionCount={attentionPanes.length}
             connected={connected}
+            rpgEnabled={rpgEnabled}
             onSendPrompt={handleSendPrompt}
             onSendSignal={handleSendSignal}
             onDismissWaiting={handleDismissWaiting}
@@ -136,10 +150,27 @@ export default function App() {
             onCreateWindow={handleCreateWindow}
             onNavigateToCompetitions={handleNavigateToCompetitions}
           />
-        ) : (
+        ) : rpgEnabled ? (
           <CompetitionsPage
             connected={connected}
             onNavigateBack={handleNavigateToDashboard}
+          />
+        ) : (
+          <OverviewDashboard
+            windows={windows}
+            attentionCount={attentionPanes.length}
+            connected={connected}
+            rpgEnabled={rpgEnabled}
+            onSendPrompt={handleSendPrompt}
+            onSendSignal={handleSendSignal}
+            onDismissWaiting={handleDismissWaiting}
+            onExpandPane={handleExpandPane}
+            onRefreshPane={handleRefreshPane}
+            onClosePane={handleClosePane}
+            onNewPane={handleNewPane}
+            onNewClaude={handleNewClaude}
+            onCreateWindow={handleCreateWindow}
+            onNavigateToCompetitions={handleNavigateToCompetitions}
           />
         )}
       </main>

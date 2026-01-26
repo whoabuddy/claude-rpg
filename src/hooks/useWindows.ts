@@ -144,7 +144,7 @@ export function useWindows() {
 }
 
 // Helper to send prompts to a pane
-export async function sendPromptToPane(paneId: string, prompt: string): Promise<boolean> {
+export async function sendPromptToPane(paneId: string, prompt: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(`${API_URL}/api/panes/${encodeURIComponent(paneId)}/prompt`, {
       method: 'POST',
@@ -155,10 +155,10 @@ export async function sendPromptToPane(paneId: string, prompt: string): Promise<
     if (!data.ok) {
       console.error('[sendPromptToPane] Server returned error:', data.error)
     }
-    return data.ok
+    return { ok: data.ok, error: data.error }
   } catch (e) {
     console.error('[sendPromptToPane] Request failed:', e)
-    return false
+    return { ok: false, error: 'Network error' }
   }
 }
 

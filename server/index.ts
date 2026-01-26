@@ -52,6 +52,7 @@ import { isWhisperAvailable, transcribeAudio } from './whisper.js'
 
 const PORT = parseInt(process.env.CLAUDE_RPG_PORT || String(DEFAULTS.SERVER_PORT))
 const DATA_DIR = expandPath(process.env.CLAUDE_RPG_DATA_DIR || DEFAULTS.DATA_DIR)
+const rpgEnabled = process.env.CLAUDE_RPG_FEATURES !== 'false'
 const EVENTS_FILE = join(DATA_DIR, DEFAULTS.EVENTS_FILE)
 const PANES_CACHE_FILE = join(DATA_DIR, 'panes-cache.json')
 
@@ -75,7 +76,7 @@ function sendWindowNotFound(res: http.ServerResponse): void {
 // State
 // ═══════════════════════════════════════════════════════════════════════════
 
-let companions: Companion[] = loadCompanions(DATA_DIR)
+let companions: Companion[] = rpgEnabled ? loadCompanions(DATA_DIR) : []
 let windows: TmuxWindow[] = []
 const events: ClaudeEvent[] = []
 const clients = new Set<WebSocket>()
@@ -152,6 +153,7 @@ function getMessagePriority(type: ServerMessage['type']): MessagePriority {
   switch (type) {
     case 'pane_update':
     case 'pane_removed':
+    case 'pane_error':
       return 'high'
     case 'windows':
     case 'companion_update':
@@ -162,6 +164,7 @@ function getMessagePriority(type: ServerMessage['type']): MessagePriority {
     case 'history':
       return 'normal'
     case 'terminal_output':
+      return 'normal'
     case 'event':
       return 'low'
     default:
@@ -628,6 +631,11 @@ async function handleEvent(rawEvent: RawHookEvent) {
 
       // Update lastActivity since this is actual hook activity
       sessionInfo.lastActivity = event.timestamp
+
+      // Reset adaptive capture backoff so terminal capture resumes at 250ms
+      consecutiveNoChange.set(pane.id, 0)
+      lastContentChange.set(pane.id, event.timestamp)
+
       const updatedSession = updateClaudeSession(pane.id, sessionInfo)
       savePanesCache()
 
@@ -640,69 +648,71 @@ async function handleEvent(rawEvent: RawHookEvent) {
     }
   }
 
-  // Process XP for companion (by CWD → repo)
-  const companion = findOrCreateCompanion(companions, event.cwd)
-  if (companion) {
-    const xpGain = processEvent(companion, event)
+  // Process XP for companion (by CWD → repo) - only when RPG features enabled
+  if (rpgEnabled) {
+    const companion = findOrCreateCompanion(companions, event.cwd)
+    if (companion) {
+      const xpGain = processEvent(companion, event)
 
-    // Update streak on activity (only for live events, not historical replay)
-    if (!isLoadingHistoricalEvents) {
-      const activityDate = new Date(event.timestamp).toISOString().slice(0, 10)
-      companion.streak = updateStreak(companion.streak, activityDate)
-    }
-
-    // Skip saves/broadcasts during historical event loading (startup perf)
-    if (!isLoadingHistoricalEvents) {
-      saveCompanions(DATA_DIR, companions)
-      broadcast({ type: 'companion_update', payload: companion })
-    }
-
-    if (xpGain) {
-      // Skip broadcasts during historical loading - O(n²) performance issue
+      // Update streak on activity (only for live events, not historical replay)
       if (!isLoadingHistoricalEvents) {
-        broadcast({ type: 'xp_gain', payload: xpGain })
-        // Update competitions leaderboard when XP changes (use full event history)
-        broadcast({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) })
+        const activityDate = new Date(event.timestamp).toISOString().slice(0, 10)
+        companion.streak = updateStreak(companion.streak, activityDate)
       }
 
-      // Also update session stats if we have an active session
-      if (pane && pane.process.claudeSession?.stats) {
-        const sessionStats = pane.process.claudeSession.stats
-        sessionStats.totalXPGained += xpGain.amount
+      // Skip saves/broadcasts during historical event loading (startup perf)
+      if (!isLoadingHistoricalEvents) {
+        saveCompanions(DATA_DIR, companions)
+        broadcast({ type: 'companion_update', payload: companion })
       }
-    }
-  }
 
-  // Update session stats for all tracked events
-  if (pane && pane.process.claudeSession?.stats) {
-    const sessionStats = pane.process.claudeSession.stats
+      if (xpGain) {
+        // Skip broadcasts during historical loading - O(n²) performance issue
+        if (!isLoadingHistoricalEvents) {
+          broadcast({ type: 'xp_gain', payload: xpGain })
+          // Update competitions leaderboard when XP changes (use full event history)
+          broadcast({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) })
+        }
 
-    if (event.type === 'pre_tool_use') {
-      const preEvent = event as PreToolUseEvent
-      sessionStats.toolsUsed[preEvent.tool] = (sessionStats.toolsUsed[preEvent.tool] || 0) + 1
-    } else if (event.type === 'user_prompt_submit') {
-      sessionStats.promptsReceived++
-    } else if (event.type === 'post_tool_use') {
-      const postEvent = event as import('../shared/types.js').PostToolUseEvent
-      // Check for git/command operations in Bash
-      if (postEvent.tool === 'Bash' && postEvent.success && postEvent.toolInput) {
-        const command = (postEvent.toolInput as { command?: string }).command || ''
-        const cmdDetection = detectCommandXP(command)
-        if (cmdDetection) {
-          // Update session stats based on command type
-          if (cmdDetection.statKey === 'git.commits') sessionStats.git.commits++
-          else if (cmdDetection.statKey === 'git.pushes') sessionStats.git.pushes++
-          else if (cmdDetection.statKey === 'git.prsCreated') sessionStats.git.prsCreated++
-          else if (cmdDetection.statKey === 'git.prsMerged') sessionStats.git.prsMerged++
-          else if (cmdDetection.statKey === 'commands.testsRun') sessionStats.commands.testsRun++
-          else if (cmdDetection.statKey === 'commands.buildsRun') sessionStats.commands.buildsRun++
+        // Also update session stats if we have an active session
+        if (pane && pane.process.claudeSession?.stats) {
+          const sessionStats = pane.process.claudeSession.stats
+          sessionStats.totalXPGained += xpGain.amount
         }
       }
     }
 
-    // Broadcast pane update to show new stats
-    savePanesCache()
-    broadcast({ type: 'pane_update', payload: pane })
+    // Update session stats for all tracked events
+    if (pane && pane.process.claudeSession?.stats) {
+      const sessionStats = pane.process.claudeSession.stats
+
+      if (event.type === 'pre_tool_use') {
+        const preEvent = event as PreToolUseEvent
+        sessionStats.toolsUsed[preEvent.tool] = (sessionStats.toolsUsed[preEvent.tool] || 0) + 1
+      } else if (event.type === 'user_prompt_submit') {
+        sessionStats.promptsReceived++
+      } else if (event.type === 'post_tool_use') {
+        const postEvent = event as import('../shared/types.js').PostToolUseEvent
+        // Check for git/command operations in Bash
+        if (postEvent.tool === 'Bash' && postEvent.success && postEvent.toolInput) {
+          const command = (postEvent.toolInput as { command?: string }).command || ''
+          const cmdDetection = detectCommandXP(command)
+          if (cmdDetection) {
+            // Update session stats based on command type
+            if (cmdDetection.statKey === 'git.commits') sessionStats.git.commits++
+            else if (cmdDetection.statKey === 'git.pushes') sessionStats.git.pushes++
+            else if (cmdDetection.statKey === 'git.prsCreated') sessionStats.git.prsCreated++
+            else if (cmdDetection.statKey === 'git.prsMerged') sessionStats.git.prsMerged++
+            else if (cmdDetection.statKey === 'commands.testsRun') sessionStats.commands.testsRun++
+            else if (cmdDetection.statKey === 'commands.buildsRun') sessionStats.commands.buildsRun++
+          }
+        }
+      }
+
+      // Broadcast pane update to show new stats
+      savePanesCache()
+      broadcast({ type: 'pane_update', payload: pane })
+    }
   }
 
   // Store event
@@ -777,9 +787,9 @@ async function captureTerminal(target: string, fullScrollback = false): Promise<
     // -p: print to stdout
     // -J: join wrapped lines (cleaner parsing)
     // -S -50: capture last 50 lines (default) or -S - -E - for full scrollback
-    const scrollFlags = fullScrollback ? '-S - -E -' : '-S -50'
+    const scrollFlags = fullScrollback ? '-S - -E -' : '-S -150'
     const { stdout } = await execAsync(
-      `tmux capture-pane -p -J -t "${target}" ${scrollFlags} 2>/dev/null || echo ""`,
+      `tmux capture-pane -p -J -e -t "${target}" ${scrollFlags}`,
       { timeout: 1000 }
     )
     // Use trimEnd to preserve leading whitespace (important for indentation detection)
@@ -867,6 +877,60 @@ async function broadcastTerminalUpdates() {
 
 // Capture terminal output every 500ms (rate limiting handled per-pane)
 setInterval(broadcastTerminalUpdates, 500)
+
+// Independent reconciliation timer - catches stuck states even when adaptive polling is in backoff
+setInterval(() => {
+  for (const window of windows) {
+    for (const pane of window.panes) {
+      if (pane.process.type !== 'claude' || !pane.process.claudeSession) continue
+      const status = pane.process.claudeSession.status
+      if (status !== 'working' && status !== 'waiting' && status !== 'error') continue
+
+      // Use cached terminal content for reconciliation
+      const cachedContent = lastTerminalContent.get(pane.id)
+      if (cachedContent) {
+        processClaudePaneContent(pane, cachedContent)
+      }
+    }
+  }
+}, 2500)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Safe Tmux Send Helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Map known tmux errors to user-friendly messages */
+function sanitizeTmuxError(error: unknown): string {
+  const msg = error instanceof Error ? error.message : String(error)
+  if (msg.includes('no pane') || msg.includes('can\'t find pane')) return 'Pane no longer exists'
+  if (msg.includes('no session') || msg.includes('session not found')) return 'Session not found'
+  if (msg.includes('no window') || msg.includes('window not found')) return 'Window not found'
+  if (msg.includes('server not found') || msg.includes('no server')) return 'Tmux server not running'
+  return 'Failed to send input to pane'
+}
+
+/** Send keys to a tmux target, returning success/failure */
+async function safeSendKeys(target: string, keys: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await execAsync(`tmux send-keys -t "${target}" "${keys}"`)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: sanitizeTmuxError(e) }
+  }
+}
+
+/** Send keys with one retry after 200ms for transient failures */
+async function safeSendKeysWithRetry(target: string, keys: string): Promise<{ ok: boolean; error?: string }> {
+  const first = await safeSendKeys(target, keys)
+  if (first.ok) return first
+
+  // Don't retry if pane is gone
+  if (first.error === 'Pane no longer exists') return first
+
+  // Wait and retry once for transient failures
+  await new Promise(r => setTimeout(r, 200))
+  return safeSendKeys(target, keys)
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Tmux Prompt Helper
@@ -1033,6 +1097,7 @@ const server = http.createServer(async (req, res) => {
       companions: companions.length,
       windows: windows.length,
       whisper: isWhisperAvailable(),
+      rpgFeatures: rpgEnabled,
     }))
     return
   }
@@ -1176,8 +1241,22 @@ const server = http.createServer(async (req, res) => {
         // Permission responses: send single key without Enter
         // Question responses with numbers: send number key
         if (isPermission || (terminalPrompt && /^\d$/.test(prompt))) {
+          // Validate permission key to prevent injection
+          if (!/^[yn!*s\d]$/.test(prompt)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ ok: false, error: 'Invalid permission key' }))
+            return
+          }
+
           // Single key press for permission (y/n/!/*/s) or number selection
-          await execAsync(`tmux send-keys -t "${pane.target}" "${prompt}"`)
+          const sendResult = await safeSendKeysWithRetry(pane.target, prompt)
+
+          if (!sendResult.ok) {
+            broadcast({ type: 'pane_error', payload: { paneId: pane.id, message: sendResult.error!, timestamp: Date.now() } })
+            res.writeHead(500, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ ok: false, error: sendResult.error }))
+            return
+          }
 
           // Optimistically clear the prompt state
           // Terminal polling will verify and correct if needed
@@ -1252,8 +1331,10 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ ok: true }))
       } catch (e) {
+        const errorMsg = sanitizeTmuxError(e)
+        broadcast({ type: 'pane_error', payload: { paneId: pane.id, message: errorMsg, timestamp: Date.now() } })
         res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: String(e) }))
+        res.end(JSON.stringify({ ok: false, error: errorMsg }))
       }
     })
     return
@@ -1304,7 +1385,7 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ ok: true }))
       } catch (e) {
         res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: String(e) }))
+        res.end(JSON.stringify({ ok: false, error: sanitizeTmuxError(e) }))
       }
     })
     return
@@ -1393,7 +1474,7 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok: true }))
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: String(e) }))
+      res.end(JSON.stringify({ ok: false, error: sanitizeTmuxError(e) }))
     }
     return
   }
@@ -1421,7 +1502,7 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok: true }))
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: String(e) }))
+      res.end(JSON.stringify({ ok: false, error: sanitizeTmuxError(e) }))
     }
     return
   }
@@ -1478,7 +1559,7 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ ok: true, sessionName, windowName }))
       } catch (e) {
         res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: String(e) }))
+        res.end(JSON.stringify({ ok: false, error: sanitizeTmuxError(e) }))
       }
     })
     return
@@ -1525,7 +1606,7 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok: true, paneCount: window.panes.length + 1 }))
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: String(e) }))
+      res.end(JSON.stringify({ ok: false, error: sanitizeTmuxError(e) }))
     }
     return
   }
@@ -1573,7 +1654,7 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok: true, paneCount: window.panes.length + 1 }))
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: String(e) }))
+      res.end(JSON.stringify({ ok: false, error: sanitizeTmuxError(e) }))
     }
     return
   }
@@ -1581,7 +1662,7 @@ const server = http.createServer(async (req, res) => {
   // List companions (for XP/stats)
   if (url.pathname === '/api/companions' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, data: companions }))
+    res.end(JSON.stringify({ ok: true, data: rpgEnabled ? companions : [] }))
     return
   }
 
@@ -1592,6 +1673,11 @@ const server = http.createServer(async (req, res) => {
   // Get all competitions (all categories, all periods)
   // Use full event history from file for accurate period-based stats
   if (url.pathname === '/api/competitions' && req.method === 'GET') {
+    if (!rpgEnabled) {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, data: [] }))
+      return
+    }
     const allEvents = getAllEventsFromFile()
     const competitions = getAllCompetitions(companions, allEvents)
     res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -1601,6 +1687,11 @@ const server = http.createServer(async (req, res) => {
 
   // Get streaks leaderboard
   if (url.pathname === '/api/competitions/streaks' && req.method === 'GET') {
+    if (!rpgEnabled) {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, data: [] }))
+      return
+    }
     const entries = getStreakLeaderboard(companions)
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true, data: entries }))
@@ -1610,6 +1701,11 @@ const server = http.createServer(async (req, res) => {
   // Get single category competition
   const competitionMatch = url.pathname.match(/^\/api\/competitions\/([^/]+)$/)
   if (competitionMatch && req.method === 'GET') {
+    if (!rpgEnabled) {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, data: { category: competitionMatch[1], period: 'all', entries: [], updatedAt: Date.now() } }))
+      return
+    }
     const category = competitionMatch[1] as CompetitionCategory
     const validCategories = ['xp', 'commits', 'tests', 'tools', 'prompts']
     if (!validCategories.includes(category)) {
@@ -1643,8 +1739,10 @@ wss.on('connection', (ws) => {
   // Send initial state
   ws.send(JSON.stringify({ type: 'connected' } satisfies ServerMessage))
   ws.send(JSON.stringify({ type: 'windows', payload: windows } satisfies ServerMessage))
-  ws.send(JSON.stringify({ type: 'companions', payload: companions } satisfies ServerMessage))
-  ws.send(JSON.stringify({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) } satisfies ServerMessage))
+  if (rpgEnabled) {
+    ws.send(JSON.stringify({ type: 'companions', payload: companions } satisfies ServerMessage))
+    ws.send(JSON.stringify({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) } satisfies ServerMessage))
+  }
   ws.send(JSON.stringify({ type: 'history', payload: events.slice(-100) } satisfies ServerMessage))
 
   // Send current terminal content for all panes
@@ -1827,8 +1925,10 @@ function initControlMode(): void {
 // ═══════════════════════════════════════════════════════════════════════════
 
 loadPanesCache()
-loadEventsFromFile()
-watchEventsFile()
+if (rpgEnabled) {
+  loadEventsFromFile()
+  watchEventsFile()
+}
 
 // Control mode disabled - was causing tmux scrollback issues in some terminals
 // TODO: Investigate why control mode affects scrollback in ConnectBot
