@@ -4,11 +4,11 @@ import { sendPromptToPane } from '../hooks/useWindows'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { useConfirmAction } from '../hooks/useConfirmAction'
 import { getPaneStatus, paneEqual } from '../utils/pane-status'
-import { STATUS_LABELS, getStatusColor } from '../constants/status'
 import { usePaneActions } from '../contexts/PaneActionsContext'
 import { QuestionInput } from './QuestionInput'
 import { TerminalDisplay } from './TerminalDisplay'
 import { PaneAvatar } from './PaneAvatar'
+import { StatusIndicator } from './StatusIndicator'
 import { RepoStatusBar } from './RepoStatusBar'
 import { TerminalPromptUI } from './TerminalPromptUI'
 import { PaneInput } from './PaneInput'
@@ -41,9 +41,6 @@ export const FullScreenPane = memo(function FullScreenPane({
   const session = pane.process.claudeSession
   const status = getPaneStatus(pane)
 
-  const statusLabel = STATUS_LABELS[status] || status
-  const statusColor = getStatusColor(status)
-
   // Handle Escape key to close
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -55,7 +52,8 @@ export const FullScreenPane = memo(function FullScreenPane({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  const handleDismiss = useCallback(() => {
+  const handleDismiss = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
     onDismissWaiting(pane.id)
   }, [onDismissWaiting, pane.id])
 
@@ -142,21 +140,7 @@ export const FullScreenPane = memo(function FullScreenPane({
         </div>
 
         {/* Status */}
-        <div className="flex items-center gap-2">
-          {status === 'waiting' && (
-            <button
-              onClick={handleDismiss}
-              className="px-2 py-1 text-xs bg-rpg-idle/30 hover:bg-rpg-idle/50 text-rpg-text-muted rounded transition-colors"
-              title="Dismiss waiting"
-            >
-              ✓
-            </button>
-          )}
-          <span className="text-sm text-rpg-text-muted">{statusLabel}</span>
-          <div className={`w-3 h-3 rounded-full ${statusColor} ${
-            status === 'working' || status === 'typing' || status === 'process' ? 'animate-pulse' : ''
-          }`} />
-        </div>
+        <StatusIndicator status={status} onDismiss={handleDismiss} />
 
         {/* Attention badge for other panes */}
         {attentionCount > 0 && (

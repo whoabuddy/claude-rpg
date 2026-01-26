@@ -16,6 +16,7 @@ import { PaneInput } from './PaneInput'
 import { ClaudeActivity } from './ClaudeActivity'
 import { GitHubLinks } from './GitHubLinks'
 import { SessionStatsBar } from './SessionStatsBar'
+import { ActionButton } from './ActionButton'
 
 interface PaneCardProps {
   pane: TmuxPane
@@ -162,27 +163,9 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
               </div>
             ) : (
               <>
-                <button
-                  onClick={handleCloseClick}
-                  className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
-                  title="Close pane"
-                >
-                  ×
-                </button>
-                <button
-                  onClick={handleRefresh}
-                  className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
-                  title="Refresh pane"
-                >
-                  ↻
-                </button>
-                <button
-                  onClick={handleExpand}
-                  className="w-8 h-8 flex items-center justify-center text-rpg-text-dim hover:text-rpg-accent hover:bg-rpg-accent/10 rounded transition-colors"
-                  title="Full screen"
-                >
-                  ⛶
-                </button>
+                <ActionButton icon="×" label="Close" onClick={handleCloseClick} variant="danger" />
+                <ActionButton icon="↻" label="Refresh" onClick={handleRefresh} />
+                <ActionButton icon="⛶" label="Expand" onClick={handleExpand} />
               </>
             )}
             <span className="text-rpg-text-dim text-xs w-4 text-center">
