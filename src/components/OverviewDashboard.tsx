@@ -1,8 +1,8 @@
 import { useMemo, useState, useRef, useEffect, useCallback, memo } from 'react'
 import type { TmuxWindow, TmuxPane } from '@shared/types'
 import { PaneCard } from './PaneCard'
-import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
-import { BackendSelector } from './BackendSelector'
+import { ConnectionBanner } from './ConnectionStatus'
+import { StatusPill } from './StatusPill'
 import { usePaneActions } from '../contexts/PaneActionsContext'
 
 // Maximum panes per window (must match server constant)
@@ -218,8 +218,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
               LB
             </button>
           )}
-          <BackendSelector />
-          <ConnectionDot connected={connected} />
+          <StatusPill connected={connected} />
         </div>
       </div>
 
