@@ -15,6 +15,7 @@ import { PaneInput } from './PaneInput'
 import { ClaudeActivity } from './ClaudeActivity'
 import { GitHubLinks } from './GitHubLinks'
 import { SessionStatsBar } from './SessionStatsBar'
+import { ActionButton } from './ActionButton'
 
 interface FullScreenPaneProps {
   pane: TmuxPane
@@ -74,14 +75,8 @@ export const FullScreenPane = memo(function FullScreenPane({
     <div className="fixed inset-0 z-50 bg-rpg-bg flex flex-col">
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-3 border-b border-rpg-border bg-rpg-card">
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="w-10 h-10 flex items-center justify-center rounded-lg bg-rpg-bg-elevated hover:bg-rpg-border transition-colors"
-          title="Close (Escape)"
-        >
-          <span className="text-xl">←</span>
-        </button>
+        {/* Back button */}
+        <ActionButton icon="←" label="Back" variant="ghost" onClick={onClose} title="Close (Escape)" />
 
         {/* Avatar */}
         <PaneAvatar pane={pane} />
@@ -137,13 +132,7 @@ export const FullScreenPane = memo(function FullScreenPane({
               </button>
             </div>
           ) : (
-            <button
-              onClick={closeConfirm.handleClick}
-              className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
-              title="Close pane"
-            >
-              ×
-            </button>
+            <ActionButton icon="×" label="Close Pane" shortLabel="Close" variant="danger" onClick={closeConfirm.handleClick} />
           )}
         </div>
 
