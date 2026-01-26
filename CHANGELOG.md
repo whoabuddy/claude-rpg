@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.1](https://github.com/whoabuddy/claude-rpg/compare/v1.6.0...v1.6.1) (2026-01-26)
+
+
+### Bug Fixes
+
+* add missing features to FullScreenPane and slim down PaneCard ([76b0a6f](https://github.com/whoabuddy/claude-rpg/commit/76b0a6f0e64357dce6162c04768ddbb895ff73e5))
+* wire ActionButton into PaneCard, use StatusIndicator in FullScreenPane ([14cac30](https://github.com/whoabuddy/claude-rpg/commit/14cac3064ad0a025eb045dcbeb926a2fc3e4df67))
+
 ## [1.6.0](https://github.com/whoabuddy/claude-rpg/compare/v1.5.0...v1.6.0) (2026-01-26)
 
 
