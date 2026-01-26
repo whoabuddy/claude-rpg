@@ -47,9 +47,9 @@ export default function App() {
     notify,
   })
 
-  // Pane action handlers - wrap imported functions to discard return values
+  // Pane action handlers
   const handleSendPrompt = useCallback(
-    (paneId: string, prompt: string) => { sendPromptToPane(paneId, prompt) },
+    (paneId: string, prompt: string) => sendPromptToPane(paneId, prompt),
     []
   )
   const handleSendSignal = useCallback(

@@ -5,13 +5,14 @@ import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { STATUS_LABELS, getStatusColor } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
 import { isPasswordPrompt } from '../utils/password-detection'
+import { lastPromptByPane } from '../utils/prompt-history'
 
 interface FullScreenPaneProps {
   pane: TmuxPane
   window: TmuxWindow
   attentionCount: number
   onClose: () => void
-  onSendPrompt: (paneId: string, prompt: string) => void
+  onSendPrompt: (paneId: string, prompt: string) => Promise<{ ok: boolean; error?: string }>
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
   onClosePane?: (paneId: string) => void
@@ -28,6 +29,8 @@ export const FullScreenPane = memo(function FullScreenPane({
   onClosePane,
 }: FullScreenPaneProps) {
   const [inputValue, setInputValue] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const [inlineError, setInlineError] = useState<string | null>(null)
   const [confirmClose, setConfirmClose] = useState(false)
   const terminalContent = usePaneTerminal(pane.id)
   const terminalRef = useRef<HTMLDivElement>(null)
@@ -75,16 +78,30 @@ export const FullScreenPane = memo(function FullScreenPane({
     }
   }, [status])
 
-  const handleSend = useCallback(() => {
-    if (inputValue.trim()) {
-      onSendPrompt(pane.id, inputValue.trim())
+  const handleSend = useCallback(async () => {
+    const trimmed = inputValue.trim()
+    if (!trimmed || isSending) return
+    setIsSending(true)
+    setInlineError(null)
+    const result = await onSendPrompt(pane.id, trimmed)
+    if (result.ok) {
+      lastPromptByPane.set(pane.id, trimmed)
       setInputValue('')
+    } else {
+      setInlineError(result.error || 'Failed to send')
+      setTimeout(() => setInlineError(null), 5000)
     }
-  }, [onSendPrompt, pane.id, inputValue])
+    setIsSending(false)
+  }, [onSendPrompt, pane.id, inputValue, isSending])
 
   const handleEnter = useCallback(() => {
-    onSendPrompt(pane.id, '')
+    onSendPrompt(pane.id, '') // Fire-and-forget
   }, [onSendPrompt, pane.id])
+
+  const handleRestoreLast = useCallback(() => {
+    const last = lastPromptByPane.get(pane.id)
+    if (last) setInputValue(last)
+  }, [pane.id])
 
   const handleCtrlC = useCallback(() => {
     onSendSignal(pane.id, 'SIGINT')
@@ -293,46 +310,72 @@ export const FullScreenPane = memo(function FullScreenPane({
 
         {/* Regular input (when no pending question) */}
         {showInput && !session?.pendingQuestion && (
-          <div className="flex gap-2 items-center">
-            {isPassword && <span className="text-rpg-waiting text-lg">🔒</span>}
-            <input
-              ref={inputRef}
-              type={isPassword ? 'password' : 'text'}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  if (inputValue.trim()) {
-                    handleSend()
-                  } else {
-                    handleEnter()
+          <div className="space-y-2">
+            <div className="flex gap-2 items-center">
+              {isPassword && <span className="text-rpg-waiting text-lg">🔒</span>}
+              <input
+                ref={inputRef}
+                type={isPassword ? 'password' : 'text'}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (inputValue.trim()) {
+                      handleSend()
+                    } else {
+                      handleEnter()
+                    }
                   }
-                }
-              }}
-              placeholder={isPassword ? "Enter password..." : (isClaudePane ? "Send prompt..." : "Send input...")}
-              className={`flex-1 px-4 py-3 text-base bg-rpg-bg border rounded-lg outline-none ${
-                isPassword ? 'border-rpg-waiting/50 focus:border-rpg-waiting' : 'border-rpg-border focus:border-rpg-accent'
-              }`}
-              autoComplete={isPassword ? 'off' : undefined}
-            />
-            {!isPassword && (
+                }}
+                disabled={isSending}
+                placeholder={isPassword ? "Enter password..." : (isClaudePane ? "Send prompt..." : "Send input...")}
+                className={`flex-1 px-4 py-3 text-base bg-rpg-bg border rounded-lg outline-none ${
+                  isPassword ? 'border-rpg-waiting/50 focus:border-rpg-waiting' : 'border-rpg-border focus:border-rpg-accent'
+                } ${isSending ? 'opacity-50' : ''}`}
+                autoComplete={isPassword ? 'off' : undefined}
+              />
+              {!isPassword && (
+                <button
+                  onClick={handleEnter}
+                  disabled={isSending}
+                  className={`px-4 py-3 bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle rounded-lg transition-colors active:scale-95 ${isSending ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title="Send Enter"
+                >
+                  ⏎
+                </button>
+              )}
               <button
-                onClick={handleEnter}
-                className="px-4 py-3 bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle rounded-lg transition-colors active:scale-95"
-                title="Send Enter"
+                onClick={handleSend}
+                disabled={!inputValue.trim() || isSending}
+                className={`px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95 ${
+                  isPassword ? 'bg-rpg-waiting/30 hover:bg-rpg-waiting/50' : 'bg-rpg-accent/30 hover:bg-rpg-accent/50'
+                }`}
               >
-                ⏎
+                {isSending ? 'Sending...' : 'Send'}
               </button>
-            )}
-            <button
-              onClick={handleSend}
-              disabled={!inputValue.trim()}
-              className={`px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95 ${
-                isPassword ? 'bg-rpg-waiting/30 hover:bg-rpg-waiting/50' : 'bg-rpg-accent/30 hover:bg-rpg-accent/50'
-              }`}
-            >
-              Send
-            </button>
+            </div>
+            <div className="flex items-center gap-2">
+              {!isSending && !inputValue && lastPromptByPane.has(pane.id) && (
+                <button
+                  onClick={handleRestoreLast}
+                  className="px-2 py-1 text-xs text-rpg-text-muted hover:text-rpg-accent transition-colors"
+                  title="Restore last sent prompt"
+                >
+                  ↩ Restore last
+                </button>
+              )}
+              {inlineError && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-rpg-error/20 border border-rpg-error/50 rounded text-sm text-rpg-error">
+                  <span>{inlineError}</span>
+                  <button
+                    onClick={() => setInlineError(null)}
+                    className="text-rpg-error/60 hover:text-rpg-error text-xs px-1"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

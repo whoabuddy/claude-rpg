@@ -6,6 +6,7 @@ import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
 import { VoiceButton } from './VoiceButton'
 import { isPasswordPrompt } from '../utils/password-detection'
+import { lastPromptByPane } from '../utils/prompt-history'
 
 // Use same-origin requests (proxied by Vite in dev, same server in prod)
 const API_BASE = ''
@@ -14,7 +15,7 @@ interface PaneCardProps {
   pane: TmuxPane
   window: TmuxWindow
   rpgEnabled?: boolean
-  onSendPrompt: (paneId: string, prompt: string) => void
+  onSendPrompt: (paneId: string, prompt: string) => Promise<{ ok: boolean; error?: string }>
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting?: (paneId: string) => void
   onExpandPane?: (paneId: string) => void
@@ -26,6 +27,7 @@ interface PaneCardProps {
 export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onClosePane, compact = false }: PaneCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [inputValue, setInputValue] = useState('')
+  const [isSending, setIsSending] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
   const [inlineError, setInlineError] = useState<string | null>(null)
   const terminalContent = usePaneTerminal(pane.id)
@@ -50,12 +52,29 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
   const toggleExpanded = useCallback(() => setExpanded(prev => !prev), [])
   const prevExpandedRef = useRef(expanded)
 
-  const handleSend = useCallback(() => {
-    if (inputValue.trim()) {
-      onSendPrompt(pane.id, inputValue.trim())
+  const handleSend = useCallback(async () => {
+    const trimmed = inputValue.trim()
+    if (!trimmed || isSending) return
+    setIsSending(true)
+    setInlineError(null)
+    const result = await onSendPrompt(pane.id, trimmed)
+    if (result.ok) {
+      lastPromptByPane.set(pane.id, trimmed)
       setInputValue('')
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto'
+      }
+    } else {
+      setInlineError(result.error || 'Failed to send')
+      setTimeout(() => setInlineError(null), 5000)
     }
-  }, [onSendPrompt, pane.id, inputValue])
+    setIsSending(false)
+  }, [onSendPrompt, pane.id, inputValue, isSending])
+
+  const handleRestoreLast = useCallback(() => {
+    const last = lastPromptByPane.get(pane.id)
+    if (last) setInputValue(last)
+  }, [pane.id])
 
   const handleCtrlC = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -473,8 +492,9 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
                         }
                       }}
                       onClick={(e) => e.stopPropagation()}
+                      disabled={isSending}
                       placeholder="Enter password..."
-                      className="flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-waiting/50 rounded focus:border-rpg-waiting outline-none min-h-[44px]"
+                      className={`flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-waiting/50 rounded focus:border-rpg-waiting outline-none min-h-[44px] ${isSending ? 'opacity-50' : ''}`}
                       autoComplete="off"
                     />
                   </div>
@@ -496,45 +516,52 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
                           e.stopPropagation()
                           if (inputValue.trim()) {
                             handleSend()
-                            // Reset height after sending
-                            if (inputRef.current) {
-                              inputRef.current.style.height = 'auto'
-                            }
                           } else {
-                            onSendPrompt(pane.id, '') // Just Enter
+                            onSendPrompt(pane.id, '') // Just Enter - fire-and-forget
                           }
                         }
                       }}
                       onClick={(e) => e.stopPropagation()}
+                      disabled={isSending}
                       placeholder={isClaudePane ? "Send prompt... (Shift+Enter for newline)" : "Send input..."}
-                      className="flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none"
+                      className={`flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none ${isSending ? 'opacity-50' : ''}`}
                       rows={1}
                     />
                     <VoiceButton onTranscription={handleVoiceTranscription} />
                   </div>
                 )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (inputValue.trim()) {
-                      handleSend()
-                    } else {
-                      onSendPrompt(pane.id, '') // Just Enter
-                    }
-                    // Reset height after sending
-                    if (inputRef.current) {
-                      inputRef.current.style.height = 'auto'
-                    }
-                  }}
-                  className={`w-full sm:w-auto px-4 py-2 text-sm rounded transition-colors active:scale-95 min-h-[44px] ${
-                    inputValue.trim()
-                      ? isPassword ? 'bg-rpg-waiting/30 hover:bg-rpg-waiting/50' : 'bg-rpg-accent/30 hover:bg-rpg-accent/50'
-                      : 'bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle'
-                  }`}
-                  title={inputValue.trim() ? "Send message" : "Send Enter (accept suggestion)"}
-                >
-                  {inputValue.trim() ? 'Send' : '⏎ Enter'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (inputValue.trim()) {
+                        handleSend()
+                      } else {
+                        onSendPrompt(pane.id, '') // Just Enter - fire-and-forget
+                      }
+                    }}
+                    disabled={isSending}
+                    className={`flex-1 sm:flex-none px-4 py-2 text-sm rounded transition-colors active:scale-95 min-h-[44px] ${
+                      isSending
+                        ? 'bg-rpg-accent/20 text-rpg-text-muted cursor-not-allowed'
+                        : inputValue.trim()
+                          ? isPassword ? 'bg-rpg-waiting/30 hover:bg-rpg-waiting/50' : 'bg-rpg-accent/30 hover:bg-rpg-accent/50'
+                          : 'bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle'
+                    }`}
+                    title={inputValue.trim() ? "Send message" : "Send Enter (accept suggestion)"}
+                  >
+                    {isSending ? 'Sending...' : inputValue.trim() ? 'Send' : '⏎ Enter'}
+                  </button>
+                  {!isSending && !inputValue && lastPromptByPane.has(pane.id) && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleRestoreLast() }}
+                      className="px-2 py-1 text-xs text-rpg-text-muted hover:text-rpg-accent transition-colors"
+                      title="Restore last sent prompt"
+                    >
+                      ↩ Restore last
+                    </button>
+                  )}
+                </div>
               </>
             )}
 

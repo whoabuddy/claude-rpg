@@ -12,7 +12,7 @@ interface OverviewDashboardProps {
   attentionCount: number
   connected: boolean
   rpgEnabled?: boolean
-  onSendPrompt: (paneId: string, prompt: string) => void
+  onSendPrompt: (paneId: string, prompt: string) => Promise<{ ok: boolean; error?: string }>
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
   onExpandPane: (paneId: string) => void
@@ -353,7 +353,7 @@ interface WindowSectionProps {
   maxPanes: number
   rpgEnabled?: boolean
   onToggleWindow: () => void
-  onSendPrompt: (paneId: string, prompt: string) => void
+  onSendPrompt: (paneId: string, prompt: string) => Promise<{ ok: boolean; error?: string }>
   onSendSignal: (paneId: string, signal: string) => void
   onDismissWaiting: (paneId: string) => void
   onExpandPane: (paneId: string) => void
