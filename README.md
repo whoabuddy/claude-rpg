@@ -6,12 +6,27 @@ Monitor and interact with multiple Claude Code sessions from your phone while th
 
 ## Features
 
+**Tmux Management:**
 - **Multi-pane monitoring** - See all your Claude Code sessions at a glance
-- **Mobile-first UI** - Designed for phone use while Claude works on your desktop
-- **Send prompts** - Answer questions and send input from your phone
-- **Bitcoin face avatars** - Each Claude session gets a unique generated avatar
-- **RPG progression** - Earn XP for tool usage, git operations, and more
+- **Window/pane controls** - Create windows, split panes, start Claude, close panes
+- **Process detection** - Automatically identifies Claude, shell, and running processes
+
+**Claude Code Integration:**
+- **Real-time status** - Working, waiting, idle, error states via hooks + terminal parsing
+- **Send prompts** - Answer questions, grant permissions, and send input from your phone
+- **State reconciliation** - Cross-checks hooks with terminal content to catch missed events
 - **Browser notifications** - Get notified when Claude needs input
+
+**RPG Progression:**
+- **XP system** - Earn XP for tool usage, git operations, tests, deploys, and more
+- **Competitions** - Leaderboards by XP, commits, tests, tools, and prompts
+- **Streaks** - Track consecutive days of activity
+- **Bitcoin face avatars** - Each Claude session gets a unique generated avatar
+
+**Mobile-First:**
+- **Designed for phone** - Use while Claude works on your desktop
+- **Disconnection banner** - Clear warning when data is stale, dims content
+- **Touch-friendly** - 44px tap targets, expandable pane cards
 
 ## Requirements
 
@@ -37,9 +52,9 @@ npm run setup
 npm run dev
 ```
 
-Then open https://localhost:4010 on your phone (same network).
+Then open http://localhost:4010 on your phone (same network).
 
-> **Note:** HTTPS is required for voice input. Accept the self-signed certificate warning on first visit. See [SETUP.md](./SETUP.md#https-configuration) for custom certificate options.
+> **Note:** HTTPS is required for voice input. See [SETUP.md](./SETUP.md#https-configuration) for certificate options.
 
 ## How It Works
 
@@ -48,10 +63,6 @@ Then open https://localhost:4010 on your phone (same network).
 3. Claude Code hooks send events (tool usage, questions, etc.)
 4. The React UI displays all panes with real-time updates
 5. Tap a pane card to expand and interact
-
-## Screenshots
-
-*Coming soon*
 
 ## Configuration
 

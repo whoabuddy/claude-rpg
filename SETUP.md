@@ -56,6 +56,8 @@ This command:
   - `UserPromptSubmit` - Capture user prompts
   - `Notification` - Handle notifications
 
+The server also handles `SubagentStop`, `SessionStart`, and `SessionEnd` events if you have those hooks configured separately.
+
 ### 4. Start the Server
 
 ```bash
@@ -63,7 +65,7 @@ npm run dev
 ```
 
 Opens:
-- Client: https://localhost:4010
+- Client: http://localhost:4010 (HTTPS when certs configured)
 - Server: http://localhost:4011
 
 ## HTTPS Configuration
