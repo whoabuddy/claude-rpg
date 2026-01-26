@@ -6,6 +6,7 @@ import { useWebSocket } from './hooks/useWebSocket'
 import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refreshPane, closePane, createPaneInWindow, createClaudeInWindow, createWindow, renameWindow } from './hooks/useWindows'
 import { initTerminalCache } from './hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
+import { PaneActionsProvider, type PaneActionsContextValue } from './contexts/PaneActionsContext'
 
 type ViewTab = 'dashboard' | 'competitions'
 
@@ -62,6 +63,17 @@ export default function App() {
   const handleNavigateToCompetitions = useCallback(() => setActiveTab('competitions'), [])
   const handleNavigateToDashboard = useCallback(() => setActiveTab('dashboard'), [])
 
+  // PaneActionsContext value — module-level functions are stable, only handleExpandPane and rpgEnabled change
+  const paneActions = useMemo<PaneActionsContextValue>(() => ({
+    onSendPrompt: sendPromptToPane,
+    onSendSignal: sendSignalToPane,
+    onDismissWaiting: dismissWaiting,
+    onExpandPane: handleExpandPane,
+    onRefreshPane: refreshPane,
+    onClosePane: closePane,
+    rpgEnabled,
+  }), [handleExpandPane, rpgEnabled])
+
   // Find the fullscreen pane and its window
   const fullscreenData = useMemo(() => {
     if (!fullscreenPaneId) return null
@@ -81,71 +93,62 @@ export default function App() {
   const showNotificationBanner = permission === 'default' && !notificationsDismissed
 
   return (
-    <div className="h-full flex flex-col bg-rpg-bg">
-      {/* Notification Permission Banner */}
-      {showNotificationBanner && (
-        <div className="px-4 py-2 bg-rpg-waiting/20 border-b border-rpg-waiting/50 flex items-center justify-between gap-3">
-          <p className="text-sm">
-            Enable notifications to be alerted when Claude needs your input
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={requestPermission}
-              className="px-3 py-1 text-sm bg-rpg-accent hover:bg-rpg-accent-dim text-rpg-bg font-medium rounded transition-colors"
-            >
-              Enable
-            </button>
-            <button
-              onClick={() => setNotificationsDismissed(true)}
-              className="px-3 py-1 text-sm text-rpg-idle hover:text-rpg-text transition-colors"
-            >
-              Dismiss
-            </button>
+    <PaneActionsProvider value={paneActions}>
+      <div className="h-full flex flex-col bg-rpg-bg">
+        {/* Notification Permission Banner */}
+        {showNotificationBanner && (
+          <div className="px-4 py-2 bg-rpg-waiting/20 border-b border-rpg-waiting/50 flex items-center justify-between gap-3">
+            <p className="text-sm">
+              Enable notifications to be alerted when Claude needs your input
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={requestPermission}
+                className="px-3 py-1 text-sm bg-rpg-accent hover:bg-rpg-accent-dim text-rpg-bg font-medium rounded transition-colors"
+              >
+                Enable
+              </button>
+              <button
+                onClick={() => setNotificationsDismissed(true)}
+                className="px-3 py-1 text-sm text-rpg-idle hover:text-rpg-text transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
-        {activeTab === 'competitions' && rpgEnabled ? (
-          <CompetitionsPage
-            connected={connected}
-            onNavigateBack={handleNavigateToDashboard}
-          />
-        ) : (
-          <OverviewDashboard
-            windows={windows}
-            attentionCount={attentionPanes.length}
-            connected={connected}
-            rpgEnabled={rpgEnabled}
-            onSendPrompt={sendPromptToPane}
-            onSendSignal={sendSignalToPane}
-            onDismissWaiting={dismissWaiting}
-            onExpandPane={handleExpandPane}
-            onRefreshPane={refreshPane}
-            onClosePane={closePane}
-            onNewPane={createPaneInWindow}
-            onNewClaude={createClaudeInWindow}
-            onCreateWindow={handleCreateWindow}
-            onRenameWindow={renameWindow}
-            onNavigateToCompetitions={handleNavigateToCompetitions}
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto">
+          {activeTab === 'competitions' && rpgEnabled ? (
+            <CompetitionsPage
+              connected={connected}
+              onNavigateBack={handleNavigateToDashboard}
+            />
+          ) : (
+            <OverviewDashboard
+              windows={windows}
+              attentionCount={attentionPanes.length}
+              connected={connected}
+              onNewPane={createPaneInWindow}
+              onNewClaude={createClaudeInWindow}
+              onCreateWindow={handleCreateWindow}
+              onRenameWindow={renameWindow}
+              onNavigateToCompetitions={handleNavigateToCompetitions}
+            />
+          )}
+        </main>
+
+        {/* Full-screen pane overlay */}
+        {fullscreenData && (
+          <FullScreenPane
+            pane={fullscreenData.pane}
+            window={fullscreenData.window}
+            attentionCount={otherAttentionCount}
+            onClose={handleCloseFullscreen}
           />
         )}
-      </main>
-
-      {/* Full-screen pane overlay */}
-      {fullscreenData && (
-        <FullScreenPane
-          pane={fullscreenData.pane}
-          window={fullscreenData.window}
-          attentionCount={otherAttentionCount}
-          onClose={handleCloseFullscreen}
-          onSendPrompt={sendPromptToPane}
-          onSendSignal={sendSignalToPane}
-          onDismissWaiting={dismissWaiting}
-          onClosePane={closePane}
-        />
-      )}
-    </div>
+      </div>
+    </PaneActionsProvider>
   )
 }

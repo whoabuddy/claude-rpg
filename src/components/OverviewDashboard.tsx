@@ -3,6 +3,7 @@ import type { TmuxWindow, TmuxPane } from '@shared/types'
 import { PaneCard } from './PaneCard'
 import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
 import { BackendSelector } from './BackendSelector'
+import { usePaneActions } from '../contexts/PaneActionsContext'
 
 // Maximum panes per window (must match server constant)
 const MAX_PANES_PER_WINDOW = 4
@@ -11,13 +12,6 @@ interface OverviewDashboardProps {
   windows: TmuxWindow[]
   attentionCount: number
   connected: boolean
-  rpgEnabled?: boolean
-  onSendPrompt: (paneId: string, prompt: string) => Promise<{ ok: boolean; error?: string }>
-  onSendSignal: (paneId: string, signal: string) => void
-  onDismissWaiting: (paneId: string) => void
-  onExpandPane: (paneId: string) => void
-  onRefreshPane: (paneId: string) => void
-  onClosePane: (paneId: string) => void
   onNewPane: (windowId: string) => void
   onNewClaude: (windowId: string) => void
   onCreateWindow: (sessionName: string, windowName: string) => Promise<boolean>
@@ -69,19 +63,13 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   windows,
   attentionCount,
   connected,
-  rpgEnabled = true,
-  onSendPrompt,
-  onSendSignal,
-  onDismissWaiting,
-  onExpandPane,
-  onRefreshPane,
-  onClosePane,
   onNewPane,
   onNewClaude,
   onCreateWindow,
   onRenameWindow,
   onNavigateToCompetitions,
 }: OverviewDashboardProps) {
+  const { rpgEnabled } = usePaneActions()
   const [collapsedWindows, setCollapsedWindows] = useState<Set<string>>(new Set())
   const [showCreateWindow, setShowCreateWindow] = useState(false)
   const [newWindowName, setNewWindowName] = useState('')
@@ -327,14 +315,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
                 group={group}
                 collapsed={collapsedWindows.has(group.window.id)}
                 maxPanes={MAX_PANES_PER_WINDOW}
-                rpgEnabled={rpgEnabled}
                 onToggleWindow={() => toggleWindow(group.window.id)}
-                onSendPrompt={onSendPrompt}
-                onSendSignal={onSendSignal}
-                onDismissWaiting={onDismissWaiting}
-                onExpandPane={onExpandPane}
-                onRefreshPane={onRefreshPane}
-                onClosePane={onClosePane}
                 onNewPane={onNewPane}
                 onNewClaude={onNewClaude}
                 onRenameWindow={onRenameWindow}
@@ -351,14 +332,7 @@ interface WindowSectionProps {
   group: WindowGroup
   collapsed: boolean
   maxPanes: number
-  rpgEnabled?: boolean
   onToggleWindow: () => void
-  onSendPrompt: (paneId: string, prompt: string) => Promise<{ ok: boolean; error?: string }>
-  onSendSignal: (paneId: string, signal: string) => void
-  onDismissWaiting: (paneId: string) => void
-  onExpandPane: (paneId: string) => void
-  onRefreshPane: (paneId: string) => void
-  onClosePane: (paneId: string) => void
   onNewPane: (windowId: string) => void
   onNewClaude: (windowId: string) => void
   onRenameWindow: (windowId: string, windowName: string) => Promise<{ ok: boolean; error?: string }>
@@ -368,14 +342,7 @@ const WindowSection = memo(function WindowSection({
   group,
   collapsed,
   maxPanes,
-  rpgEnabled = true,
   onToggleWindow,
-  onSendPrompt,
-  onSendSignal,
-  onDismissWaiting,
-  onExpandPane,
-  onRefreshPane,
-  onClosePane,
   onNewPane,
   onNewClaude,
   onRenameWindow,
@@ -548,13 +515,6 @@ const WindowSection = memo(function WindowSection({
               key={pane.id}
               pane={pane}
               window={group.window}
-              rpgEnabled={rpgEnabled}
-              onSendPrompt={onSendPrompt}
-              onSendSignal={onSendSignal}
-              onDismissWaiting={onDismissWaiting}
-              onExpandPane={onExpandPane}
-              onRefreshPane={onRefreshPane}
-              onClosePane={onClosePane}
             />
           ))}
         </div>
