@@ -7,12 +7,16 @@ set -e
 echo "=== Claude RPG Installation ==="
 echo ""
 
-# Check if running from repo root
+# Determine repo directory from script location
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_DIR"
+
 if [[ ! -f "package.json" ]] || [[ ! -d "deploy" ]]; then
-    echo "Error: Please run this script from the claude-rpg repository root"
-    echo "  cd ~/claude-rpg && ./deploy/install.sh"
+    echo "Error: Could not find claude-rpg repository at $REPO_DIR"
     exit 1
 fi
+
+echo "  Repo: $REPO_DIR"
 
 # 1. Check/install Node.js 20 LTS
 echo "[1/7] Checking Node.js..."

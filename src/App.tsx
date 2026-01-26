@@ -16,6 +16,7 @@ export default function App() {
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard')
   const [rpgEnabled, setRpgEnabled] = useState(true)
+  const [activeBackend, setActiveBackend] = useState<'production' | 'dev'>('production')
 
   // Initialize terminal cache with proper cleanup
   useEffect(() => {
@@ -23,13 +24,14 @@ export default function App() {
     return cleanup
   }, [])
 
-  // Fetch RPG feature flag from server
+  // Fetch feature flags and active backend from server
   useEffect(() => {
     fetch('/health')
       .then(res => res.json())
       .then(data => {
-        if (data.ok && data.rpgFeatures !== undefined) {
-          setRpgEnabled(data.rpgFeatures)
+        if (data.ok) {
+          if (data.rpgFeatures !== undefined) setRpgEnabled(data.rpgFeatures)
+          if (data.activeBackend) setActiveBackend(data.activeBackend)
         }
       })
       .catch(() => {})

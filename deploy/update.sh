@@ -4,16 +4,17 @@
 
 set -e
 
-# Navigate to repo
-cd ~/claude-rpg
+# Navigate to repo from script location
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_DIR"
 
 echo "=== Claude RPG Update ==="
+echo "  Repo: $REPO_DIR"
 echo ""
 
 # 1. Pull latest changes
 echo "[1/4] Pulling latest changes..."
-git fetch origin
-git reset --hard origin/main
+git pull --ff-only
 
 # 2. Install dependencies (in case they changed)
 echo "[2/4] Installing dependencies..."

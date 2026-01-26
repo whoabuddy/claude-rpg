@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/claude-rpg
+WorkingDirectory=%h/dev/whoabuddy/claude-rpg
 Environment=NODE_ENV=production
 Environment=CLAUDE_RPG_PORT=4011
 ExecStart=/usr/bin/node dist/server/index.js

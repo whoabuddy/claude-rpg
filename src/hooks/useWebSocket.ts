@@ -111,7 +111,22 @@ export function useWebSocket() {
   useEffect(() => {
     connect()
 
+    // Listen for backend switch events to reconnect WebSocket
+    const handleBackendSwitch = () => {
+      console.log('[claude-rpg] Backend switched, reconnecting WebSocket...')
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = undefined
+      }
+      cleanupWebSocket(wsRef.current)
+      wsRef.current = null
+      // Small delay to let the proxy settle
+      setTimeout(connect, 500)
+    }
+    window.addEventListener('backend_switch', handleBackendSwitch)
+
     return () => {
+      window.removeEventListener('backend_switch', handleBackendSwitch)
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
         reconnectTimeoutRef.current = undefined

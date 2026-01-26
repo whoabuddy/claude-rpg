@@ -7,14 +7,15 @@ import os from 'os'
 const CLIENT_PORT = parseInt(process.env.CLAUDE_RPG_CLIENT_PORT || '4010')
 const SERVER_PORT = parseInt(process.env.CLAUDE_RPG_PORT || '4011')
 
-// Load HTTPS certs if available
+// Load HTTPS certs if available (skip entirely if no certs — tunnel provides TLS)
 const certsDir = path.join(os.homedir(), '.claude-rpg', 'certs')
-const httpsConfig = fs.existsSync(path.join(certsDir, 'key.pem')) && fs.existsSync(path.join(certsDir, 'cert.pem'))
+const hasCerts = fs.existsSync(path.join(certsDir, 'key.pem')) && fs.existsSync(path.join(certsDir, 'cert.pem'))
+const httpsConfig = hasCerts
   ? {
       key: fs.readFileSync(path.join(certsDir, 'key.pem')),
       cert: fs.readFileSync(path.join(certsDir, 'cert.pem')),
     }
-  : true // Fallback to Vite's auto-generated cert
+  : false
 
 export default defineConfig({
   plugins: [react()],
@@ -26,9 +27,17 @@ export default defineConfig({
   server: {
     port: CLIENT_PORT,
     host: true,  // Expose on LAN
-    https: httpsConfig, // Required for microphone access from mobile
+    https: httpsConfig, // Only enable when certs exist; tunnel provides TLS otherwise
     proxy: {
       '/api': {
+        target: `http://localhost:${SERVER_PORT}`,
+        changeOrigin: true,
+      },
+      '/event': {
+        target: `http://localhost:${SERVER_PORT}`,
+        changeOrigin: true,
+      },
+      '/health': {
         target: `http://localhost:${SERVER_PORT}`,
         changeOrigin: true,
       },

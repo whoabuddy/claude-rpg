@@ -7,7 +7,7 @@
     "claude-rpg": "./dist/server/cli.js"
   },
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev": "CLAUDE_RPG_PORT=4012 concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "tsx watch server/index.ts",
     "dev:client": "vite",
     "build": "npm run build:server && npm run build:client",
@@ -16,7 +16,8 @@
     "start": "node dist/server/index.js",
     "setup": "node dist/server/cli.js setup",
     "lint": "eslint . --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "./deploy/deploy.sh"
   },
   "dependencies": {
     "ansi_up": "^6.0.6",

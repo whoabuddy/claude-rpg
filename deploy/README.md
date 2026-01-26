@@ -4,6 +4,18 @@ Deploy claude-rpg to Ubuntu Server VMs with systemd for process management.
 
 ## Architecture
 
+Single Cloudflare tunnel route to production server. Dev proxy mode lets you
+test backend changes through the same tunnel without a second route.
+
+```
+Browser → tunnel → production server (4011)
+                        │
+                   [toggle in UI]
+                   /              \
+            handle locally    proxy → dev server (4012)
+            (production)        on localhost
+```
+
 Each VM runs independently, monitoring its own local tmux sessions:
 
 ```
@@ -28,8 +40,8 @@ Each VM runs independently, monitoring its own local tmux sessions:
 
 ```bash
 # Clone the repository
-git clone https://github.com/whoabuddy/claude-rpg.git ~/claude-rpg
-cd ~/claude-rpg
+git clone https://github.com/whoabuddy/claude-rpg.git ~/dev/whoabuddy/claude-rpg
+cd ~/dev/whoabuddy/claude-rpg
 
 # Run the install script
 chmod +x deploy/install.sh
@@ -47,8 +59,51 @@ The install script will:
 ### Update to Latest
 
 ```bash
-~/claude-rpg/deploy/update.sh
+./deploy/update.sh
 ```
+
+### Deploy (Build + Restart)
+
+```bash
+npm run deploy
+```
+
+This builds the project and restarts the systemd service.
+
+## Dev Proxy Mode
+
+The production server can proxy API and WebSocket requests to a dev server
+running on localhost:4012. This lets you test backend changes remotely through
+the tunnel without needing a second route.
+
+### How It Works
+
+1. Production server always runs on port 4011 (systemd)
+2. Dev server runs on port 4012 (`npm run dev` sets `CLAUDE_RPG_PORT=4012`)
+3. A "Backend Selector" in the UI header lets you toggle between prod and dev
+4. When dev mode is active, API/WS requests are proxied to :4012
+5. Static files are always served from production's `dist/client/`
+6. Admin endpoints (`/api/admin/*`) are never proxied
+
+### Dev Workflow
+
+```bash
+# Start dev server (hot reload, port 4012 backend, port 4010 Vite)
+npm run dev
+
+# Toggle to "dev" in the UI at your tunnel URL
+# All API/WS traffic now goes through production → dev server
+
+# When done, toggle back to "prod" or just stop the dev server
+# (auto-reverts on WebSocket failure)
+```
+
+### Admin Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/admin/backends` | GET | Probe production and dev backends, return status |
+| `/api/admin/backend` | POST | Switch active backend (`{ mode: "production" \| "dev" }`) |
 
 ## Service Management
 
@@ -71,12 +126,29 @@ systemctl --user stop claude-rpg
 systemctl --user start claude-rpg
 ```
 
+## Port Assignments
+
+| Service | Port | Context |
+|---------|------|---------|
+| Production server | 4011 | systemd / `npm start` |
+| Dev backend | 4012 | `npm run dev:server` |
+| Dev frontend (Vite) | 4010 | `npm run dev:client` |
+
+## Cloudflare Tunnel
+
+Configure your tunnel route to point to `http://localhost:4011` (not `https`).
+Cloudflare terminates TLS at the edge, so the local connection is plain HTTP.
+
+No second route is needed - dev proxy mode handles backend switching through
+the single tunnel.
+
 ## Access
 
 After installation:
 
 - **Local**: http://localhost:4011
 - **LAN**: http://<vm-ip>:4011
+- **Tunnel**: https://your-tunnel-domain (configure in Cloudflare dashboard)
 
 ## Files
 
@@ -96,13 +168,6 @@ The install script automatically adds a UFW rule. To do it manually:
 sudo ufw allow 4011/tcp comment 'Claude RPG'
 ```
 
-### Remote Access Options
-
-1. **LAN only** (default): Access via VM IP on local network
-2. **SSH tunnel**: `ssh -L 4011:localhost:4011 user@vm`
-3. **Reverse proxy**: nginx/caddy with SSL termination
-4. **Cloudflare Tunnel** (future): Zero-trust access with GitHub auth
-
 ## Troubleshooting
 
 ### Service won't start
@@ -112,10 +177,10 @@ sudo ufw allow 4011/tcp comment 'Claude RPG'
 journalctl --user -u claude-rpg --no-pager -n 50
 
 # Verify build exists
-ls -la ~/claude-rpg/dist/server/
+ls -la ~/dev/whoabuddy/claude-rpg/dist/server/
 
 # Rebuild if needed
-cd ~/claude-rpg && npm run build
+cd ~/dev/whoabuddy/claude-rpg && npm run build
 ```
 
 ### Port already in use
@@ -125,7 +190,7 @@ cd ~/claude-rpg && npm run build
 lsof -i :4011
 
 # Kill the process or change the port
-CLAUDE_RPG_PORT=4012 node dist/server/index.js
+CLAUDE_RPG_PORT=4013 node dist/server/index.js
 ```
 
 ### Hooks not working
@@ -135,7 +200,7 @@ CLAUDE_RPG_PORT=4012 node dist/server/index.js
 cat ~/.claude/settings.json | jq '.hooks'
 
 # Re-run setup
-cd ~/claude-rpg && npm run setup
+cd ~/dev/whoabuddy/claude-rpg && npm run setup
 ```
 
 ### Service stops after logout

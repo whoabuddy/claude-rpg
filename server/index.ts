@@ -1,9 +1,10 @@
 import http from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
 import { watch } from 'chokidar'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, statSync } from 'fs'
 import { unlink } from 'fs/promises'
-import { join } from 'path'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { DEFAULTS, expandPath } from '../shared/defaults.js'
@@ -81,6 +82,11 @@ let windows: TmuxWindow[] = []
 const events: ClaudeEvent[] = []
 const clients = new Set<WebSocket>()
 const seenEventIds = new Set<string>()
+
+// Dev proxy mode - allows production server to forward API/WS to dev backend
+let devProxyMode = false
+const DEV_BACKEND_PORT = 4012
+const DEV_BACKEND = `http://localhost:${DEV_BACKEND_PORT}`
 
 // Polling intervals
 const TMUX_POLL_INTERVAL_MS = 250 // 250ms for responsive UI (like webmux)
@@ -1072,6 +1078,120 @@ function watchEventsFile() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Static File Serving
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Compiled to dist/server/index.js → static files at dist/client/
+const __server_dir = dirname(fileURLToPath(import.meta.url))
+const STATIC_DIR = join(__server_dir, '..', 'client')
+
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html',
+  '.js': 'application/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+}
+
+function serveStaticFile(res: http.ServerResponse, urlPath: string): boolean {
+  // Prevent path traversal
+  const safePath = urlPath.replace(/\.\./g, '').replace(/\/\//g, '/')
+  const filePath = join(STATIC_DIR, safePath)
+
+  // Ensure we don't escape the static directory
+  if (!filePath.startsWith(STATIC_DIR)) {
+    return false
+  }
+
+  try {
+    const stat = statSync(filePath)
+    if (!stat.isFile()) return false
+
+    const ext = filePath.substring(filePath.lastIndexOf('.'))
+    const mimeType = MIME_TYPES[ext] || 'application/octet-stream'
+    const content = readFileSync(filePath)
+
+    // Hashed assets (Vite puts them in /assets/) get immutable caching
+    const isHashedAsset = safePath.startsWith('/assets/')
+    const cacheControl = isHashedAsset
+      ? 'public, max-age=31536000, immutable'
+      : 'no-cache'
+
+    res.writeHead(200, {
+      'Content-Type': mimeType,
+      'Content-Length': content.length,
+      'Cache-Control': cacheControl,
+    })
+    res.end(content)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function serveIndexHtml(res: http.ServerResponse): boolean {
+  const indexPath = join(STATIC_DIR, 'index.html')
+  try {
+    const content = readFileSync(indexPath)
+    res.writeHead(200, {
+      'Content-Type': 'text/html',
+      'Content-Length': content.length,
+      'Cache-Control': 'no-cache',
+    })
+    res.end(content)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Dev Proxy Helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+function proxyRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+  const targetUrl = new URL(req.url || '/', DEV_BACKEND)
+  const proxyReq = http.request(
+    {
+      hostname: 'localhost',
+      port: DEV_BACKEND_PORT,
+      path: targetUrl.pathname + targetUrl.search,
+      method: req.method,
+      headers: { ...req.headers, host: `localhost:${DEV_BACKEND_PORT}` },
+    },
+    (proxyRes) => {
+      res.writeHead(proxyRes.statusCode || 502, proxyRes.headers)
+      proxyRes.pipe(res)
+    }
+  )
+
+  proxyReq.on('error', () => {
+    res.writeHead(502, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: false, error: 'Dev backend not reachable' }))
+  })
+
+  req.pipe(proxyReq)
+}
+
+async function probeBackend(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const req = http.request(
+      { hostname: 'localhost', port, path: '/health', method: 'GET', timeout: 1000 },
+      (res) => {
+        res.resume() // drain
+        resolve(res.statusCode === 200)
+      }
+    )
+    req.on('error', () => resolve(false))
+    req.on('timeout', () => { req.destroy(); resolve(false) })
+    req.end()
+  })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // HTTP Server
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1089,6 +1209,75 @@ const server = http.createServer(async (req, res) => {
 
   const url = new URL(req.url || '/', `http://localhost:${PORT}`)
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Admin Endpoints (never proxied)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  if (url.pathname === '/api/admin/backends' && req.method === 'GET') {
+    const [prodOk, devOk] = await Promise.all([
+      probeBackend(PORT),
+      probeBackend(DEV_BACKEND_PORT),
+    ])
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({
+      ok: true,
+      production: { ok: prodOk, port: PORT },
+      dev: { ok: devOk, port: DEV_BACKEND_PORT },
+      activeBackend: devProxyMode ? 'dev' : 'production',
+    }))
+    return
+  }
+
+  if (url.pathname === '/api/admin/backend' && req.method === 'POST') {
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', async () => {
+      try {
+        const { mode } = JSON.parse(body)
+        if (mode !== 'production' && mode !== 'dev') {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: 'mode must be "production" or "dev"' }))
+          return
+        }
+
+        if (mode === 'dev') {
+          const devOk = await probeBackend(DEV_BACKEND_PORT)
+          if (!devOk) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ ok: false, error: 'Dev backend not running on port ' + DEV_BACKEND_PORT }))
+            return
+          }
+          devProxyMode = true
+          console.log('[claude-rpg] Switched to dev proxy mode')
+        } else {
+          devProxyMode = false
+          console.log('[claude-rpg] Switched to production mode')
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true, activeBackend: mode }))
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: 'Invalid JSON' }))
+      }
+    })
+    return
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Dev Proxy (forward API/event/health to dev backend when active)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  if (devProxyMode) {
+    const isProxiable = (url.pathname.startsWith('/api/') && !url.pathname.startsWith('/api/admin/')) ||
+                         url.pathname === '/event' ||
+                         url.pathname === '/health'
+    if (isProxiable) {
+      proxyRequest(req, res)
+      return
+    }
+  }
+
   // Health check
   if (url.pathname === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -1098,6 +1287,7 @@ const server = http.createServer(async (req, res) => {
       windows: windows.length,
       whisper: isWhisperAvailable(),
       rpgFeatures: rpgEnabled,
+      activeBackend: devProxyMode ? 'dev' : 'production',
     }))
     return
   }
@@ -1722,6 +1912,18 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Static File Serving (production mode serves built client assets)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Try serving the exact file first
+  if (serveStaticFile(res, url.pathname)) return
+
+  // SPA fallback: non-API routes serve index.html for client-side routing
+  if (!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/event')) {
+    if (serveIndexHtml(res)) return
+  }
+
   // 404
   res.writeHead(404, { 'Content-Type': 'application/json' })
   res.end(JSON.stringify({ ok: false, error: 'Not found' }))
@@ -1731,7 +1933,44 @@ const server = http.createServer(async (req, res) => {
 // WebSocket Server
 // ═══════════════════════════════════════════════════════════════════════════
 
-const wss = new WebSocketServer({ server })
+const wss = new WebSocketServer({ noServer: true })
+
+// Handle WebSocket upgrades (supports dev proxy mode)
+server.on('upgrade', (request, socket, head) => {
+  if (devProxyMode) {
+    // Proxy WebSocket to dev backend
+    const devWs = new WebSocket(`ws://localhost:${DEV_BACKEND_PORT}/ws`)
+
+    devWs.on('open', () => {
+      wss.handleUpgrade(request, socket, head, (clientWs) => {
+        // Pipe data bidirectionally
+        clientWs.on('message', (data) => {
+          if (devWs.readyState === WebSocket.OPEN) devWs.send(data)
+        })
+        devWs.on('message', (data) => {
+          if (clientWs.readyState === WebSocket.OPEN) clientWs.send(data.toString())
+        })
+
+        clientWs.on('close', () => devWs.close())
+        devWs.on('close', () => {
+          if (clientWs.readyState === WebSocket.OPEN) clientWs.close()
+        })
+      })
+    })
+
+    devWs.on('error', () => {
+      console.log('[claude-rpg] Dev WebSocket failed, reverting to production mode')
+      devProxyMode = false
+      socket.destroy()
+    })
+
+    return
+  }
+
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    wss.emit('connection', ws, request)
+  })
+})
 
 wss.on('connection', (ws) => {
   clients.add(ws)
