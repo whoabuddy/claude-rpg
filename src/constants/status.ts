@@ -20,14 +20,6 @@ export const STATUS_THEME = {
   process: { border: 'border-rpg-active',     bg: 'bg-rpg-card',       indicator: 'bg-rpg-active',  glow: '' },
 } as const
 
-export function getStatusLabel(status: string): string {
-  return STATUS_LABELS[status] || status
-}
-
-export function getStatusTheme(status: string) {
-  return STATUS_THEME[status as keyof typeof STATUS_THEME] || STATUS_THEME.idle
-}
-
 // Derive color from STATUS_THEME.indicator (single source of truth)
 export function getStatusColor(status: string): string {
   const theme = STATUS_THEME[status as keyof typeof STATUS_THEME]

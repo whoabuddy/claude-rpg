@@ -1,11 +1,13 @@
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react'
+import { useEffect, useRef, useCallback, useMemo, memo } from 'react'
 import { ansiToHtml } from '../utils/ansi'
 import type { TmuxPane, TmuxWindow } from '@shared/types'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
+import { usePaneSend } from '../hooks/usePaneSend'
+import { useConfirmAction } from '../hooks/useConfirmAction'
+import { getPaneStatus, paneEqual } from '../utils/pane-status'
 import { STATUS_LABELS, getStatusColor } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
 import { isPasswordPrompt } from '../utils/password-detection'
-import { lastPromptByPane } from '../utils/prompt-history'
 
 interface FullScreenPaneProps {
   pane: TmuxPane
@@ -28,14 +30,15 @@ export const FullScreenPane = memo(function FullScreenPane({
   onDismissWaiting,
   onClosePane,
 }: FullScreenPaneProps) {
-  const [inputValue, setInputValue] = useState('')
-  const [isSending, setIsSending] = useState(false)
-  const [inlineError, setInlineError] = useState<string | null>(null)
-  const [confirmClose, setConfirmClose] = useState(false)
   const terminalContent = usePaneTerminal(pane.id)
   const terminalRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Shared hooks
+  const send = usePaneSend(pane.id, onSendPrompt)
+  const closeConfirm = useConfirmAction(useCallback(() => {
+    onClosePane?.(pane.id)
+    onClose()
+  }, [onClosePane, onClose, pane.id]))
 
   // Detect password prompt in terminal
   const isPassword = useMemo(() => isPasswordPrompt(terminalContent), [terminalContent])
@@ -45,10 +48,7 @@ export const FullScreenPane = memo(function FullScreenPane({
 
   const isClaudePane = pane.process.type === 'claude'
   const session = pane.process.claudeSession
-
-  const status: string = isClaudePane && session
-    ? session.status
-    : pane.process.typing ? 'typing' : pane.process.type
+  const status = getPaneStatus(pane)
 
   const statusLabel = STATUS_LABELS[status] || status
   const statusColor = getStatusColor(status)
@@ -73,35 +73,10 @@ export const FullScreenPane = memo(function FullScreenPane({
 
   // Focus input on mount
   useEffect(() => {
-    if (inputRef.current && status !== 'working') {
-      inputRef.current.focus()
+    if (send.inputRef.current && status !== 'working') {
+      send.inputRef.current.focus()
     }
-  }, [status])
-
-  const handleSend = useCallback(async () => {
-    const trimmed = inputValue.trim()
-    if (!trimmed || isSending) return
-    setIsSending(true)
-    setInlineError(null)
-    const result = await onSendPrompt(pane.id, trimmed)
-    if (result.ok) {
-      lastPromptByPane.set(pane.id, trimmed)
-      setInputValue('')
-    } else {
-      setInlineError(result.error || 'Failed to send')
-      setTimeout(() => setInlineError(null), 5000)
-    }
-    setIsSending(false)
-  }, [onSendPrompt, pane.id, inputValue, isSending])
-
-  const handleEnter = useCallback(() => {
-    onSendPrompt(pane.id, '') // Fire-and-forget
-  }, [onSendPrompt, pane.id])
-
-  const handleRestoreLast = useCallback(() => {
-    const last = lastPromptByPane.get(pane.id)
-    if (last) setInputValue(last)
-  }, [pane.id])
+  }, [status, send.inputRef])
 
   const handleCtrlC = useCallback(() => {
     onSendSignal(pane.id, 'SIGINT')
@@ -114,41 +89,6 @@ export const FullScreenPane = memo(function FullScreenPane({
   const handleAnswer = useCallback((answer: string) => {
     onSendPrompt(pane.id, answer)
   }, [onSendPrompt, pane.id])
-
-  const handleCloseClick = useCallback(() => {
-    if (confirmClose) {
-      onClosePane?.(pane.id)
-      onClose() // Also close fullscreen view
-      setConfirmClose(false)
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current)
-        closeTimeoutRef.current = null
-      }
-    } else {
-      setConfirmClose(true)
-      closeTimeoutRef.current = setTimeout(() => {
-        setConfirmClose(false)
-        closeTimeoutRef.current = null
-      }, 3000)
-    }
-  }, [confirmClose, onClosePane, onClose, pane.id])
-
-  const handleCancelClose = useCallback(() => {
-    setConfirmClose(false)
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current)
-      closeTimeoutRef.current = null
-    }
-  }, [])
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current)
-      }
-    }
-  }, [])
 
   const showInput = status !== 'working'
   const showCtrlC = status === 'working' || pane.process.type === 'process'
@@ -226,17 +166,17 @@ export const FullScreenPane = memo(function FullScreenPane({
         {/* Pane close control */}
         {onClosePane && (
           <div className="flex items-center gap-1">
-            {confirmClose ? (
+            {closeConfirm.confirming ? (
               <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
                 <span className="text-rpg-error">Close?</span>
                 <button
-                  onClick={handleCancelClose}
+                  onClick={closeConfirm.handleCancel}
                   className="px-1.5 py-0.5 bg-rpg-idle/30 hover:bg-rpg-idle/50 rounded transition-colors"
                 >
                   No
                 </button>
                 <button
-                  onClick={handleCloseClick}
+                  onClick={closeConfirm.handleClick}
                   className="px-1.5 py-0.5 bg-rpg-error/50 hover:bg-rpg-error/70 text-white rounded transition-colors"
                 >
                   Yes
@@ -244,7 +184,7 @@ export const FullScreenPane = memo(function FullScreenPane({
               </div>
             ) : (
               <button
-                onClick={handleCloseClick}
+                onClick={closeConfirm.handleClick}
                 className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
                 title="Close pane"
               >
@@ -287,7 +227,7 @@ export const FullScreenPane = memo(function FullScreenPane({
       <div className="flex-1 overflow-hidden p-4">
         <div
           ref={terminalRef}
-          onClick={() => inputRef.current?.focus()}
+          onClick={() => send.inputRef.current?.focus()}
           className="h-full bg-rpg-bg rounded-lg p-4 text-sm font-mono text-rpg-working overflow-auto whitespace-pre-wrap border border-rpg-border-dim cursor-text"
         >
           {htmlContent ? (
@@ -314,61 +254,61 @@ export const FullScreenPane = memo(function FullScreenPane({
             <div className="flex gap-2 items-center">
               {isPassword && <span className="text-rpg-waiting text-lg">🔒</span>}
               <input
-                ref={inputRef}
+                ref={send.inputRef as React.RefObject<HTMLInputElement>}
                 type={isPassword ? 'password' : 'text'}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                value={send.inputValue}
+                onChange={(e) => send.setInputValue(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    if (inputValue.trim()) {
-                      handleSend()
+                    if (send.inputValue.trim()) {
+                      send.handleSend()
                     } else {
-                      handleEnter()
+                      send.handleEnter()
                     }
                   }
                 }}
-                disabled={isSending}
+                disabled={send.isSending}
                 placeholder={isPassword ? "Enter password..." : (isClaudePane ? "Send prompt..." : "Send input...")}
                 className={`flex-1 px-4 py-3 text-base bg-rpg-bg border rounded-lg outline-none ${
                   isPassword ? 'border-rpg-waiting/50 focus:border-rpg-waiting' : 'border-rpg-border focus:border-rpg-accent'
-                } ${isSending ? 'opacity-50' : ''}`}
+                } ${send.isSending ? 'opacity-50' : ''}`}
                 autoComplete={isPassword ? 'off' : undefined}
               />
               {!isPassword && (
                 <button
-                  onClick={handleEnter}
-                  disabled={isSending}
-                  className={`px-4 py-3 bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle rounded-lg transition-colors active:scale-95 ${isSending ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={send.handleEnter}
+                  disabled={send.isSending}
+                  className={`px-4 py-3 bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle rounded-lg transition-colors active:scale-95 ${send.isSending ? 'opacity-50 cursor-not-allowed' : ''}`}
                   title="Send Enter"
                 >
                   ⏎
                 </button>
               )}
               <button
-                onClick={handleSend}
-                disabled={!inputValue.trim() || isSending}
+                onClick={send.handleSend}
+                disabled={!send.inputValue.trim() || send.isSending}
                 className={`px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95 ${
                   isPassword ? 'bg-rpg-waiting/30 hover:bg-rpg-waiting/50' : 'bg-rpg-accent/30 hover:bg-rpg-accent/50'
                 }`}
               >
-                {isSending ? 'Sending...' : 'Send'}
+                {send.isSending ? 'Sending...' : 'Send'}
               </button>
             </div>
             <div className="flex items-center gap-2">
-              {!isSending && !inputValue && lastPromptByPane.has(pane.id) && (
+              {!send.isSending && !send.inputValue && send.hasLastPrompt && (
                 <button
-                  onClick={handleRestoreLast}
+                  onClick={send.handleRestoreLast}
                   className="px-2 py-1 text-xs text-rpg-text-muted hover:text-rpg-accent transition-colors"
                   title="Restore last sent prompt"
                 >
                   ↩ Restore last
                 </button>
               )}
-              {inlineError && (
+              {send.inlineError && (
                 <div className="flex items-center gap-2 px-3 py-1 bg-rpg-error/20 border border-rpg-error/50 rounded text-sm text-rpg-error">
-                  <span>{inlineError}</span>
+                  <span>{send.inlineError}</span>
                   <button
-                    onClick={() => setInlineError(null)}
+                    onClick={send.clearInlineError}
                     className="text-rpg-error/60 hover:text-rpg-error text-xs px-1"
                   >
                     ×
@@ -394,29 +334,7 @@ export const FullScreenPane = memo(function FullScreenPane({
     </div>
   )
 }, (prev, next) => {
-  // Custom comparison to avoid unnecessary re-renders
-  if (prev.pane.id !== next.pane.id) return false
   if (prev.attentionCount !== next.attentionCount) return false
   if (prev.window.id !== next.window.id) return false
-
-  // Compare Claude session state if present
-  const prevSession = prev.pane.process.claudeSession
-  const nextSession = next.pane.process.claudeSession
-  if (!!prevSession !== !!nextSession) return false
-  if (prevSession && nextSession) {
-    if (prevSession.status !== nextSession.status) return false
-    if (prevSession.name !== nextSession.name) return false
-    if (prevSession.currentTool !== nextSession.currentTool) return false
-    if (prevSession.lastPrompt !== nextSession.lastPrompt) return false
-    if (!!prevSession.pendingQuestion !== !!nextSession.pendingQuestion) return false
-    if (prevSession.pendingQuestion?.toolUseId !== nextSession.pendingQuestion?.toolUseId) return false
-    if (prevSession.lastError?.timestamp !== nextSession.lastError?.timestamp) return false
-    if (prevSession.terminalPrompt?.contentHash !== nextSession.terminalPrompt?.contentHash) return false
-  }
-
-  // Compare process state
-  if (prev.pane.process.type !== next.pane.process.type) return false
-  if (prev.pane.process.typing !== next.pane.process.typing) return false
-
-  return true
+  return paneEqual(prev.pane, next.pane)
 })

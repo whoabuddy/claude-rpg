@@ -31,7 +31,7 @@ export function getSessionName(sessionId: string): string {
 }
 
 // Bitcoin face URL (cached SVG fetched separately)
-export function getBitcoinFaceUrl(sessionId: string): string {
+function getBitcoinFaceUrl(sessionId: string): string {
   return `https://bitcoinfaces.xyz/api/get-image?name=${encodeURIComponent(sessionId)}`
 }
 

@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect, memo } from 'react'
+import { useMemo, useState, useRef, useEffect, useCallback, memo } from 'react'
 import type { TmuxWindow, TmuxPane } from '@shared/types'
 import { PaneCard } from './PaneCard'
 import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
@@ -130,7 +130,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
     }
   }, [windows])
 
-  const toggleWindow = (windowId: string) => {
+  const toggleWindow = useCallback((windowId: string) => {
     setCollapsedWindows(prev => {
       const next = new Set(prev)
       if (next.has(windowId)) {
@@ -140,7 +140,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
       }
       return next
     })
-  }
+  }, [])
 
   const allCollapsed = windowGroups.length > 0 && collapsedWindows.size === windowGroups.length
   const toggleAllWindows = () => {

@@ -704,13 +704,12 @@ async function handleEvent(rawEvent: RawHookEvent) {
           const command = (postEvent.toolInput as { command?: string }).command || ''
           const cmdDetection = detectCommandXP(command)
           if (cmdDetection) {
-            // Update session stats based on command type
-            if (cmdDetection.statKey === 'git.commits') sessionStats.git.commits++
-            else if (cmdDetection.statKey === 'git.pushes') sessionStats.git.pushes++
-            else if (cmdDetection.statKey === 'git.prsCreated') sessionStats.git.prsCreated++
-            else if (cmdDetection.statKey === 'git.prsMerged') sessionStats.git.prsMerged++
-            else if (cmdDetection.statKey === 'commands.testsRun') sessionStats.commands.testsRun++
-            else if (cmdDetection.statKey === 'commands.buildsRun') sessionStats.commands.buildsRun++
+            // Update session stats based on command type (dot-path increment)
+            const parts = cmdDetection.statKey.split('.')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let obj: any = sessionStats
+            for (let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]]
+            obj[parts[parts.length - 1]]++
           }
         }
       }

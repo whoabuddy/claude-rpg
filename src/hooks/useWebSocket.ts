@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { ClaudeEvent, ServerMessage } from '@shared/types'
+import type { ServerMessage } from '@shared/types'
 
 // Use relative WebSocket URL to go through Vite proxy (supports both HTTP and HTTPS)
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -19,7 +19,6 @@ function cleanupWebSocket(ws: WebSocket | null): void {
 
 export function useWebSocket() {
   const [connected, setConnected] = useState(false)
-  const [events, setEvents] = useState<ClaudeEvent[]>([])
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number>()
 
@@ -43,11 +42,8 @@ export function useWebSocket() {
 
         switch (message.type) {
           case 'event':
-            setEvents(prev => [...prev.slice(-99), message.payload])
-            break
-
           case 'history':
-            setEvents(message.payload)
+            // Events dispatched via CustomEvents; no state needed
             break
 
           // Pane-centric messages
@@ -136,5 +132,5 @@ export function useWebSocket() {
     }
   }, [connect])
 
-  return { connected, events }
+  return { connected }
 }

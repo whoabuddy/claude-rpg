@@ -10,23 +10,9 @@
  */
 
 import { stripAnsi, simpleHash } from './utils.js'
+import type { TerminalPrompt, TerminalPromptOption } from '../shared/types.js'
 
-export interface TerminalPromptOption {
-  label: string
-  key: string  // The key to press (1, 2, y, n, etc.)
-}
-
-export interface TerminalPrompt {
-  type: 'question' | 'permission' | 'plan'
-  tool?: string              // 'Bash', 'Edit', 'Write' for permissions
-  command?: string           // Command preview for Bash permissions
-  question: string           // Main question text
-  options: TerminalPromptOption[]
-  multiSelect: boolean
-  footer?: string            // "Esc to cancel", etc.
-  detectedAt: number
-  contentHash: string        // For change detection
-}
+export type { TerminalPrompt, TerminalPromptOption }
 
 /**
  * Parse terminal content for Claude Code prompts

@@ -260,31 +260,3 @@ export function reconcileSessionState(
   return { stateChanged: false, confidence: 'high' }
 }
 
-/**
- * Check if Claude is likely running in this pane based on terminal content.
- * Useful for detecting Claude instances that started before hooks were set up.
- */
-export function detectClaudeFromTerminal(content: string): boolean {
-  if (!content) return false
-
-  const cleaned = stripAnsi(content)
-
-  // Claude-specific patterns
-  const claudePatterns = [
-    /claude\s+\d+\.\d+/i,              // Version string
-    /╭─.*Claude.*─╮/i,                 // Claude header box
-    /Anthropic/i,                       // Company name
-    /\[claude-code\]/i,                 // Claude code identifier
-    /Thinking\.\.\./i,                  // Thinking indicator
-    /Garnishing/i,                      // Claude-specific
-    /●.*\(\d+\).*○/,                   // Radio button UI
-  ]
-
-  for (const pattern of claudePatterns) {
-    if (pattern.test(cleaned)) {
-      return true
-    }
-  }
-
-  return false
-}

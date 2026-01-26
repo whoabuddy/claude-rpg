@@ -15,10 +15,19 @@ export function BackendSelector() {
       .then(res => res.json())
       .then(data => {
         if (data.ok) {
-          setStatus({
-            production: data.production,
-            dev: data.dev,
-            activeBackend: data.activeBackend,
+          setStatus(prev => {
+            // Skip update if nothing changed
+            if (prev &&
+              prev.production.ok === data.production.ok &&
+              prev.dev.ok === data.dev.ok &&
+              prev.activeBackend === data.activeBackend) {
+              return prev
+            }
+            return {
+              production: data.production,
+              dev: data.dev,
+              activeBackend: data.activeBackend,
+            }
           })
         }
       })

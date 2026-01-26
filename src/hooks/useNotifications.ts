@@ -213,9 +213,10 @@ export function usePaneNotifications({
     }
 
     enforceTrackerLimit(tracker)
-
-    return () => {
-      trackerRef.current.clear()
-    }
   }, [windows, enabled, notify])
+
+  // Clean up tracker only on unmount
+  useEffect(() => {
+    return () => { trackerRef.current.clear() }
+  }, [])
 }

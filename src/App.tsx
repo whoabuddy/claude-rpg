@@ -47,45 +47,11 @@ export default function App() {
     notify,
   })
 
-  // Pane action handlers
-  const handleSendPrompt = useCallback(
-    (paneId: string, prompt: string) => sendPromptToPane(paneId, prompt),
-    []
-  )
-  const handleSendSignal = useCallback(
-    (paneId: string, signal: string) => { sendSignalToPane(paneId, signal) },
-    []
-  )
-  const handleDismissWaiting = useCallback(
-    (paneId: string) => { dismissWaiting(paneId) },
-    []
-  )
-  const handleRefreshPane = useCallback(
-    (paneId: string) => { refreshPane(paneId) },
-    []
-  )
-  const handleClosePane = useCallback(
-    (paneId: string) => { closePane(paneId) },
-    []
-  )
-  const handleNewPane = useCallback(
-    (windowId: string) => { createPaneInWindow(windowId) },
-    []
-  )
-  const handleNewClaude = useCallback(
-    (windowId: string) => { createClaudeInWindow(windowId) },
-    []
-  )
+  // Pane action handlers — module-level functions are stable references, no useCallback needed
   const handleCreateWindow = useCallback(
     async (sessionName: string, windowName: string): Promise<boolean> => {
       const result = await createWindow(sessionName, windowName)
       return result.ok
-    },
-    []
-  )
-  const handleRenameWindow = useCallback(
-    async (windowId: string, windowName: string): Promise<{ ok: boolean; error?: string }> => {
-      return renameWindow(windowId, windowName)
     },
     []
   )
@@ -141,25 +107,7 @@ export default function App() {
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto">
-        {activeTab === 'dashboard' ? (
-          <OverviewDashboard
-            windows={windows}
-            attentionCount={attentionPanes.length}
-            connected={connected}
-            rpgEnabled={rpgEnabled}
-            onSendPrompt={handleSendPrompt}
-            onSendSignal={handleSendSignal}
-            onDismissWaiting={handleDismissWaiting}
-            onExpandPane={handleExpandPane}
-            onRefreshPane={handleRefreshPane}
-            onClosePane={handleClosePane}
-            onNewPane={handleNewPane}
-            onNewClaude={handleNewClaude}
-            onCreateWindow={handleCreateWindow}
-            onRenameWindow={handleRenameWindow}
-            onNavigateToCompetitions={handleNavigateToCompetitions}
-          />
-        ) : rpgEnabled ? (
+        {activeTab === 'competitions' && rpgEnabled ? (
           <CompetitionsPage
             connected={connected}
             onNavigateBack={handleNavigateToDashboard}
@@ -170,16 +118,16 @@ export default function App() {
             attentionCount={attentionPanes.length}
             connected={connected}
             rpgEnabled={rpgEnabled}
-            onSendPrompt={handleSendPrompt}
-            onSendSignal={handleSendSignal}
-            onDismissWaiting={handleDismissWaiting}
+            onSendPrompt={sendPromptToPane}
+            onSendSignal={sendSignalToPane}
+            onDismissWaiting={dismissWaiting}
             onExpandPane={handleExpandPane}
-            onRefreshPane={handleRefreshPane}
-            onClosePane={handleClosePane}
-            onNewPane={handleNewPane}
-            onNewClaude={handleNewClaude}
+            onRefreshPane={refreshPane}
+            onClosePane={closePane}
+            onNewPane={createPaneInWindow}
+            onNewClaude={createClaudeInWindow}
             onCreateWindow={handleCreateWindow}
-            onRenameWindow={handleRenameWindow}
+            onRenameWindow={renameWindow}
             onNavigateToCompetitions={handleNavigateToCompetitions}
           />
         )}
@@ -192,10 +140,10 @@ export default function App() {
           window={fullscreenData.window}
           attentionCount={otherAttentionCount}
           onClose={handleCloseFullscreen}
-          onSendPrompt={handleSendPrompt}
-          onSendSignal={handleSendSignal}
-          onDismissWaiting={handleDismissWaiting}
-          onClosePane={handleClosePane}
+          onSendPrompt={sendPromptToPane}
+          onSendSignal={sendSignalToPane}
+          onDismissWaiting={dismissWaiting}
+          onClosePane={closePane}
         />
       )}
     </div>

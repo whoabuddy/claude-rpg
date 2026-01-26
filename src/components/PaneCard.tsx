@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react'
-import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, RepoInfo, SessionStats, TerminalPrompt, PaneError } from '@shared/types'
+import type { TmuxPane, TmuxWindow, ClaudeSessionInfo, RepoInfo, SessionStats, TerminalPrompt } from '@shared/types'
+import { sendPromptToPane } from '../hooks/useWindows'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
+import { usePaneSend } from '../hooks/usePaneSend'
+import { useConfirmAction } from '../hooks/useConfirmAction'
 import { ansiToHtml } from '../utils/ansi'
+import { getPaneStatus, paneEqual } from '../utils/pane-status'
 import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
 import { QuestionInput } from './QuestionInput'
 import { VoiceButton } from './VoiceButton'
 import { isPasswordPrompt } from '../utils/password-detection'
-import { lastPromptByPane } from '../utils/prompt-history'
-
-// Use same-origin requests (proxied by Vite in dev, same server in prod)
-const API_BASE = ''
 
 interface PaneCardProps {
   pane: TmuxPane
@@ -26,55 +26,25 @@ interface PaneCardProps {
 
 export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true, onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onClosePane, compact = false }: PaneCardProps) {
   const [expanded, setExpanded] = useState(false)
-  const [inputValue, setInputValue] = useState('')
-  const [isSending, setIsSending] = useState(false)
-  const [confirmClose, setConfirmClose] = useState(false)
-  const [inlineError, setInlineError] = useState<string | null>(null)
   const terminalContent = usePaneTerminal(pane.id)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
   const passwordInputRef = useRef<HTMLInputElement>(null)
-  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Shared hooks
+  const send = usePaneSend(pane.id, onSendPrompt)
+  const closeConfirm = useConfirmAction(useCallback(() => onClosePane?.(pane.id), [onClosePane, pane.id]))
 
   // Detect password prompt in terminal
   const isPassword = useMemo(() => isPasswordPrompt(terminalContent), [terminalContent])
 
   const isClaudePane = pane.process.type === 'claude'
   const session = pane.process.claudeSession
-
-  // Determine status for theming
-  const status: string = isClaudePane && session
-    ? session.status
-    : pane.process.typing ? 'typing' : pane.process.type
+  const status = getPaneStatus(pane)
 
   const theme = STATUS_THEME[status as keyof typeof STATUS_THEME] || STATUS_THEME.idle
   const statusLabel = STATUS_LABELS[status] || status
 
   const toggleExpanded = useCallback(() => setExpanded(prev => !prev), [])
   const prevExpandedRef = useRef(expanded)
-
-  const handleSend = useCallback(async () => {
-    const trimmed = inputValue.trim()
-    if (!trimmed || isSending) return
-    setIsSending(true)
-    setInlineError(null)
-    const result = await onSendPrompt(pane.id, trimmed)
-    if (result.ok) {
-      lastPromptByPane.set(pane.id, trimmed)
-      setInputValue('')
-      if (inputRef.current) {
-        inputRef.current.style.height = 'auto'
-      }
-    } else {
-      setInlineError(result.error || 'Failed to send')
-      setTimeout(() => setInlineError(null), 5000)
-    }
-    setIsSending(false)
-  }, [onSendPrompt, pane.id, inputValue, isSending])
-
-  const handleRestoreLast = useCallback(() => {
-    const last = lastPromptByPane.get(pane.id)
-    if (last) setInputValue(last)
-  }, [pane.id])
 
   const handleCtrlC = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -86,40 +56,12 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
   }, [onSendPrompt, pane.id])
 
   // Handler for terminal-detected prompts (permissions use single keys)
-  const handleTerminalPromptAnswer = useCallback(async (answer: string, isPermission?: boolean) => {
-    // For permissions, we need to signal that this is a single-key response
-    // The server will send just the key without Enter
-    try {
-      const res = await fetch(`${API_BASE}/api/panes/${encodeURIComponent(pane.id)}/prompt`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: answer,
-          ...(isPermission && { isPermissionResponse: true }),
-        }),
-      })
-      if (!res.ok) {
-        console.error('[PaneCard] Prompt failed:', res.status, await res.text())
-      }
-    } catch (e) {
-      console.error('[PaneCard] Prompt error:', e)
-    }
+  const handleTerminalPromptAnswer = useCallback((answer: string, isPermission?: boolean) => {
+    sendPromptToPane(pane.id, answer, isPermission ? { isPermissionResponse: true } : undefined)
   }, [pane.id])
 
-  const handleCancelPrompt = useCallback(async () => {
-    // Send Escape to cancel the prompt
-    try {
-      const res = await fetch(`${API_BASE}/api/panes/${encodeURIComponent(pane.id)}/prompt`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: 'Escape' }),
-      })
-      if (!res.ok) {
-        console.error('[PaneCard] Cancel failed:', res.status, await res.text())
-      }
-    } catch (e) {
-      console.error('[PaneCard] Cancel error:', e)
-    }
+  const handleCancelPrompt = useCallback(() => {
+    sendPromptToPane(pane.id, 'Escape')
   }, [pane.id])
 
   const handleDismiss = useCallback((e: React.MouseEvent) => {
@@ -139,62 +81,18 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
 
   const handleCloseClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    if (confirmClose) {
-      // Already confirming, execute close
-      onClosePane?.(pane.id)
-      setConfirmClose(false)
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current)
-        closeTimeoutRef.current = null
-      }
-    } else {
-      // Show confirmation
-      setConfirmClose(true)
-      // Auto-dismiss after 3s
-      closeTimeoutRef.current = setTimeout(() => {
-        setConfirmClose(false)
-        closeTimeoutRef.current = null
-      }, 3000)
-    }
-  }, [confirmClose, onClosePane, pane.id])
+    closeConfirm.handleClick()
+  }, [closeConfirm])
 
   const handleCancelClose = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    setConfirmClose(false)
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current)
-      closeTimeoutRef.current = null
-    }
-  }, [])
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  // Listen for pane_error events matching this pane
-  useEffect(() => {
-    const handlePaneError = (e: CustomEvent<PaneError>) => {
-      if (e.detail.paneId === pane.id) {
-        setInlineError(e.detail.message)
-        // Auto-dismiss after 5 seconds
-        setTimeout(() => setInlineError(null), 5000)
-      }
-    }
-    globalThis.addEventListener('pane_error', handlePaneError as EventListener)
-    return () => globalThis.removeEventListener('pane_error', handlePaneError as EventListener)
-  }, [pane.id])
+    closeConfirm.handleCancel()
+  }, [closeConfirm])
 
   const handleVoiceTranscription = useCallback((text: string) => {
-    // Append transcribed text to input
-    setInputValue(prev => prev ? `${prev} ${text}` : text)
-    // Focus the input so user can edit/send
-    inputRef.current?.focus()
-  }, [])
+    send.setInputValue(prev => prev ? `${prev} ${text}` : text)
+    ;(send.inputRef.current as HTMLTextAreaElement | null)?.focus()
+  }, [send])
 
   // Show input when: expanded AND (Claude not actively working OR non-Claude pane)
   // Allow input for idle, waiting, typing, error - only hide when working
@@ -218,10 +116,10 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
       if (isPassword) {
         passwordInputRef.current?.focus()
       } else {
-        inputRef.current?.focus()
+        ;(send.inputRef.current as HTMLElement | null)?.focus()
       }
     }
-  }, [expanded, showInput, isPassword])
+  }, [expanded, showInput, isPassword, send.inputRef])
 
   // Compact mode: simpler display for idle panes
   if (compact && !expanded) {
@@ -361,7 +259,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
           {/* Actions */}
           <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
             {/* Close confirmation inline */}
-            {confirmClose ? (
+            {closeConfirm.confirming ? (
               <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
                 <span className="text-rpg-error">Close?</span>
                 <button
@@ -448,7 +346,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
             if (isPassword) {
               passwordInputRef.current?.focus()
             } else {
-              inputRef.current?.focus()
+              ;(send.inputRef.current as HTMLElement | null)?.focus()
             }
           }} />
 
@@ -482,19 +380,19 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
                     <input
                       ref={passwordInputRef}
                       type="password"
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
+                      value={send.inputValue}
+                      onChange={(e) => send.setInputValue(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault()
                           e.stopPropagation()
-                          handleSend()
+                          send.handleSend()
                         }
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      disabled={isSending}
+                      disabled={send.isSending}
                       placeholder="Enter password..."
-                      className={`flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-waiting/50 rounded focus:border-rpg-waiting outline-none min-h-[44px] ${isSending ? 'opacity-50' : ''}`}
+                      className={`flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-waiting/50 rounded focus:border-rpg-waiting outline-none min-h-[44px] ${send.isSending ? 'opacity-50' : ''}`}
                       autoComplete="off"
                     />
                   </div>
@@ -502,10 +400,10 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
                   /* Regular textarea input */
                   <div className="flex gap-2 items-end">
                     <textarea
-                      ref={inputRef}
-                      value={inputValue}
+                      ref={send.inputRef as React.RefObject<HTMLTextAreaElement>}
+                      value={send.inputValue}
                       onChange={(e) => {
-                        setInputValue(e.target.value)
+                        send.setInputValue(e.target.value)
                         // Auto-resize textarea
                         e.target.style.height = 'auto'
                         e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
@@ -514,17 +412,17 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault()
                           e.stopPropagation()
-                          if (inputValue.trim()) {
-                            handleSend()
+                          if (send.inputValue.trim()) {
+                            send.handleSend()
                           } else {
-                            onSendPrompt(pane.id, '') // Just Enter - fire-and-forget
+                            send.handleEnter()
                           }
                         }
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      disabled={isSending}
+                      disabled={send.isSending}
                       placeholder={isClaudePane ? "Send prompt... (Shift+Enter for newline)" : "Send input..."}
-                      className={`flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none ${isSending ? 'opacity-50' : ''}`}
+                      className={`flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none ${send.isSending ? 'opacity-50' : ''}`}
                       rows={1}
                     />
                     <VoiceButton onTranscription={handleVoiceTranscription} />
@@ -534,27 +432,27 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (inputValue.trim()) {
-                        handleSend()
+                      if (send.inputValue.trim()) {
+                        send.handleSend()
                       } else {
-                        onSendPrompt(pane.id, '') // Just Enter - fire-and-forget
+                        send.handleEnter()
                       }
                     }}
-                    disabled={isSending}
+                    disabled={send.isSending}
                     className={`flex-1 sm:flex-none px-4 py-2 text-sm rounded transition-colors active:scale-95 min-h-[44px] ${
-                      isSending
+                      send.isSending
                         ? 'bg-rpg-accent/20 text-rpg-text-muted cursor-not-allowed'
-                        : inputValue.trim()
+                        : send.inputValue.trim()
                           ? isPassword ? 'bg-rpg-waiting/30 hover:bg-rpg-waiting/50' : 'bg-rpg-accent/30 hover:bg-rpg-accent/50'
                           : 'bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle'
                     }`}
-                    title={inputValue.trim() ? "Send message" : "Send Enter (accept suggestion)"}
+                    title={send.inputValue.trim() ? "Send message" : "Send Enter (accept suggestion)"}
                   >
-                    {isSending ? 'Sending...' : inputValue.trim() ? 'Send' : '⏎ Enter'}
+                    {send.isSending ? 'Sending...' : send.inputValue.trim() ? 'Send' : '⏎ Enter'}
                   </button>
-                  {!isSending && !inputValue && lastPromptByPane.has(pane.id) && (
+                  {!send.isSending && !send.inputValue && send.hasLastPrompt && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleRestoreLast() }}
+                      onClick={(e) => { e.stopPropagation(); send.handleRestoreLast() }}
                       className="px-2 py-1 text-xs text-rpg-text-muted hover:text-rpg-accent transition-colors"
                       title="Restore last sent prompt"
                     >
@@ -576,11 +474,11 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
             )}
 
             {/* Inline error banner */}
-            {inlineError && (
+            {send.inlineError && (
               <div className="flex items-center justify-between gap-2 px-3 py-2 bg-rpg-error/20 border border-rpg-error/50 rounded text-sm text-rpg-error">
-                <span>{inlineError}</span>
+                <span>{send.inlineError}</span>
                 <button
-                  onClick={(e) => { e.stopPropagation(); setInlineError(null) }}
+                  onClick={(e) => { e.stopPropagation(); send.clearInlineError() }}
                   className="text-rpg-error/60 hover:text-rpg-error text-xs px-1"
                 >
                   ×
@@ -593,37 +491,8 @@ export const PaneCard = memo(function PaneCard({ pane, window, rpgEnabled = true
     </div>
   )
 }, (prev, next) => {
-  // Custom comparison - only re-render when visible state changes
   if (prev.compact !== next.compact) return false
-  if (prev.pane.id !== next.pane.id) return false
-  if (prev.pane.process.type !== next.pane.process.type) return false
-  if (prev.pane.process.typing !== next.pane.process.typing) return false
-  if (prev.pane.process.command !== next.pane.process.command) return false
-  if (prev.pane.cwd !== next.pane.cwd) return false
-  // Compare Claude session
-  const sa = prev.pane.process.claudeSession
-  const sb = next.pane.process.claudeSession
-  if (!!sa !== !!sb) return false
-  if (sa && sb) {
-    if (sa.status !== sb.status) return false
-    if (sa.name !== sb.name) return false
-    if (sa.avatarSvg !== sb.avatarSvg) return false
-    if (sa.currentTool !== sb.currentTool) return false
-    if (sa.currentFile !== sb.currentFile) return false
-    if (sa.lastPrompt !== sb.lastPrompt) return false
-    if (!!sa.pendingQuestion !== !!sb.pendingQuestion) return false
-    if (sa.pendingQuestion?.toolUseId !== sb.pendingQuestion?.toolUseId) return false
-    // Compare terminal prompt (source of truth)
-    if (!!sa.terminalPrompt !== !!sb.terminalPrompt) return false
-    if (sa.terminalPrompt?.contentHash !== sb.terminalPrompt?.contentHash) return false
-    if (sa.lastError?.timestamp !== sb.lastError?.timestamp) return false
-    // Compare session stats (for re-rendering when stats change)
-    if (sa.stats?.totalXPGained !== sb.stats?.totalXPGained) return false
-  }
-  // Compare repo
-  if (prev.pane.repo?.name !== next.pane.repo?.name) return false
-  if (prev.pane.repo?.org !== next.pane.repo?.org) return false
-  return true
+  return paneEqual(prev.pane, next.pane)
 })
 
 // Claude activity display

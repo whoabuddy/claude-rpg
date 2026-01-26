@@ -84,8 +84,3 @@ export function initTerminalCache(): () => void {
 
   return cleanupFn
 }
-
-// Export for testing/debugging
-export function getTerminalCacheSize(): number {
-  return terminalContentByPane.size
-}
