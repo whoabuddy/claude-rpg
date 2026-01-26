@@ -89,10 +89,18 @@ export const FullScreenPane = memo(function FullScreenPane({
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-medium">
-              {isClaudePane && session ? session.name : pane.process.command}
-            </span>
-            {pane.repo && <RepoStatusBar repo={pane.repo} />}
+            {pane.repo ? (
+              <>
+                <RepoStatusBar repo={pane.repo} />
+                {isClaudePane && session && (
+                  <span className="text-sm text-rpg-text-muted">&middot; {session.name}</span>
+                )}
+              </>
+            ) : (
+              <span className="font-medium">
+                {isClaudePane && session ? session.name : pane.process.command}
+              </span>
+            )}
           </div>
           <div className="text-sm text-rpg-text-muted">
             {isClaudePane && session ? (

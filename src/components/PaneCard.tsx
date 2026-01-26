@@ -87,12 +87,19 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
       >
         <div className="px-3 py-2 flex items-center gap-2">
           <PaneAvatar pane={pane} size="sm" />
-          <span className="text-sm text-rpg-text-muted truncate">
-            {isClaudePane && session ? session.name : pane.process.command}
-          </span>
-          {pane.repo && (
-            <span className="text-xs text-rpg-accent-dim truncate">
-              {pane.repo.name}
+          {pane.repo ? (
+            <>
+              <span className="text-sm text-rpg-accent truncate">
+                {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
+                {pane.repo.branch && `:${pane.repo.branch}`}
+              </span>
+              {isClaudePane && session && (
+                <span className="text-xs text-rpg-text-dim truncate">&middot; {session.name}</span>
+              )}
+            </>
+          ) : (
+            <span className="text-sm text-rpg-text-muted truncate">
+              {isClaudePane && session ? session.name : pane.process.command}
             </span>
           )}
           <div className="flex items-center gap-1.5 ml-auto">
@@ -117,7 +124,14 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
           {/* Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
-              {isClaudePane && session ? (
+              {pane.repo ? (
+                <>
+                  <RepoStatusBar repo={pane.repo} compact />
+                  {isClaudePane && session && (
+                    <span className="text-xs text-rpg-text-muted">&middot; {session.name}</span>
+                  )}
+                </>
+              ) : isClaudePane && session ? (
                 <span className="flex items-center gap-1.5">
                   <span className="text-xs px-1 py-0.5 rounded bg-rpg-accent/20 text-rpg-accent font-medium" title="Worker">W</span>
                   <span className="font-medium text-sm">{session.name}</span>
@@ -125,8 +139,6 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
               ) : (
                 <span className="font-mono text-sm">{pane.process.command}</span>
               )}
-
-              {pane.repo && <RepoStatusBar repo={pane.repo} compact />}
 
               <StatusIndicator status={status} onDismiss={handleDismiss} />
             </div>
