@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.4.0](https://github.com/whoabuddy/claude-rpg/compare/v1.3.1...v1.4.0) (2026-01-26)
+
+
+### Features
+
+* RPG feature flag, terminal reliability, input safety, ANSI rendering ([8c12164](https://github.com/whoabuddy/claude-rpg/commit/8c12164c69d12405a42bded4c05f2f06f6161f3c))
+* smart polling with tmux control mode integration ([#57](https://github.com/whoabuddy/claude-rpg/issues/57)) ([1918fe4](https://github.com/whoabuddy/claude-rpg/commit/1918fe4447a11f53ae370a5c9cd76002bf2d2af4))
+
+
+### Bug Fixes
+
+* disable control mode causing tmux scrollback issues ([852ebc0](https://github.com/whoabuddy/claude-rpg/commit/852ebc0a9693cb95d4aa79c35d4046cac338ea8a))
+* optimize re-renders, extract cleanup helper, add disconnect banner ([343ed4d](https://github.com/whoabuddy/claude-rpg/commit/343ed4d75953b7bed69922c0bb84c58ff059b4b7))
+* resolve stuck 'working' status by fixing reconciliation timing ([d7f25e5](https://github.com/whoabuddy/claude-rpg/commit/d7f25e5108455f38fc0e17e5a1b75478c19fc397))
+* terminal update reliability and mobile layout ([26ea6b6](https://github.com/whoabuddy/claude-rpg/commit/26ea6b674c318a1b0d5681bcbb4d313b779658dd))
+
 ## [1.3.1](https://github.com/whoabuddy/claude-rpg/compare/v1.3.0...v1.3.1) (2026-01-23)
 
 
