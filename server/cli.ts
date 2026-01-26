@@ -56,33 +56,33 @@ async function setup() {
     }
   }
 
-  // Initialize hooks array if not present
-  if (!Array.isArray(settings.hooks)) {
-    settings.hooks = []
+  // Initialize hooks as record if not present or wrong format
+  if (!settings.hooks || typeof settings.hooks !== 'object' || Array.isArray(settings.hooks)) {
+    settings.hooks = {}
   }
 
-  const hooks = settings.hooks as Array<{ matcher: string; hooks: string[] }>
+  const hooks = settings.hooks as Record<string, Array<{ matcher?: string; hooks: Array<{ type: string; command: string }> }>>
 
   // Add our hooks
   for (const hookType of hookTypes) {
     const hookCommand = `${HOOK_DEST} ${hookType}`
 
-    // Find existing matcher for this hook type
-    const existing = hooks.find(h => h.matcher === hookType)
+    // Initialize array for this event type if not present
+    if (!Array.isArray(hooks[hookType])) {
+      hooks[hookType] = []
+    }
 
-    if (existing) {
-      // Add our hook if not already present
-      if (!existing.hooks.includes(hookCommand)) {
-        existing.hooks.push(hookCommand)
-        console.log(`  ✓ Added to ${hookType}`)
-      } else {
-        console.log(`  - ${hookType} already configured`)
-      }
+    // Check if our hook command already exists in any entry
+    const alreadyConfigured = hooks[hookType].some(entry =>
+      entry.hooks?.some(h => h.command === hookCommand)
+    )
+
+    if (alreadyConfigured) {
+      console.log(`  - ${hookType} already configured`)
     } else {
-      // Create new hook entry
-      hooks.push({
-        matcher: hookType,
-        hooks: [hookCommand],
+      // Add new entry for this hook type
+      hooks[hookType].push({
+        hooks: [{ type: 'command', command: hookCommand }],
       })
       console.log(`  ✓ Created ${hookType}`)
     }
