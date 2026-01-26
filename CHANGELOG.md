@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.0](https://github.com/whoabuddy/claude-rpg/compare/v1.5.0...v1.6.0) (2026-01-26)
+
+
+### Features
+
+* add window rename with duplicate name prevention ([a4bda83](https://github.com/whoabuddy/claude-rpg/commit/a4bda83d08805a7fecd0b794a5361477738e1d5a))
+* resilient prompt sending with last-prompt recovery ([c46feda](https://github.com/whoabuddy/claude-rpg/commit/c46fedaf71a3b8bd3da2ec7e47bd00d52edfee15))
+
+
+### Bug Fixes
+
+* update hooks setup for new Claude Code matcher format ([8d7ad51](https://github.com/whoabuddy/claude-rpg/commit/8d7ad512de81149432e96cdafc2796671ba6704f))
+
 ## [1.5.0](https://github.com/whoabuddy/claude-rpg/compare/v1.4.0...v1.5.0) (2026-01-26)
 
 
