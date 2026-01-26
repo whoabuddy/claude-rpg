@@ -1,9 +1,10 @@
 import { useMemo, useState, useRef, useEffect, useCallback, memo } from 'react'
 import type { TmuxWindow, TmuxPane } from '@shared/types'
 import { PaneCard } from './PaneCard'
-import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
-import { BackendSelector } from './BackendSelector'
+import { ConnectionBanner } from './ConnectionStatus'
+import { StatusPill } from './StatusPill'
 import { usePaneActions } from '../contexts/PaneActionsContext'
+import { ActionButton } from './ActionButton'
 
 // Maximum panes per window (must match server constant)
 const MAX_PANES_PER_WINDOW = 4
@@ -190,36 +191,23 @@ export const OverviewDashboard = memo(function OverviewDashboard({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1 flex-wrap">
           {sessions.length > 0 && (
-            <button
-              onClick={handleOpenCreateWindow}
-              className="px-2 py-1 text-xs rounded bg-rpg-accent/20 hover:bg-rpg-accent/30 text-rpg-accent transition-colors"
-              title="Create new window"
-            >
-              +Win
-            </button>
+            <ActionButton icon="+" label="New Window" shortLabel="Win" variant="accent" onClick={handleOpenCreateWindow} />
           )}
           {windowGroups.length > 1 && (
-            <button
+            <ActionButton
+              icon={allCollapsed ? '▼' : '▲'}
+              label={allCollapsed ? 'Expand All' : 'Collapse All'}
+              shortLabel={allCollapsed ? 'Expand' : 'Collapse'}
+              variant="ghost"
               onClick={toggleAllWindows}
-              className="px-2 py-1 text-xs rounded bg-rpg-card text-rpg-text-muted hover:text-rpg-text hover:bg-rpg-card-hover transition-colors"
-              title={allCollapsed ? 'Expand all windows' : 'Collapse all windows'}
-            >
-              {allCollapsed ? '▼' : '▲'}
-            </button>
+            />
           )}
           {rpgEnabled && (
-            <button
-              onClick={onNavigateToCompetitions}
-              className="px-2 py-1 text-xs rounded bg-rpg-card text-rpg-text-muted hover:text-rpg-accent hover:bg-rpg-card-hover transition-colors hidden sm:block"
-              title="View Competitions"
-            >
-              LB
-            </button>
+            <ActionButton icon="🏆" label="Leaderboard" shortLabel="LB" variant="ghost" onClick={onNavigateToCompetitions} className="hidden sm:flex" />
           )}
-          <BackendSelector />
-          <ConnectionDot connected={connected} />
+          <StatusPill connected={connected} />
         </div>
       </div>
 
@@ -393,6 +381,21 @@ const WindowSection = memo(function WindowSection({
     setRenameError(null)
   }
 
+  const handleNewPane = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onNewPane(group.window.id)
+  }, [onNewPane, group.window.id])
+
+  const handleNewClaude = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onNewClaude(group.window.id)
+  }, [onNewClaude, group.window.id])
+
+  const handleStartRenameClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    handleStartRename()
+  }, [])
+
   return (
     <div className={`rounded-lg border ${hasAttention ? 'border-rpg-waiting status-bg-waiting' : 'border-rpg-border'}`}>
       {/* Window header */}
@@ -464,37 +467,24 @@ const WindowSection = memo(function WindowSection({
             </>
           ) : (
             <>
-              <button
-                onClick={handleStartRename}
-                className="px-2 py-1 text-xs rounded bg-rpg-bg-elevated hover:bg-rpg-border text-rpg-text-muted hover:text-rpg-text transition-colors"
-                title="Rename window"
-              >
-                Rename
-              </button>
-              <button
-                onClick={() => onNewPane(group.window.id)}
+              <ActionButton icon="✏️" label="Rename" variant="ghost" onClick={handleStartRenameClick} />
+              <ActionButton
+                icon="+"
+                label="New Pane"
+                shortLabel="Pane"
                 disabled={!canAddPane}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
-                  canAddPane
-                    ? 'bg-rpg-bg-elevated hover:bg-rpg-border text-rpg-text-muted hover:text-rpg-text'
-                    : 'bg-rpg-bg-elevated/50 text-rpg-text-dim cursor-not-allowed'
-                }`}
+                onClick={handleNewPane}
                 title={canAddPane ? 'Add new shell pane' : `Maximum ${maxPanes} panes`}
-              >
-                +Pane
-              </button>
-              <button
-                onClick={() => onNewClaude(group.window.id)}
+              />
+              <ActionButton
+                icon="⚡"
+                label="New Claude"
+                shortLabel="Claude"
+                variant="accent"
                 disabled={!canAddPane}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
-                  canAddPane
-                    ? 'bg-rpg-accent/20 hover:bg-rpg-accent/30 text-rpg-accent'
-                    : 'bg-rpg-accent/10 text-rpg-accent/50 cursor-not-allowed'
-                }`}
+                onClick={handleNewClaude}
                 title={canAddPane ? 'Add new Claude pane' : `Maximum ${maxPanes} panes`}
-              >
-                +Claude
-              </button>
+              />
             </>
           )}
         </div>

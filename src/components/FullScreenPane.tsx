@@ -15,6 +15,7 @@ import { PaneInput } from './PaneInput'
 import { ClaudeActivity } from './ClaudeActivity'
 import { GitHubLinks } from './GitHubLinks'
 import { SessionStatsBar } from './SessionStatsBar'
+import { ActionButton } from './ActionButton'
 
 interface FullScreenPaneProps {
   pane: TmuxPane
@@ -74,14 +75,8 @@ export const FullScreenPane = memo(function FullScreenPane({
     <div className="fixed inset-0 z-50 bg-rpg-bg flex flex-col">
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-3 border-b border-rpg-border bg-rpg-card">
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="w-10 h-10 flex items-center justify-center rounded-lg bg-rpg-bg-elevated hover:bg-rpg-border transition-colors"
-          title="Close (Escape)"
-        >
-          <span className="text-xl">←</span>
-        </button>
+        {/* Back button */}
+        <ActionButton icon="←" label="Back" variant="ghost" onClick={onClose} title="Close (Escape)" />
 
         {/* Avatar */}
         <PaneAvatar pane={pane} />
@@ -89,10 +84,18 @@ export const FullScreenPane = memo(function FullScreenPane({
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-medium">
-              {isClaudePane && session ? session.name : pane.process.command}
-            </span>
-            {pane.repo && <RepoStatusBar repo={pane.repo} />}
+            {pane.repo ? (
+              <>
+                <RepoStatusBar repo={pane.repo} />
+                {isClaudePane && session && (
+                  <span className="text-sm text-rpg-text-muted">&middot; {session.name}</span>
+                )}
+              </>
+            ) : (
+              <span className="font-medium">
+                {isClaudePane && session ? session.name : pane.process.command}
+              </span>
+            )}
           </div>
           <div className="text-sm text-rpg-text-muted">
             {isClaudePane && session ? (
@@ -129,13 +132,7 @@ export const FullScreenPane = memo(function FullScreenPane({
               </button>
             </div>
           ) : (
-            <button
-              onClick={closeConfirm.handleClick}
-              className="w-10 h-10 flex items-center justify-center text-rpg-text-dim hover:text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
-              title="Close pane"
-            >
-              ×
-            </button>
+            <ActionButton icon="×" label="Close Pane" shortLabel="Close" variant="danger" onClick={closeConfirm.handleClick} />
           )}
         </div>
 
@@ -162,43 +159,43 @@ export const FullScreenPane = memo(function FullScreenPane({
         )}
       </div>
 
-      {/* Terminal - takes remaining space */}
-      <div className="flex-1 overflow-hidden p-4">
+      {/* Terminal - takes remaining space, with prompt overlays */}
+      <div className="flex-1 overflow-hidden p-4 relative">
         <TerminalDisplay
           content={terminalContent}
           className="h-full bg-rpg-bg rounded-lg p-4 text-sm font-mono text-rpg-working overflow-auto whitespace-pre-wrap border border-rpg-border-dim cursor-text"
         />
+
+        {/* Prompt overlays on terminal area */}
+        {isClaudePane && session?.terminalPrompt && (
+          <div className="absolute bottom-4 left-4 right-4 p-3 bg-rpg-bg/95 backdrop-blur-sm rounded-lg border border-rpg-border shadow-lg">
+            <TerminalPromptUI
+              prompt={session.terminalPrompt}
+              onAnswer={handleTerminalPromptAnswer}
+              onCancel={handleCancelPrompt}
+            />
+          </div>
+        )}
+
+        {isClaudePane && session?.pendingQuestion && !session?.terminalPrompt && (
+          <div className="absolute bottom-4 left-4 right-4 p-3 bg-rpg-bg/95 backdrop-blur-sm rounded-lg border border-rpg-border shadow-lg">
+            <QuestionInput
+              pendingQuestion={session.pendingQuestion}
+              onAnswer={handleAnswer}
+            />
+          </div>
+        )}
       </div>
 
       {/* Input area - always at bottom */}
-      <div className="px-4 py-3 border-t border-rpg-border bg-rpg-card space-y-2">
-        {/* Terminal-detected prompt (source of truth) */}
-        {isClaudePane && session?.terminalPrompt && (
-          <TerminalPromptUI
-            prompt={session.terminalPrompt}
-            onAnswer={handleTerminalPromptAnswer}
-            onCancel={handleCancelPrompt}
-          />
-        )}
-
-        {/* Legacy pending question input (fallback when no terminal prompt) */}
-        {isClaudePane && session?.pendingQuestion && !session?.terminalPrompt && (
-          <QuestionInput
-            pendingQuestion={session.pendingQuestion}
-            onAnswer={handleAnswer}
-          />
-        )}
-
-        {/* Regular input (when no prompt active) */}
-        {!session?.terminalPrompt && !session?.pendingQuestion && (
-          <PaneInput
-            paneId={pane.id}
-            pane={pane}
-            onSendPrompt={onSendPrompt}
-            onSendSignal={onSendSignal}
-            variant="fullscreen"
-          />
-        )}
+      <div className="px-4 py-3 border-t border-rpg-border bg-rpg-card">
+        <PaneInput
+          paneId={pane.id}
+          pane={pane}
+          onSendPrompt={onSendPrompt}
+          onSendSignal={onSendSignal}
+          variant="fullscreen"
+        />
       </div>
     </div>
   )
