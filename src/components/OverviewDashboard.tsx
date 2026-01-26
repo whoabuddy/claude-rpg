@@ -1,4 +1,4 @@
-import { useMemo, useState, memo } from 'react'
+import { useMemo, useState, useRef, useEffect, memo } from 'react'
 import type { TmuxWindow, TmuxPane } from '@shared/types'
 import { PaneCard } from './PaneCard'
 import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
@@ -21,6 +21,7 @@ interface OverviewDashboardProps {
   onNewPane: (windowId: string) => void
   onNewClaude: (windowId: string) => void
   onCreateWindow: (sessionName: string, windowName: string) => Promise<boolean>
+  onRenameWindow: (windowId: string, windowName: string) => Promise<{ ok: boolean; error?: string }>
   onNavigateToCompetitions: () => void
 }
 
@@ -78,6 +79,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   onNewPane,
   onNewClaude,
   onCreateWindow,
+  onRenameWindow,
   onNavigateToCompetitions,
 }: OverviewDashboardProps) {
   const [collapsedWindows, setCollapsedWindows] = useState<Set<string>>(new Set())
@@ -335,6 +337,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
                 onClosePane={onClosePane}
                 onNewPane={onNewPane}
                 onNewClaude={onNewClaude}
+                onRenameWindow={onRenameWindow}
               />
             ))}
           </div>
@@ -358,6 +361,7 @@ interface WindowSectionProps {
   onClosePane: (paneId: string) => void
   onNewPane: (windowId: string) => void
   onNewClaude: (windowId: string) => void
+  onRenameWindow: (windowId: string, windowName: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 const WindowSection = memo(function WindowSection({
@@ -374,9 +378,53 @@ const WindowSection = memo(function WindowSection({
   onClosePane,
   onNewPane,
   onNewClaude,
+  onRenameWindow,
 }: WindowSectionProps) {
   const hasAttention = group.attentionCount > 0
   const canAddPane = group.panes.length < maxPanes
+
+  // Rename state
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
+  const [renameError, setRenameError] = useState<string | null>(null)
+  const renameInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus()
+      renameInputRef.current.select()
+    }
+  }, [isRenaming])
+
+  const handleStartRename = () => {
+    setRenameValue(group.window.windowName)
+    setRenameError(null)
+    setIsRenaming(true)
+  }
+
+  const handleConfirmRename = async () => {
+    const trimmed = renameValue.trim()
+    if (!trimmed) {
+      setRenameError('Name is required')
+      return
+    }
+    if (trimmed === group.window.windowName) {
+      setIsRenaming(false)
+      return
+    }
+    const result = await onRenameWindow(group.window.id, trimmed)
+    if (result.ok) {
+      setIsRenaming(false)
+      setRenameError(null)
+    } else {
+      setRenameError(result.error || 'Failed to rename')
+    }
+  }
+
+  const handleCancelRename = () => {
+    setIsRenaming(false)
+    setRenameError(null)
+  }
 
   return (
     <div className={`rounded-lg border ${hasAttention ? 'border-rpg-waiting status-bg-waiting' : 'border-rpg-border'}`}>
@@ -389,9 +437,24 @@ const WindowSection = memo(function WindowSection({
           <span className="w-6 h-6 flex items-center justify-center text-xs rounded bg-rpg-card text-rpg-text-muted font-mono">
             {group.window.windowIndex}
           </span>
-          <span className="font-medium text-sm text-rpg-text">
-            {group.window.windowName}
-          </span>
+          {isRenaming ? (
+            <input
+              ref={renameInputRef}
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); handleConfirmRename() }
+                if (e.key === 'Escape') { e.preventDefault(); handleCancelRename() }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="font-medium text-sm text-rpg-text bg-rpg-bg-elevated border border-rpg-accent rounded px-1 py-0.5 w-32 focus:outline-none"
+            />
+          ) : (
+            <span className="font-medium text-sm text-rpg-text">
+              {group.window.windowName}
+            </span>
+          )}
           {group.primaryRepo && (
             <span className="text-xs text-rpg-accent truncate max-w-[200px] hidden sm:inline">
               {group.primaryRepo}
@@ -415,32 +478,67 @@ const WindowSection = memo(function WindowSection({
 
         {/* Window-level actions */}
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => onNewPane(group.window.id)}
-            disabled={!canAddPane}
-            className={`px-2 py-1 text-xs rounded transition-colors ${
-              canAddPane
-                ? 'bg-rpg-bg-elevated hover:bg-rpg-border text-rpg-text-muted hover:text-rpg-text'
-                : 'bg-rpg-bg-elevated/50 text-rpg-text-dim cursor-not-allowed'
-            }`}
-            title={canAddPane ? 'Add new shell pane' : `Maximum ${maxPanes} panes`}
-          >
-            +Pane
-          </button>
-          <button
-            onClick={() => onNewClaude(group.window.id)}
-            disabled={!canAddPane}
-            className={`px-2 py-1 text-xs rounded transition-colors ${
-              canAddPane
-                ? 'bg-rpg-accent/20 hover:bg-rpg-accent/30 text-rpg-accent'
-                : 'bg-rpg-accent/10 text-rpg-accent/50 cursor-not-allowed'
-            }`}
-            title={canAddPane ? 'Add new Claude pane' : `Maximum ${maxPanes} panes`}
-          >
-            +Claude
-          </button>
+          {isRenaming ? (
+            <>
+              <button
+                onClick={handleConfirmRename}
+                className="px-2 py-1 text-xs rounded bg-rpg-accent/20 hover:bg-rpg-accent/30 text-rpg-accent transition-colors"
+                title="Confirm rename"
+              >
+                OK
+              </button>
+              <button
+                onClick={handleCancelRename}
+                className="px-2 py-1 text-xs rounded bg-rpg-bg-elevated hover:bg-rpg-border text-rpg-text-muted transition-colors"
+                title="Cancel rename"
+              >
+                Esc
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={handleStartRename}
+                className="px-2 py-1 text-xs rounded bg-rpg-bg-elevated hover:bg-rpg-border text-rpg-text-muted hover:text-rpg-text transition-colors"
+                title="Rename window"
+              >
+                Rename
+              </button>
+              <button
+                onClick={() => onNewPane(group.window.id)}
+                disabled={!canAddPane}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  canAddPane
+                    ? 'bg-rpg-bg-elevated hover:bg-rpg-border text-rpg-text-muted hover:text-rpg-text'
+                    : 'bg-rpg-bg-elevated/50 text-rpg-text-dim cursor-not-allowed'
+                }`}
+                title={canAddPane ? 'Add new shell pane' : `Maximum ${maxPanes} panes`}
+              >
+                +Pane
+              </button>
+              <button
+                onClick={() => onNewClaude(group.window.id)}
+                disabled={!canAddPane}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  canAddPane
+                    ? 'bg-rpg-accent/20 hover:bg-rpg-accent/30 text-rpg-accent'
+                    : 'bg-rpg-accent/10 text-rpg-accent/50 cursor-not-allowed'
+                }`}
+                title={canAddPane ? 'Add new Claude pane' : `Maximum ${maxPanes} panes`}
+              >
+                +Claude
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Rename error */}
+      {renameError && (
+        <div className="px-3 pb-1">
+          <p className="text-xs text-rpg-error">{renameError}</p>
+        </div>
+      )}
 
       {/* Panes */}
       {!collapsed && (

@@ -141,6 +141,7 @@ To audit: compare Claude Code release notes (focus on hooks, terminal UI, and pr
 | `/event` | POST | Receive events from Claude Code hook |
 | `/api/windows` | GET | List all windows with panes |
 | `/api/windows/create` | POST | Create new tmux window (body: `{ sessionName, windowName? }`) |
+| `/api/windows/:id/rename` | POST | Rename window (body: `{ windowName }`, enforces unique names per session) |
 | `/api/windows/:id/new-pane` | POST | Split new pane in window |
 | `/api/windows/:id/new-claude` | POST | Split new pane and start Claude Code |
 | `/api/panes/:id` | GET | Get single pane detail |

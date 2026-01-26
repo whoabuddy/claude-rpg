@@ -1756,6 +1756,63 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Window Rename Endpoint
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const windowRenameMatch = url.pathname.match(/^\/api\/windows\/([^/]+)\/rename$/)
+  if (windowRenameMatch && req.method === 'POST') {
+    const windowId = decodeURIComponent(windowRenameMatch[1])
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', async () => {
+      try {
+        const { windowName: rawWindowName } = JSON.parse(body)
+
+        if (!rawWindowName) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: 'windowName is required' }))
+          return
+        }
+
+        // Sanitize input to prevent command injection
+        const newName = rawWindowName.replace(/[^a-zA-Z0-9_-]/g, '')
+
+        if (!newName) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: 'Invalid window name (alphanumeric, dash, underscore only)' }))
+          return
+        }
+
+        // Look up existing window
+        const window = findWindowById(windows, windowId)
+        if (!window) {
+          sendWindowNotFound(res)
+          return
+        }
+
+        // Check for duplicate names within the same session (exclude this window)
+        const duplicateExists = windows.some(
+          w => w.sessionName === window.sessionName && w.windowName === newName && w.id !== windowId
+        )
+        if (duplicateExists) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: `Window "${newName}" already exists in session "${window.sessionName}"` }))
+          return
+        }
+
+        await execAsync(`tmux rename-window -t "${windowId}" "${newName}"`)
+
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true, windowId, windowName: newName }))
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: sanitizeTmuxError(e) }))
+      }
+    })
+    return
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Window-level Pane Creation Endpoints
   // ═══════════════════════════════════════════════════════════════════════════
 

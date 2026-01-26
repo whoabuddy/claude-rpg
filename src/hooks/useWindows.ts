@@ -263,3 +263,17 @@ export async function createWindow(sessionName: string, windowName: string): Pro
     return { ok: false, error: 'Network error' }
   }
 }
+
+// Helper to rename a window
+export async function renameWindow(windowId: string, windowName: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_URL}/api/windows/${encodeURIComponent(windowId)}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ windowName }),
+    })
+    return await res.json()
+  } catch {
+    return { ok: false, error: 'Network error' }
+  }
+}

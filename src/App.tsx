@@ -3,7 +3,7 @@ import { OverviewDashboard } from './components/OverviewDashboard'
 import { FullScreenPane } from './components/FullScreenPane'
 import { CompetitionsPage } from './components/CompetitionsPage'
 import { useWebSocket } from './hooks/useWebSocket'
-import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refreshPane, closePane, createPaneInWindow, createClaudeInWindow, createWindow } from './hooks/useWindows'
+import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refreshPane, closePane, createPaneInWindow, createClaudeInWindow, createWindow, renameWindow } from './hooks/useWindows'
 import { initTerminalCache } from './hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
 
@@ -83,6 +83,12 @@ export default function App() {
     },
     []
   )
+  const handleRenameWindow = useCallback(
+    async (windowId: string, windowName: string): Promise<{ ok: boolean; error?: string }> => {
+      return renameWindow(windowId, windowName)
+    },
+    []
+  )
 
   // Navigation handlers
   const handleExpandPane = useCallback((paneId: string) => setFullscreenPaneId(paneId), [])
@@ -150,6 +156,7 @@ export default function App() {
             onNewPane={handleNewPane}
             onNewClaude={handleNewClaude}
             onCreateWindow={handleCreateWindow}
+            onRenameWindow={handleRenameWindow}
             onNavigateToCompetitions={handleNavigateToCompetitions}
           />
         ) : rpgEnabled ? (
@@ -172,6 +179,7 @@ export default function App() {
             onNewPane={handleNewPane}
             onNewClaude={handleNewClaude}
             onCreateWindow={handleCreateWindow}
+            onRenameWindow={handleRenameWindow}
             onNavigateToCompetitions={handleNavigateToCompetitions}
           />
         )}
