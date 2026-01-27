@@ -1,6 +1,6 @@
 # Quest State
 
-**Current Phase:** 8
+**Current Phase:** 9
 **Phase Status:** pending
 **Retry Count:** 0
 
@@ -14,3 +14,4 @@
 - 2026-01-27: Phase 5 complete. Subagent visualization with description/prompt (#32). Session grouping in dashboard when multiple sessions exist (#54). Changed activeSubagents from number to SubagentInfo[].
 - 2026-01-27: Phase 6 complete. Toast notifications for errors (#84) and XP gains (#83). Companion prompt endpoint (#85) at POST /api/companions/:id/prompt.
 - 2026-01-27: Phase 7 complete. Streaks visible in all time periods (#82). Quest pause/resume/complete controls (#81). Workers summary panel shows all active Claude sessions (#36).
+- 2026-01-27: Phase 8 complete. Achievements system with 25 definitions across 7 categories (#37). Auto-check on stat updates, toast notifications on unlock, showcase in Competitions page. Companion data model extended with achievements array. RPG framing enhanced (#52) — workers, projects, and progression now unified.

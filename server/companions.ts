@@ -199,6 +199,7 @@ export function findOrCreateCompanion(companions: Companion[], cwd: string): Com
     totalExperience: 0,
     stats: createDefaultStats(),
     streak: createDefaultStreak(),
+    achievements: [],
     npmScripts: npmScripts || undefined,
     createdAt: Date.now(),
     lastActivity: Date.now(),
@@ -251,6 +252,7 @@ function migrateCompanion(companion: Partial<Companion>): Companion {
   return {
     ...companion,
     streak: companion.streak || createDefaultStreak(),
+    achievements: companion.achievements || [],
   } as Companion
 }
 

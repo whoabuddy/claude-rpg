@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, memo } from 'react'
 
 interface Toast {
   id: string
-  type: 'error' | 'xp' | 'quest_xp' | 'info'
+  type: 'error' | 'xp' | 'quest_xp' | 'achievement' | 'info'
   title: string
   body?: string
   timestamp: number
@@ -78,6 +78,20 @@ export const ToastContainer = memo(function ToastContainer() {
     return () => window.removeEventListener('quest_xp', handleQuestXP as EventListener)
   }, [addToast])
 
+  // Listen for achievement_unlocked events (#37)
+  useEffect(() => {
+    const handleAchievement = (e: CustomEvent<{ achievementName: string; achievementIcon: string; companionName: string; rarity: string }>) => {
+      const d = e.detail
+      addToast({
+        type: 'achievement',
+        title: `${d.achievementIcon} ${d.achievementName}`,
+        body: `Unlocked for ${d.companionName}`,
+      })
+    }
+    window.addEventListener('achievement_unlocked', handleAchievement as EventListener)
+    return () => window.removeEventListener('achievement_unlocked', handleAchievement as EventListener)
+  }, [addToast])
+
   if (toasts.length === 0) return null
 
   return (
@@ -93,6 +107,7 @@ const TOAST_STYLES = {
   error: 'border-rpg-error/50 bg-rpg-error/15',
   xp: 'border-rpg-accent/50 bg-rpg-accent/15',
   quest_xp: 'border-rpg-success/50 bg-rpg-success/15',
+  achievement: 'border-yellow-400/50 bg-yellow-400/15',
   info: 'border-rpg-border bg-rpg-card',
 } as const
 
@@ -100,6 +115,7 @@ const TOAST_ICONS = {
   error: '!',
   xp: '+',
   quest_xp: 'Q',
+  achievement: '★',
   info: 'i',
 } as const
 
@@ -116,6 +132,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
         <span className={`w-5 h-5 flex items-center justify-center text-xs rounded-full font-bold ${
           toast.type === 'error' ? 'bg-rpg-error/30 text-rpg-error'
             : toast.type === 'quest_xp' ? 'bg-rpg-success/30 text-rpg-success'
+            : toast.type === 'achievement' ? 'bg-yellow-400/30 text-yellow-400'
             : 'bg-rpg-accent/30 text-rpg-accent'
         }`}>
           {icon}

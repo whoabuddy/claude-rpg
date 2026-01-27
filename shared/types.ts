@@ -184,6 +184,7 @@ export interface Companion {
   totalExperience: number
   stats: CompanionStats
   streak: StreakInfo
+  achievements: Achievement[]          // Unlocked achievements
   npmScripts?: Record<string, string>  // Available npm scripts from package.json
   createdAt: number
   lastActivity: number
@@ -355,6 +356,35 @@ export function levelFromTotalXP(totalXP: number): { level: number; currentXP: n
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ACHIEVEMENTS (Milestones and badges)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type AchievementCategory = 'getting_started' | 'git' | 'testing' | 'deploy' | 'streak' | 'blockchain' | 'misc'
+export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary'
+
+export interface Achievement {
+  id: string
+  unlockedAt: number
+}
+
+export interface AchievementDefinition {
+  id: string
+  name: string
+  description: string
+  icon: string
+  category: AchievementCategory
+  rarity: AchievementRarity
+  check: (stats: CompanionStats, streak: StreakInfo, meta?: AchievementMeta) => boolean
+}
+
+/** Extra context passed to achievement checks that isn't in stats/streak */
+export interface AchievementMeta {
+  sessionsCompleted: number
+  toolsUsedCount: number  // number of distinct tools used
+  totalXP: number
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // QUESTS (Cross-repo goals with phased execution)
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -483,6 +513,7 @@ export type ServerMessage =
   | { type: 'quest_update'; payload: Quest }
   | { type: 'quests_init'; payload: Quest[] }
   | { type: 'quest_xp'; payload: { questId: string; phaseId: string; xp: number; reason: string } }
+  | { type: 'achievement_unlocked'; payload: { companionId: string; companionName: string; achievementId: string; achievementName: string; achievementIcon: string; rarity: AchievementRarity } }
   | { type: 'system_stats'; payload: SystemStats }
 
 export type ClientMessage =

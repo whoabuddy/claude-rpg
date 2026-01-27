@@ -30,6 +30,7 @@ import { reconcileSessionState } from './state-reconciler.js'
 import { processEvent, detectCommandXP, processQuestXP } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName } from './companions.js'
 import { getAllCompetitions, getCompetition, getStreakLeaderboard, updateStreak } from './competitions.js'
+import { checkAchievements, getAchievementDef } from './achievements.js'
 import { loadQuests, saveQuests, processQuestEvent, isQuestEvent, type QuestEventPayload } from './quests.js'
 import {
   pollTmuxState,
@@ -814,6 +815,32 @@ async function handleEvent(rawEvent: RawHookEvent) {
 
       // Skip saves/broadcasts during historical event loading (startup perf)
       if (!isLoadingHistoricalEvents) {
+        // Check achievements (#37)
+        const meta = {
+          sessionsCompleted: companion.stats.sessionsCompleted,
+          toolsUsedCount: Object.keys(companion.stats.toolsUsed).length,
+          totalXP: companion.totalExperience,
+        }
+        const newAchievements = checkAchievements(companion.stats, companion.streak, companion.achievements, meta)
+        for (const achId of newAchievements) {
+          companion.achievements.push({ id: achId, unlockedAt: Date.now() })
+          const def = getAchievementDef(achId)
+          if (def) {
+            broadcast({
+              type: 'achievement_unlocked',
+              payload: {
+                companionId: companion.id,
+                companionName: companion.name,
+                achievementId: achId,
+                achievementName: def.name,
+                achievementIcon: def.icon,
+                rarity: def.rarity,
+              },
+            } as ServerMessage)
+            console.log(`[claude-rpg] Achievement unlocked: ${def.icon} ${def.name} for ${companion.name}`)
+          }
+        }
+
         saveCompanions(DATA_DIR, companions)
         broadcast({ type: 'companion_update', payload: companion })
       }

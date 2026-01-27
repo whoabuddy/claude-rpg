@@ -58,7 +58,7 @@ Streaks leaderboard (#82), quest management controls (#81), who's working on wha
 
 ## Phase 8: Achievements and RPG design
 **Issues:** #37, #52
-**Status:** pending
+**Status:** completed
 **Complexity:** Large
 **Dependencies:** Phases 2, 6, 7
 
