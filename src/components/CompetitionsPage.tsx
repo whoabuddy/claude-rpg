@@ -90,10 +90,8 @@ export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPage
               emptyMessage="No XP earned yet"
             />
 
-            {/* Streaks - only show for "all time", full width */}
-            {period === 'all' && (
-              <StreakCard entries={streakEntries} />
-            )}
+            {/* Streaks - always visible (#82) */}
+            <StreakCard entries={streakEntries} />
 
             {/* Other leaderboards in 2-column grid on md+ */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

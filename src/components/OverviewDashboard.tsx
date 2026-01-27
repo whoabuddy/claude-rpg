@@ -72,7 +72,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   onNavigateToCompetitions,
   onNavigateToQuests,
 }: OverviewDashboardProps) {
-  const { rpgEnabled } = usePaneActions()
+  const { rpgEnabled, onExpandPane } = usePaneActions()
   const [collapsedWindows, setCollapsedWindows] = useState<Set<string>>(new Set())
   const [showCreateWindow, setShowCreateWindow] = useState(false)
   const [newWindowName, setNewWindowName] = useState('')
@@ -237,6 +237,11 @@ export const OverviewDashboard = memo(function OverviewDashboard({
           <StatusPill connected={connected} />
         </div>
       </div>
+
+      {/* Active Workers summary (#36) — visible when 2+ Claude panes */}
+      {stats.claude >= 2 && (
+        <WorkersSummary windows={windows} onExpandPane={onExpandPane} />
+      )}
 
       {/* Search/Filter (#53) — visible when 3+ windows */}
       {windowGroups.length >= 3 && (
@@ -416,6 +421,107 @@ export const OverviewDashboard = memo(function OverviewDashboard({
     </div>
   )
 })
+
+// ── Workers Summary (#36) ──────────────────────────────────────────────────
+
+interface WorkersSummaryProps {
+  windows: TmuxWindow[]
+  onExpandPane: (paneId: string) => void
+}
+
+const STATUS_DOT: Record<string, string> = {
+  idle: 'bg-rpg-idle',
+  typing: 'bg-rpg-accent',
+  working: 'bg-yellow-400 animate-pulse',
+  waiting: 'bg-rpg-waiting animate-pulse',
+  error: 'bg-rpg-error',
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  idle: 'Ready',
+  typing: 'Active',
+  working: 'Working',
+  waiting: 'Waiting',
+  error: 'Error',
+}
+
+function WorkersSummary({ windows, onExpandPane }: WorkersSummaryProps) {
+  // Collect all Claude panes across windows
+  const workers = useMemo(() => {
+    const result: { pane: TmuxPane; windowName: string }[] = []
+    for (const win of windows) {
+      for (const pane of win.panes) {
+        if (pane.process.type === 'claude' && pane.process.claudeSession) {
+          result.push({ pane, windowName: win.windowName })
+        }
+      }
+    }
+    return result
+  }, [windows])
+
+  if (workers.length < 2) return null
+
+  return (
+    <div className="rounded-lg border border-rpg-border bg-rpg-card/50 p-3">
+      <div className="text-xs font-medium text-rpg-text-muted mb-2">
+        Active Workers ({workers.length})
+      </div>
+      <div className="space-y-1.5">
+        {workers.map(({ pane, windowName }) => {
+          const session = pane.process.claudeSession!
+          const status = session.status
+          const repoLabel = pane.repo
+            ? (pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name)
+            : windowName
+
+          // Activity summary
+          let activity = ''
+          if (session.currentTool) {
+            activity = session.currentTool
+            if (session.currentFile) {
+              activity += `: ${session.currentFile.split('/').pop()}`
+            }
+          } else if (status === 'waiting') {
+            activity = 'Waiting for input'
+          } else if (session.lastPrompt?.trim()) {
+            activity = session.lastPrompt
+          }
+
+          return (
+            <button
+              key={pane.id}
+              onClick={() => onExpandPane(pane.id)}
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-rpg-card-hover transition-colors text-left"
+            >
+              {/* Status dot */}
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[status] || 'bg-rpg-text-dim'}`} />
+              {/* Name */}
+              <span className="text-sm text-rpg-text font-medium truncate w-16 flex-shrink-0">
+                {session.name}
+              </span>
+              {/* Repo */}
+              <span className="text-xs text-rpg-accent truncate max-w-[120px] flex-shrink-0">
+                {repoLabel}
+              </span>
+              {/* Activity */}
+              <span className="text-xs text-rpg-text-dim truncate flex-1 min-w-0">
+                {activity || STATUS_LABEL[status] || 'Ready'}
+              </span>
+              {/* Subagent badge */}
+              {(session.activeSubagents?.length || 0) > 0 && (
+                <span className="text-[10px] text-rpg-accent flex-shrink-0">
+                  {session.activeSubagents!.length} sub{session.activeSubagents!.length > 1 ? 's' : ''}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Window Section ─────────────────────────────────────────────────────────
 
 interface WindowSectionProps {
   group: WindowGroup
