@@ -185,3 +185,16 @@ export function createWindow(sessionName: string, windowName: string) {
 export function renameWindow(windowId: string, windowName: string) {
   return apiPost<{ ok: boolean; error?: string }>(windowPath(windowId, 'rename'), { windowName })
 }
+
+// Close a window (#48)
+export function closeWindow(windowId: string) {
+  return apiPost<{ ok: boolean; error?: string }>(windowPath(windowId, 'close'))
+}
+
+// Send prompt to a companion (#85) — routes to their active Claude pane
+export function sendPromptToCompanion(companionId: string, prompt: string) {
+  return apiPost<{ ok: boolean; paneId?: string; companionName?: string; error?: string }>(
+    `/api/companions/${encodeURIComponent(companionId)}/prompt`,
+    { prompt },
+  )
+}

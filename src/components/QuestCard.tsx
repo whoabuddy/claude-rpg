@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
-import type { Quest, QuestPhase, QuestPhaseStatus } from '@shared/types'
+import type { Quest, QuestPhase, QuestPhaseStatus, QuestStatus } from '@shared/types'
+import { updateQuestStatus } from '../hooks/useQuests'
 
 interface QuestCardProps {
   quest: Quest
@@ -180,8 +181,79 @@ export function QuestCard({ quest }: QuestCardProps) {
                 )))}
             </div>
           )}
+
+          {/* Quest management controls (#81) */}
+          {!isCompleted && (
+            <QuestControls questId={quest.id} status={quest.status} />
+          )}
         </div>
       )}
+    </div>
+  )
+}
+
+function QuestControls({ questId, status }: { questId: string; status: QuestStatus }) {
+  const [confirming, setConfirming] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const handleAction = useCallback(async (action: 'active' | 'paused' | 'completed') => {
+    if (action === 'completed' && confirming !== 'complete') {
+      setConfirming('complete')
+      return
+    }
+    setLoading(true)
+    setConfirming(null)
+    await updateQuestStatus(questId, action)
+    setLoading(false)
+  }, [questId, confirming])
+
+  if (loading) {
+    return <div className="mt-2 text-xs text-rpg-text-dim">Updating...</div>
+  }
+
+  if (confirming === 'complete') {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-xs">
+        <span className="text-rpg-text-muted">Mark as complete?</span>
+        <button
+          onClick={() => handleAction('completed')}
+          className="px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors"
+        >
+          Yes
+        </button>
+        <button
+          onClick={() => setConfirming(null)}
+          className="px-2 py-1 rounded bg-rpg-border text-rpg-text-muted hover:bg-rpg-card-hover transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      {status === 'active' ? (
+        <button
+          onClick={() => handleAction('paused')}
+          className="px-2 py-1 text-xs rounded bg-rpg-text-dim/20 text-rpg-text-muted hover:bg-rpg-text-dim/30 transition-colors"
+        >
+          Pause
+        </button>
+      ) : status === 'paused' ? (
+        <button
+          onClick={() => handleAction('active')}
+          className="px-2 py-1 text-xs rounded bg-rpg-accent/20 text-rpg-accent hover:bg-rpg-accent/30 transition-colors"
+        >
+          Resume
+        </button>
+      ) : null}
+      <button
+        onClick={() => handleAction('completed')}
+        className="px-2 py-1 text-xs rounded bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors"
+      >
+        Complete
+      </button>
     </div>
   )
 }

@@ -1,7 +1,21 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { Quest } from '@shared/types'
+import type { Quest, QuestStatus } from '@shared/types'
 
 const API_URL = ''  // Same origin, proxied by Vite in dev
+
+// Update quest status (pause/resume/complete) (#81)
+export async function updateQuestStatus(questId: string, status: QuestStatus): Promise<{ ok: boolean; data?: Quest; error?: string }> {
+  try {
+    const res = await fetch(`${API_URL}/api/quests/${encodeURIComponent(questId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    return await res.json()
+  } catch {
+    return { ok: false, error: 'Network error' }
+  }
+}
 
 export function useQuests() {
   const [quests, setQuests] = useState<Quest[]>([])

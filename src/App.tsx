@@ -8,6 +8,8 @@ import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refresh
 import { initTerminalCache } from './hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
 import { PaneActionsProvider, type PaneActionsContextValue } from './contexts/PaneActionsContext'
+import { BottomNav } from './components/BottomNav'
+import { ToastContainer } from './components/ToastContainer'
 
 type ViewTab = 'dashboard' | 'quests' | 'competitions'
 
@@ -120,8 +122,8 @@ export default function App() {
           </div>
         )}
 
-        {/* Main content */}
-        <main className="flex-1 overflow-y-auto">
+        {/* Main content — bottom padding for mobile nav */}
+        <main className="flex-1 overflow-y-auto pb-[52px] sm:pb-0">
           {activeTab === 'competitions' && rpgEnabled ? (
             <CompetitionsPage
               connected={connected}
@@ -145,6 +147,17 @@ export default function App() {
             />
           )}
         </main>
+
+        {/* Mobile bottom navigation (#59) */}
+        <BottomNav
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          rpgEnabled={rpgEnabled}
+          attentionCount={attentionPanes.length}
+        />
+
+        {/* Toast notifications (#83, #84) */}
+        <ToastContainer />
 
         {/* Full-screen pane overlay */}
         {fullscreenData && (

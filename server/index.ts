@@ -21,15 +21,14 @@ import type {
   TerminalOutput,
   ClaudeSessionInfo,
   PreToolUseEvent,
-  CompetitionCategory,
-  TimePeriod,
   TerminalPrompt,
 } from '../shared/types.js'
-import { parseTerminalForPrompt, hasPromptChanged } from './terminal-parser.js'
+import { parseTerminalForPrompt, hasPromptChanged, parseTokenCount } from './terminal-parser.js'
 import { reconcileSessionState } from './state-reconciler.js'
 import { processEvent, detectCommandXP, processQuestXP } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName } from './companions.js'
-import { getAllCompetitions, getCompetition, getStreakLeaderboard, updateStreak } from './competitions.js'
+import { getAllCompetitions, updateStreak } from './competitions.js'
+import { checkAchievements, getAchievementDef } from './achievements.js'
 import { loadQuests, saveQuests, processQuestEvent, isQuestEvent, type QuestEventPayload } from './quests.js'
 import {
   pollTmuxState,
@@ -45,6 +44,7 @@ import {
 import { findWindowById } from './utils.js'
 import { getControlClient } from './tmux-control.js'
 import { sendKeysLiteral, isSafeForLiteral, batchCommands, buildBufferCommands } from './tmux-batch.js'
+import { getSystemStats, startDiskMonitoring } from './system-stats.js'
 
 // Maximum panes per window (keeps tmux TUI manageable)
 const MAX_PANES_PER_WINDOW = 4
@@ -57,6 +57,8 @@ import { isWhisperAvailable, transcribeAudio } from './whisper.js'
 const PORT = parseInt(process.env.CLAUDE_RPG_PORT || String(DEFAULTS.SERVER_PORT))
 const DATA_DIR = expandPath(process.env.CLAUDE_RPG_DATA_DIR || DEFAULTS.DATA_DIR)
 const rpgEnabled = process.env.CLAUDE_RPG_FEATURES !== 'false'
+const AUTO_ACCEPT_BYPASS = process.env.CLAUDE_RPG_AUTO_ACCEPT_BYPASS === 'true'
+const bypassWarningHandled = new Set<string>()
 const EVENTS_FILE = join(DATA_DIR, DEFAULTS.EVENTS_FILE)
 const PANES_CACHE_FILE = join(DATA_DIR, 'panes-cache.json')
 
@@ -87,6 +89,13 @@ const events: ClaudeEvent[] = []
 const clients = new Set<WebSocket>()
 const seenEventIds = new Set<string>()
 const seenQuestEventIds = new Set<string>()
+
+// Tool execution duration tracking (#29)
+// Maps toolUseId -> timestamp of pre_tool_use event
+const toolStartTimes = new Map<string, number>()
+
+// Token usage tracking per pane (#31)
+const paneTokens = new Map<string, { current: number; cumulative: number }>()
 
 // Dev proxy mode - allows production server to forward API/WS to dev backend
 let devProxyMode = false
@@ -557,6 +566,11 @@ async function handleEvent(rawEvent: RawHookEvent) {
         sessionInfo.lastError = undefined
         sessionInfo.currentTool = preEvent.tool
 
+        // Track tool start time for duration calculation (#29)
+        if (preEvent.toolUseId) {
+          toolStartTimes.set(preEvent.toolUseId, event.timestamp)
+        }
+
         if (preEvent.toolInput) {
           const filePath = (preEvent.toolInput.file_path || preEvent.toolInput.path) as string | undefined
           sessionInfo.currentFile = filePath
@@ -569,9 +583,23 @@ async function handleEvent(rawEvent: RawHookEvent) {
           }
         }
 
-        // Track subagent spawns (Task tool)
-        if (preEvent.tool === 'Task') {
-          sessionInfo.activeSubagents = (sessionInfo.activeSubagents || 0) + 1
+        // Track subagent spawns with details (#32)
+        if (preEvent.tool === 'Task' && preEvent.toolInput) {
+          const input = preEvent.toolInput as { description?: string; prompt?: string }
+          if (!sessionInfo.activeSubagents) sessionInfo.activeSubagents = []
+          sessionInfo.activeSubagents.push({
+            id: preEvent.toolUseId,
+            description: input.description || 'Subagent',
+            prompt: input.prompt ? input.prompt.slice(0, 100) : undefined,
+            startedAt: event.timestamp,
+          })
+        } else if (preEvent.tool === 'Task') {
+          if (!sessionInfo.activeSubagents) sessionInfo.activeSubagents = []
+          sessionInfo.activeSubagents.push({
+            id: preEvent.toolUseId,
+            description: 'Subagent',
+            startedAt: event.timestamp,
+          })
         }
 
         // Detect AskUserQuestion
@@ -654,6 +682,17 @@ async function handleEvent(rawEvent: RawHookEvent) {
         }
       } else if (event.type === 'post_tool_use') {
         const postEvent = event as import('../shared/types.js').PostToolUseEvent
+
+        // Calculate tool execution duration (#29)
+        if (postEvent.toolUseId) {
+          const startTime = toolStartTimes.get(postEvent.toolUseId)
+          if (startTime) {
+            postEvent.duration = event.timestamp - startTime
+            toolStartTimes.delete(postEvent.toolUseId)
+            sessionInfo.lastToolDuration = postEvent.duration
+          }
+        }
+
         sessionInfo.currentTool = undefined
         sessionInfo.currentFile = undefined
 
@@ -673,13 +712,15 @@ async function handleEvent(rawEvent: RawHookEvent) {
       } else if (event.type === 'stop') {
         // Guard: if subagents are still running, this stop is likely a subagent
         // echoing as a parent stop event — keep working
-        if ((sessionInfo.activeSubagents || 0) > 0) {
-          console.log(`[claude-rpg] Ignoring stop event — ${sessionInfo.activeSubagents} subagent(s) still active`)
+        if (sessionInfo.activeSubagents && sessionInfo.activeSubagents.length > 0) {
+          console.log(`[claude-rpg] Ignoring stop event — ${sessionInfo.activeSubagents.length} subagent(s) still active`)
         } else {
           sessionInfo.status = 'idle'
           sessionInfo.currentTool = undefined
           sessionInfo.currentFile = undefined
           sessionInfo.pendingQuestion = undefined
+          // Clean up any orphaned tool start times for this session
+          // (post events may have been missed)
         }
       } else if (event.type === 'user_prompt_submit') {
         sessionInfo.status = 'working'
@@ -702,15 +743,24 @@ async function handleEvent(rawEvent: RawHookEvent) {
           }
         }
       } else if (event.type === 'subagent_stop') {
-        // Subagent finished - decrement counter, main agent continues working
-        if ((sessionInfo.activeSubagents || 0) > 0) {
-          sessionInfo.activeSubagents = (sessionInfo.activeSubagents || 0) - 1
+        // Subagent finished - remove from list, main agent continues working (#32)
+        if (sessionInfo.activeSubagents && sessionInfo.activeSubagents.length > 0) {
+          // Try to match by toolUseId if available, otherwise remove oldest
+          const stopEvent = event as import('../shared/types.js').SubagentStopEvent
+          const toolUseId = (stopEvent as unknown as Record<string, unknown>).toolUseId as string | undefined
+          const idx = toolUseId ? sessionInfo.activeSubagents.findIndex(s => s.id === toolUseId) : -1
+          if (idx >= 0) {
+            sessionInfo.activeSubagents.splice(idx, 1)
+          } else {
+            // Fallback: remove the oldest subagent
+            sessionInfo.activeSubagents.shift()
+          }
         }
         // Don't change status - main agent is still running
       } else if (event.type === 'session_start') {
         // New or resumed session - but guard against subagent spawns resetting parent
         const startEvent = event as import('../shared/types.js').SessionStartEvent
-        if (sessionInfo.status === 'working' && (sessionInfo.activeSubagents || 0) > 0) {
+        if (sessionInfo.status === 'working' && sessionInfo.activeSubagents && sessionInfo.activeSubagents.length > 0) {
           // Subagent starting a new session context — don't reset parent
           console.log(`[claude-rpg] Ignoring session_start during active subagent work`)
         } else {
@@ -719,7 +769,7 @@ async function handleEvent(rawEvent: RawHookEvent) {
           sessionInfo.currentFile = undefined
           sessionInfo.pendingQuestion = undefined
           sessionInfo.lastError = undefined
-          sessionInfo.activeSubagents = 0
+          sessionInfo.activeSubagents = []
           // Set lastPrompt to show the command that triggered the new session
           if (startEvent.source === 'clear') {
             sessionInfo.lastPrompt = '/clear'
@@ -763,6 +813,32 @@ async function handleEvent(rawEvent: RawHookEvent) {
 
       // Skip saves/broadcasts during historical event loading (startup perf)
       if (!isLoadingHistoricalEvents) {
+        // Check achievements (#37)
+        const meta = {
+          sessionsCompleted: companion.stats.sessionsCompleted,
+          toolsUsedCount: Object.keys(companion.stats.toolsUsed).length,
+          totalXP: companion.totalExperience,
+        }
+        const newAchievements = checkAchievements(companion.stats, companion.streak, companion.achievements, meta)
+        for (const achId of newAchievements) {
+          companion.achievements.push({ id: achId, unlockedAt: Date.now() })
+          const def = getAchievementDef(achId)
+          if (def) {
+            broadcast({
+              type: 'achievement_unlocked',
+              payload: {
+                companionId: companion.id,
+                companionName: companion.name,
+                achievementId: achId,
+                achievementName: def.name,
+                achievementIcon: def.icon,
+                rarity: def.rarity,
+              },
+            } as ServerMessage)
+            console.log(`[claude-rpg] Achievement unlocked: ${def.icon} ${def.name} for ${companion.name}`)
+          }
+        }
+
         saveCompanions(DATA_DIR, companions)
         broadcast({ type: 'companion_update', payload: companion })
       }
@@ -950,10 +1026,48 @@ async function broadcastTerminalUpdates() {
         broadcast({ type: 'pane_update', payload: pane })
       }
 
+      // Auto-accept bypass warning (#34)
+      if (AUTO_ACCEPT_BYPASS && isClaudePane && contentChanged) {
+        const paneKey = `${pane.id}-bypass`
+        if (!bypassWarningHandled.has(paneKey)) {
+          const cleaned = content.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+          if (cleaned.includes('--dangerously-skip-permissions') ||
+              cleaned.includes('bypass permission checks')) {
+            // Send option "2" to accept the warning
+            execAsync(`tmux send-keys -t "${pane.target}" 2`).catch(() => {})
+            bypassWarningHandled.add(paneKey)
+            console.log(`[claude-rpg] Auto-accepted bypass warning for pane ${pane.id}`)
+          }
+        }
+      }
+
       // Terminal-based prompt detection for Claude panes
       // This is the source of truth for prompt state
       if (isClaudePane && pane.process.claudeSession) {
         processClaudePaneContent(pane, content)
+
+        // Parse token usage from terminal output (#31)
+        if (contentChanged) {
+          const tokenCount = parseTokenCount(content)
+          if (tokenCount !== null) {
+            const existing = paneTokens.get(pane.id) || { current: 0, cumulative: 0 }
+
+            // If new count is lower than current, a new conversation started
+            // Add the previous count to cumulative
+            if (tokenCount < existing.current) {
+              existing.cumulative += existing.current
+            }
+            existing.current = tokenCount
+            paneTokens.set(pane.id, existing)
+
+            const updated = updateClaudeSession(pane.id, { tokens: { ...existing } })
+            if (updated && pane.process.claudeSession) {
+              pane.process.claudeSession = updated
+              savePanesCache()
+              broadcast({ type: 'pane_update', payload: pane })
+            }
+          }
+        }
       }
 
       // Only broadcast terminal content if changed
@@ -994,6 +1108,15 @@ setInterval(() => {
     }
   }
 }, 2500)
+
+// Clean stale tool start times every 60s (#29)
+// Tools that never got a post_tool_use event (e.g., crash, timeout)
+setInterval(() => {
+  const cutoff = Date.now() - 5 * 60 * 1000
+  for (const [id, timestamp] of toolStartTimes) {
+    if (timestamp < cutoff) toolStartTimes.delete(id)
+  }
+}, 60_000)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Safe Tmux Send Helpers
@@ -1412,6 +1535,7 @@ const server = http.createServer(async (req, res) => {
       windows: windows.length,
       whisper: isWhisperAvailable(),
       rpgFeatures: rpgEnabled,
+      autoAcceptBypass: AUTO_ACCEPT_BYPASS,
       activeBackend: devProxyMode ? 'dev' : 'production',
     }))
     return
@@ -1498,22 +1622,6 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/windows' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true, data: windows }))
-    return
-  }
-
-  // Get single pane
-  const paneMatch = url.pathname.match(/^\/api\/panes\/([^/]+)$/)
-  if (paneMatch && req.method === 'GET') {
-    const paneId = decodeURIComponent(paneMatch[1])
-    const pane = findPaneById(windows, paneId)
-
-    if (!pane) {
-      sendPaneNotFound(res)
-      return
-    }
-
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, data: pane }))
     return
   }
 
@@ -1945,6 +2053,32 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Close Window Endpoint (#48)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const windowCloseMatch = url.pathname.match(/^\/api\/windows\/([^/]+)\/close$/)
+  if (windowCloseMatch && req.method === 'POST') {
+    const windowId = decodeURIComponent(windowCloseMatch[1])
+    const window = findWindowById(windows, windowId)
+
+    if (!window) {
+      sendWindowNotFound(res)
+      return
+    }
+
+    try {
+      await execAsync(`tmux kill-window -t "${windowId}"`)
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, windowId }))
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: sanitizeTmuxError(e) }))
+    }
+    return
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Window-level Pane Creation Endpoints
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -2045,6 +2179,51 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // Send prompt to companion (#85) — routes to their active Claude pane
+  const companionPromptMatch = url.pathname.match(/^\/api\/companions\/([^/]+)\/prompt$/)
+  if (companionPromptMatch && req.method === 'POST') {
+    const companionId = decodeURIComponent(companionPromptMatch[1])
+    const companion = companions.find(c => c.id === companionId)
+
+    if (!companion) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'Companion not found' }))
+      return
+    }
+
+    // Find a Claude pane working on this companion's repo
+    const targetPane = windows.flatMap(w => w.panes).find(p =>
+      p.process.type === 'claude' && p.repo?.path === companion.repo.path
+    )
+
+    if (!targetPane) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: `No active Claude pane for ${companion.name}` }))
+      return
+    }
+
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', async () => {
+      try {
+        const { prompt } = JSON.parse(body)
+        if (!prompt) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: 'prompt is required' }))
+          return
+        }
+
+        await sendPromptToTmux(targetPane.target, prompt)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true, paneId: targetPane.id, companionName: companion.name }))
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: sanitizeTmuxError(e) }))
+      }
+    })
+    return
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // Quest Endpoints
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2139,42 +2318,6 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // Get streaks leaderboard
-  if (url.pathname === '/api/competitions/streaks' && req.method === 'GET') {
-    if (!rpgEnabled) {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: true, data: [] }))
-      return
-    }
-    const entries = getStreakLeaderboard(companions)
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, data: entries }))
-    return
-  }
-
-  // Get single category competition
-  const competitionMatch = url.pathname.match(/^\/api\/competitions\/([^/]+)$/)
-  if (competitionMatch && req.method === 'GET') {
-    if (!rpgEnabled) {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: true, data: { category: competitionMatch[1], period: 'all', entries: [], updatedAt: Date.now() } }))
-      return
-    }
-    const category = competitionMatch[1] as CompetitionCategory
-    const validCategories = ['xp', 'commits', 'tests', 'tools', 'prompts', 'quests']
-    if (!validCategories.includes(category)) {
-      res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Invalid category' }))
-      return
-    }
-
-    const period = (url.searchParams.get('period') || 'all') as TimePeriod
-    const allEvents = getAllEventsFromFile()
-    const competition = getCompetition(companions, allEvents, category, period)
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, data: competition }))
-    return
-  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Static File Serving (production mode serves built client assets)
@@ -2433,6 +2576,14 @@ if (rpgEnabled) {
   loadEventsFromFile()
   watchEventsFile()
 }
+
+// Start system stats monitoring (#80)
+startDiskMonitoring()
+// Broadcast system stats every 30 seconds
+setInterval(async () => {
+  const stats = await getSystemStats()
+  broadcast({ type: 'system_stats', payload: stats })
+}, 30_000)
 
 // Control mode disabled - was causing tmux scrollback issues in some terminals
 // TODO: Investigate why control mode affects scrollback in ConnectBot

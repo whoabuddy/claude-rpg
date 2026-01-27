@@ -5,10 +5,11 @@ import { linkifyTerminalHtml } from '../utils/linkify'
 interface TerminalDisplayProps {
   content: string | undefined
   onTerminalClick?: () => void
+  onCopy?: () => void
   className?: string
 }
 
-export const TerminalDisplay = memo(function TerminalDisplay({ content, onTerminalClick, className }: TerminalDisplayProps) {
+export const TerminalDisplay = memo(function TerminalDisplay({ content, onTerminalClick, onCopy, className }: TerminalDisplayProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
 
   const htmlContent = useMemo(() => {
@@ -24,6 +25,18 @@ export const TerminalDisplay = memo(function TerminalDisplay({ content, onTermin
       }
     })
   }, [content])
+
+  // After copying text from terminal, notify parent to refocus input (#62)
+  useEffect(() => {
+    const el = terminalRef.current
+    if (!el || !onCopy) return
+    const handleCopy = () => {
+      // Small delay to let the copy complete before refocusing
+      setTimeout(() => onCopy(), 50)
+    }
+    el.addEventListener('copy', handleCopy)
+    return () => el.removeEventListener('copy', handleCopy)
+  }, [onCopy])
 
   // Handle Ctrl+Click on terminal links
   const handleClick = useCallback((e: React.MouseEvent) => {

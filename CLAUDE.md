@@ -142,18 +142,20 @@ To audit: compare Claude Code release notes (focus on hooks, terminal UI, and pr
 | `/api/windows` | GET | List all windows with panes |
 | `/api/windows/create` | POST | Create new tmux window (body: `{ sessionName, windowName? }`) |
 | `/api/windows/:id/rename` | POST | Rename window (body: `{ windowName }`, enforces unique names per session) |
+| `/api/windows/:id/close` | POST | Close/kill tmux window |
 | `/api/windows/:id/new-pane` | POST | Split new pane in window |
 | `/api/windows/:id/new-claude` | POST | Split new pane and start Claude Code |
-| `/api/panes/:id` | GET | Get single pane detail |
 | `/api/panes/:id/prompt` | POST | Send prompt/input to pane |
 | `/api/panes/:id/signal` | POST | Send signal (e.g., SIGINT for Ctrl+C) |
 | `/api/panes/:id/dismiss` | POST | Dismiss waiting status (set to ready) |
 | `/api/panes/:id/refresh` | POST | Refresh pane (scroll to bottom, reset state) |
 | `/api/panes/:id/close` | POST | Close/kill pane |
-| `/api/companions` | GET | List all companions (XP/stats) |
+| `/api/companions` | GET | List all companions (XP/stats/achievements) |
+| `/api/companions/:id/prompt` | POST | Send prompt to companion's active Claude pane |
 | `/api/competitions` | GET | All categories, all time periods |
-| `/api/competitions/:category` | GET | Single category, optional `?period=` query |
-| `/api/competitions/streaks` | GET | All companion streaks |
+| `/api/quests` | GET | List all quests |
+| `/api/quests` | POST | Create quest (internal, from skill events) |
+| `/api/quests/:id` | PATCH | Update quest status (body: `{ status }`) |
 | `/api/transcribe` | POST | Transcribe audio via whisper.cpp |
 | `/api/admin/backends` | GET | Probe production (:4011) and dev (:4012) backends |
 | `/api/admin/backend` | POST | Switch active backend (`{ mode: "production" \| "dev" }`) |

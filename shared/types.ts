@@ -113,6 +113,16 @@ export interface SessionError {
 }
 
 /**
+ * A subagent spawned via the Task tool (#32)
+ */
+export interface SubagentInfo {
+  id: string              // toolUseId from pre_tool_use
+  description: string     // short description (3-5 words)
+  prompt?: string         // first 100 chars of the full prompt
+  startedAt: number
+}
+
+/**
  * ClaudeSessionInfo represents a Worker - a Claude instance running in a pane.
  * Workers do the actual work and earn XP for Projects (Companions).
  */
@@ -128,7 +138,12 @@ export interface ClaudeSessionInfo {
   currentFile?: string
   lastPrompt?: string     // Last user prompt (truncated for display)
   recentFiles?: string[]  // Recently touched files (last 5 unique)
-  activeSubagents?: number // Count of running subagents (Task tool spawns)
+  activeSubagents?: SubagentInfo[]  // Running subagents (#32)
+  lastToolDuration?: number  // Duration of last completed tool (ms)
+  tokens?: {
+    current: number      // Current conversation token count
+    cumulative: number   // Total tokens this session
+  }
   stats?: SessionStats    // Stats for this session (in-memory only)
   createdAt: number
   lastActivity: number
@@ -169,6 +184,8 @@ export interface Companion {
   totalExperience: number
   stats: CompanionStats
   streak: StreakInfo
+  achievements: Achievement[]          // Unlocked achievements
+  npmScripts?: Record<string, string>  // Available npm scripts from package.json
   createdAt: number
   lastActivity: number
 }
@@ -220,6 +237,7 @@ export interface CompanionStats {
     questsCompleted: number
     totalRetries: number
   }
+  tokensUsed?: number  // Lifetime token consumption
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -338,6 +356,35 @@ export function levelFromTotalXP(totalXP: number): { level: number; currentXP: n
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ACHIEVEMENTS (Milestones and badges)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type AchievementCategory = 'getting_started' | 'git' | 'testing' | 'deploy' | 'streak' | 'blockchain' | 'misc'
+export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary'
+
+export interface Achievement {
+  id: string
+  unlockedAt: number
+}
+
+export interface AchievementDefinition {
+  id: string
+  name: string
+  description: string
+  icon: string
+  category: AchievementCategory
+  rarity: AchievementRarity
+  check: (stats: CompanionStats, streak: StreakInfo, meta?: AchievementMeta) => boolean
+}
+
+/** Extra context passed to achievement checks that isn't in stats/streak */
+export interface AchievementMeta {
+  sessionsCompleted: number
+  toolsUsedCount: number  // number of distinct tools used
+  totalXP: number
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // QUESTS (Cross-repo goals with phased execution)
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -431,6 +478,25 @@ export interface PaneError {
   timestamp: number
 }
 
+export interface SystemStats {
+  cpu: {
+    count: number
+    loadAvg: [number, number, number]  // 1, 5, 15 min
+  }
+  memory: {
+    totalGB: number
+    freeGB: number
+    usedPercent: number
+  }
+  disk: {
+    totalGB: number
+    freeGB: number
+    usedPercent: number
+  }
+  uptime: number  // seconds
+  timestamp: number
+}
+
 export type ServerMessage =
   | { type: 'connected' }
   | { type: 'windows'; payload: TmuxWindow[] }
@@ -447,6 +513,8 @@ export type ServerMessage =
   | { type: 'quest_update'; payload: Quest }
   | { type: 'quests_init'; payload: Quest[] }
   | { type: 'quest_xp'; payload: { questId: string; phaseId: string; xp: number; reason: string } }
+  | { type: 'achievement_unlocked'; payload: { companionId: string; companionName: string; achievementId: string; achievementName: string; achievementIcon: string; rarity: AchievementRarity } }
+  | { type: 'system_stats'; payload: SystemStats }
 
 export type ClientMessage =
   | { type: 'subscribe' }

@@ -1,4 +1,4 @@
-import { useState, memo, useCallback } from 'react'
+import { useState, useRef, memo, useCallback } from 'react'
 import type { TmuxPane, TmuxWindow } from '@shared/types'
 import { sendPromptToPane } from '../hooks/useWindows'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
@@ -29,6 +29,13 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
   const { onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onClosePane, rpgEnabled } = usePaneActions()
   const [expanded, setExpanded] = useState(false)
   const terminalContent = usePaneTerminal(pane.id)
+  const inputAreaRef = useRef<HTMLDivElement>(null)
+
+  // After copying from terminal, refocus the input (#62)
+  const handleTerminalCopy = useCallback(() => {
+    const input = inputAreaRef.current?.querySelector('textarea, input') as HTMLElement | null
+    input?.focus()
+  }, [])
 
   const closeConfirm = useConfirmAction(useCallback(() => onClosePane(pane.id), [onClosePane, pane.id]))
 
@@ -222,9 +229,34 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
             <SessionStatsBar stats={session.stats} />
           )}
 
+          {/* Subagent list (#32) */}
+          {isClaudePane && session?.activeSubagents && session.activeSubagents.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-xs text-rpg-text-muted">
+                {session.activeSubagents.length} subagent{session.activeSubagents.length > 1 ? 's' : ''} running
+              </div>
+              {session.activeSubagents.slice(0, 5).map(sub => (
+                <div key={sub.id} className="flex items-center gap-1.5 text-xs bg-rpg-bg rounded px-2 py-1 border border-rpg-border-dim">
+                  <span className="text-rpg-accent animate-pulse">*</span>
+                  <span className="text-rpg-text truncate">{sub.description}</span>
+                  {sub.prompt && (
+                    <span className="text-rpg-text-dim truncate hidden sm:inline" title={sub.prompt}>
+                      — {sub.prompt}
+                    </span>
+                  )}
+                </div>
+              ))}
+              {session.activeSubagents.length > 5 && (
+                <div className="text-xs text-rpg-text-dim pl-2">
+                  +{session.activeSubagents.length - 5} more
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Terminal with prompt overlays */}
           <div className="relative">
-            <TerminalDisplay content={terminalContent} />
+            <TerminalDisplay content={terminalContent} onCopy={handleTerminalCopy} />
 
             {/* Prompt overlays on terminal area */}
             {isClaudePane && session?.terminalPrompt && (
@@ -249,13 +281,15 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
           </div>
 
           {/* Input - always visible */}
-          <PaneInput
-            paneId={pane.id}
-            pane={pane}
-            onSendPrompt={onSendPrompt}
-            onSendSignal={onSendSignal}
-            variant="card"
-          />
+          <div ref={inputAreaRef}>
+            <PaneInput
+              paneId={pane.id}
+              pane={pane}
+              onSendPrompt={onSendPrompt}
+              onSendSignal={onSendSignal}
+              variant="card"
+            />
+          </div>
         </div>
       )}
     </div>
