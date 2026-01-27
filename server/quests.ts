@@ -125,6 +125,44 @@ export function processQuestEvent(quests: Quest[], event: QuestEventPayload): Qu
   }
 }
 
+/**
+ * Validate that earlier phases are far enough along before allowing a transition.
+ * - For planning: previous phase must be at least 'planned' (allows parallel planning)
+ * - For executing: all previous phases must be 'completed'
+ */
+function validatePhaseOrder(quest: Quest, phase: QuestPhase, requiredPriorStatus: 'planned' | 'completed'): boolean {
+  const PHASE_PROGRESS: Record<string, number> = {
+    pending: 0,
+    planning: 1,
+    planned: 2,
+    executing: 3,
+    verifying: 4,
+    retrying: 3, // same as executing (still in progress)
+    completed: 5,
+    failed: -1, // blocks downstream
+  }
+
+  const requiredLevel = PHASE_PROGRESS[requiredPriorStatus]
+
+  for (const p of quest.phases) {
+    if (p.order >= phase.order) continue // only check earlier phases
+    const level = PHASE_PROGRESS[p.status] ?? 0
+
+    // Failed phases block everything downstream
+    if (level === -1) {
+      console.warn(`[claude-rpg] Phase order violation: "${phase.name}" blocked — earlier phase "${p.name}" is failed`)
+      return false
+    }
+
+    if (level < requiredLevel) {
+      console.warn(`[claude-rpg] Phase order violation: "${phase.name}" requires earlier phase "${p.name}" to be at least ${requiredPriorStatus} (currently ${p.status})`)
+      return false
+    }
+  }
+
+  return true
+}
+
 function handleQuestCreated(quests: Quest[], event: QuestCreatedPayload): Quest {
   // Check if quest already exists (idempotency)
   const existing = quests.find(q => q.id === event.questId)
@@ -158,6 +196,9 @@ function handlePhasePlanned(quests: Quest[], event: PhasePlannedPayload): Quest 
   const phase = quest.phases.find(p => p.id === event.phaseId)
   if (!phase) return null
 
+  // Allow planning if previous phases are at least planned (parallel planning OK)
+  if (!validatePhaseOrder(quest, phase, 'planned')) return null
+
   phase.status = 'planned'
   phase.taskCount = event.taskCount
   return quest
@@ -169,6 +210,9 @@ function handlePhaseExecuting(quests: Quest[], event: PhaseExecutingPayload): Qu
 
   const phase = quest.phases.find(p => p.id === event.phaseId)
   if (!phase) return null
+
+  // Execution requires all earlier phases to be completed
+  if (!validatePhaseOrder(quest, phase, 'completed')) return null
 
   phase.status = 'executing'
   if (!phase.startedAt) {
