@@ -356,7 +356,8 @@ export const OverviewDashboard = memo(function OverviewDashboard({
               Clear filter
             </button>
           </div>
-        ) : (
+        ) : sessions.length <= 1 ? (
+          // Single session: flat list (no session header needed)
           <div className="space-y-4">
             {filteredGroups.map(group => (
               <WindowSection
@@ -369,6 +370,46 @@ export const OverviewDashboard = memo(function OverviewDashboard({
                 onRenameWindow={onRenameWindow}
               />
             ))}
+          </div>
+        ) : (
+          // Multiple sessions: group by session (#54)
+          <div className="space-y-6">
+            {sessions.map(session => {
+              const sessionGroups = filteredGroups.filter(g => g.window.sessionName === session)
+              if (sessionGroups.length === 0) return null
+              const sessionAttention = sessionGroups.reduce((sum, g) => sum + g.attentionCount, 0)
+              return (
+                <div key={session} className="space-y-2">
+                  <div className="flex items-center gap-2 px-1">
+                    <span className="text-xs font-medium text-rpg-text-muted uppercase tracking-wide">
+                      {session}
+                    </span>
+                    <span className="text-xs text-rpg-text-dim">
+                      {sessionGroups.length} {sessionGroups.length === 1 ? 'window' : 'windows'}
+                    </span>
+                    {sessionAttention > 0 && (
+                      <span className="px-1.5 py-0.5 rounded status-bg-waiting text-rpg-waiting text-[10px] font-medium">
+                        {sessionAttention} waiting
+                      </span>
+                    )}
+                    <div className="flex-1 border-t border-rpg-border-dim" />
+                  </div>
+                  <div className="space-y-4">
+                    {sessionGroups.map(group => (
+                      <WindowSection
+                        key={group.window.id}
+                        group={group}
+                        collapsed={collapsedWindows.has(group.window.id)}
+                        maxPanes={MAX_PANES_PER_WINDOW}
+                        onToggleWindow={() => toggleWindow(group.window.id)}
+                        onNewPane={onNewPane}
+                        onRenameWindow={onRenameWindow}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

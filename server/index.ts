@@ -584,9 +584,23 @@ async function handleEvent(rawEvent: RawHookEvent) {
           }
         }
 
-        // Track subagent spawns (Task tool)
-        if (preEvent.tool === 'Task') {
-          sessionInfo.activeSubagents = (sessionInfo.activeSubagents || 0) + 1
+        // Track subagent spawns with details (#32)
+        if (preEvent.tool === 'Task' && preEvent.toolInput) {
+          const input = preEvent.toolInput as { description?: string; prompt?: string }
+          if (!sessionInfo.activeSubagents) sessionInfo.activeSubagents = []
+          sessionInfo.activeSubagents.push({
+            id: preEvent.toolUseId,
+            description: input.description || 'Subagent',
+            prompt: input.prompt ? input.prompt.slice(0, 100) : undefined,
+            startedAt: event.timestamp,
+          })
+        } else if (preEvent.tool === 'Task') {
+          if (!sessionInfo.activeSubagents) sessionInfo.activeSubagents = []
+          sessionInfo.activeSubagents.push({
+            id: preEvent.toolUseId,
+            description: 'Subagent',
+            startedAt: event.timestamp,
+          })
         }
 
         // Detect AskUserQuestion
@@ -699,8 +713,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
       } else if (event.type === 'stop') {
         // Guard: if subagents are still running, this stop is likely a subagent
         // echoing as a parent stop event — keep working
-        if ((sessionInfo.activeSubagents || 0) > 0) {
-          console.log(`[claude-rpg] Ignoring stop event — ${sessionInfo.activeSubagents} subagent(s) still active`)
+        if (sessionInfo.activeSubagents && sessionInfo.activeSubagents.length > 0) {
+          console.log(`[claude-rpg] Ignoring stop event — ${sessionInfo.activeSubagents.length} subagent(s) still active`)
         } else {
           sessionInfo.status = 'idle'
           sessionInfo.currentTool = undefined
@@ -730,15 +744,24 @@ async function handleEvent(rawEvent: RawHookEvent) {
           }
         }
       } else if (event.type === 'subagent_stop') {
-        // Subagent finished - decrement counter, main agent continues working
-        if ((sessionInfo.activeSubagents || 0) > 0) {
-          sessionInfo.activeSubagents = (sessionInfo.activeSubagents || 0) - 1
+        // Subagent finished - remove from list, main agent continues working (#32)
+        if (sessionInfo.activeSubagents && sessionInfo.activeSubagents.length > 0) {
+          // Try to match by toolUseId if available, otherwise remove oldest
+          const stopEvent = event as import('../shared/types.js').SubagentStopEvent
+          const toolUseId = (stopEvent as unknown as Record<string, unknown>).toolUseId as string | undefined
+          const idx = toolUseId ? sessionInfo.activeSubagents.findIndex(s => s.id === toolUseId) : -1
+          if (idx >= 0) {
+            sessionInfo.activeSubagents.splice(idx, 1)
+          } else {
+            // Fallback: remove the oldest subagent
+            sessionInfo.activeSubagents.shift()
+          }
         }
         // Don't change status - main agent is still running
       } else if (event.type === 'session_start') {
         // New or resumed session - but guard against subagent spawns resetting parent
         const startEvent = event as import('../shared/types.js').SessionStartEvent
-        if (sessionInfo.status === 'working' && (sessionInfo.activeSubagents || 0) > 0) {
+        if (sessionInfo.status === 'working' && sessionInfo.activeSubagents && sessionInfo.activeSubagents.length > 0) {
           // Subagent starting a new session context — don't reset parent
           console.log(`[claude-rpg] Ignoring session_start during active subagent work`)
         } else {
@@ -747,7 +770,7 @@ async function handleEvent(rawEvent: RawHookEvent) {
           sessionInfo.currentFile = undefined
           sessionInfo.pendingQuestion = undefined
           sessionInfo.lastError = undefined
-          sessionInfo.activeSubagents = 0
+          sessionInfo.activeSubagents = []
           // Set lastPrompt to show the command that triggered the new session
           if (startEvent.source === 'clear') {
             sessionInfo.lastPrompt = '/clear'

@@ -31,6 +31,7 @@ export function paneEqual(a: TmuxPane, b: TmuxPane): boolean {
     if (sa.terminalPrompt?.contentHash !== sb.terminalPrompt?.contentHash) return false
     if (sa.lastError?.timestamp !== sb.lastError?.timestamp) return false
     if (sa.stats?.totalXPGained !== sb.stats?.totalXPGained) return false
+    if ((sa.activeSubagents?.length || 0) !== (sb.activeSubagents?.length || 0)) return false
   }
   if (a.repo?.name !== b.repo?.name) return false
   if (a.repo?.org !== b.repo?.org) return false

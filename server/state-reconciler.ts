@@ -208,7 +208,7 @@ export function reconcileSessionState(
   // Claude may have finished and we missed the Stop hook
   // Guard: don't idle if subagents are still active
   if (hookState.status === 'working' && terminalState === 'idle') {
-    const hasActiveSubagents = (hookState.activeSubagents || 0) > 0
+    const hasActiveSubagents = Array.isArray(hookState.activeSubagents) ? hookState.activeSubagents.length > 0 : false
     if (!hasActiveSubagents && timeSinceActivity > IDLE_DETECTION_THRESHOLD_MS) {
       return {
         stateChanged: true,
@@ -248,7 +248,7 @@ export function reconcileSessionState(
   // Fallback when we can't detect terminal state but work should have finished
   // Guard: don't idle if subagents are still active
   if (hookState.status === 'working' && terminalState === 'unknown') {
-    const hasActiveSubagents = (hookState.activeSubagents || 0) > 0
+    const hasActiveSubagents = Array.isArray(hookState.activeSubagents) ? hookState.activeSubagents.length > 0 : false
     if (!hasActiveSubagents && timeSinceActivity > EXTENDED_IDLE_THRESHOLD_MS) {
       return {
         stateChanged: true,

@@ -229,6 +229,31 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
             <SessionStatsBar stats={session.stats} />
           )}
 
+          {/* Subagent list (#32) */}
+          {isClaudePane && session?.activeSubagents && session.activeSubagents.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-xs text-rpg-text-muted">
+                {session.activeSubagents.length} subagent{session.activeSubagents.length > 1 ? 's' : ''} running
+              </div>
+              {session.activeSubagents.slice(0, 5).map(sub => (
+                <div key={sub.id} className="flex items-center gap-1.5 text-xs bg-rpg-bg rounded px-2 py-1 border border-rpg-border-dim">
+                  <span className="text-rpg-accent animate-pulse">*</span>
+                  <span className="text-rpg-text truncate">{sub.description}</span>
+                  {sub.prompt && (
+                    <span className="text-rpg-text-dim truncate hidden sm:inline" title={sub.prompt}>
+                      — {sub.prompt}
+                    </span>
+                  )}
+                </div>
+              ))}
+              {session.activeSubagents.length > 5 && (
+                <div className="text-xs text-rpg-text-dim pl-2">
+                  +{session.activeSubagents.length - 5} more
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Terminal with prompt overlays */}
           <div className="relative">
             <TerminalDisplay content={terminalContent} onCopy={handleTerminalCopy} />

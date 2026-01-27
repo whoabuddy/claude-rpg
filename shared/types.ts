@@ -113,6 +113,16 @@ export interface SessionError {
 }
 
 /**
+ * A subagent spawned via the Task tool (#32)
+ */
+export interface SubagentInfo {
+  id: string              // toolUseId from pre_tool_use
+  description: string     // short description (3-5 words)
+  prompt?: string         // first 100 chars of the full prompt
+  startedAt: number
+}
+
+/**
  * ClaudeSessionInfo represents a Worker - a Claude instance running in a pane.
  * Workers do the actual work and earn XP for Projects (Companions).
  */
@@ -128,7 +138,7 @@ export interface ClaudeSessionInfo {
   currentFile?: string
   lastPrompt?: string     // Last user prompt (truncated for display)
   recentFiles?: string[]  // Recently touched files (last 5 unique)
-  activeSubagents?: number // Count of running subagents (Task tool spawns)
+  activeSubagents?: SubagentInfo[]  // Running subagents (#32)
   lastToolDuration?: number  // Duration of last completed tool (ms)
   tokens?: {
     current: number      // Current conversation token count
