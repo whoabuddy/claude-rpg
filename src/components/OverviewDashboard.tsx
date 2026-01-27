@@ -14,7 +14,6 @@ interface OverviewDashboardProps {
   attentionCount: number
   connected: boolean
   onNewPane: (windowId: string) => void
-  onNewClaude: (windowId: string) => void
   onCreateWindow: (sessionName: string, windowName: string) => Promise<boolean>
   onRenameWindow: (windowId: string, windowName: string) => Promise<{ ok: boolean; error?: string }>
   onNavigateToCompetitions: () => void
@@ -66,7 +65,6 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   attentionCount,
   connected,
   onNewPane,
-  onNewClaude,
   onCreateWindow,
   onRenameWindow,
   onNavigateToCompetitions,
@@ -185,7 +183,10 @@ export const OverviewDashboard = memo(function OverviewDashboard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm">
           <span className="text-rpg-text-muted whitespace-nowrap">
-            {stats.windows}W / {stats.total}P
+            {stats.windows} {stats.windows === 1 ? 'window' : 'windows'} &middot; {stats.total} {stats.total === 1 ? 'pane' : 'panes'}
+            {stats.claude > 0 && (
+              <span className="text-rpg-accent ml-1">({stats.claude} active)</span>
+            )}
           </span>
           {attentionCount > 0 && (
             <span className="px-2 py-0.5 rounded status-bg-waiting text-rpg-waiting text-xs font-medium animate-pulse whitespace-nowrap">
@@ -310,7 +311,6 @@ export const OverviewDashboard = memo(function OverviewDashboard({
                 maxPanes={MAX_PANES_PER_WINDOW}
                 onToggleWindow={() => toggleWindow(group.window.id)}
                 onNewPane={onNewPane}
-                onNewClaude={onNewClaude}
                 onRenameWindow={onRenameWindow}
               />
             ))}
@@ -327,7 +327,6 @@ interface WindowSectionProps {
   maxPanes: number
   onToggleWindow: () => void
   onNewPane: (windowId: string) => void
-  onNewClaude: (windowId: string) => void
   onRenameWindow: (windowId: string, windowName: string) => Promise<{ ok: boolean; error?: string }>
 }
 
@@ -337,7 +336,6 @@ const WindowSection = memo(function WindowSection({
   maxPanes,
   onToggleWindow,
   onNewPane,
-  onNewClaude,
   onRenameWindow,
 }: WindowSectionProps) {
   const hasAttention = group.attentionCount > 0
@@ -390,11 +388,6 @@ const WindowSection = memo(function WindowSection({
     e.stopPropagation()
     onNewPane(group.window.id)
   }, [onNewPane, group.window.id])
-
-  const handleNewClaude = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    onNewClaude(group.window.id)
-  }, [onNewClaude, group.window.id])
 
   const handleStartRenameClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -472,23 +465,14 @@ const WindowSection = memo(function WindowSection({
             </>
           ) : (
             <>
-              <ActionButton icon="✏️" label="Rename" variant="ghost" onClick={handleStartRenameClick} />
+              <ActionButton icon="✏️" label="Rename" variant="ghost" onClick={handleStartRenameClick} iconOnly />
               <ActionButton
                 icon="+"
                 label="New Pane"
                 shortLabel="Pane"
                 disabled={!canAddPane}
                 onClick={handleNewPane}
-                title={canAddPane ? 'Add new shell pane' : `Maximum ${maxPanes} panes`}
-              />
-              <ActionButton
-                icon="⚡"
-                label="New Claude"
-                shortLabel="Claude"
-                variant="accent"
-                disabled={!canAddPane}
-                onClick={handleNewClaude}
-                title={canAddPane ? 'Add new Claude pane' : `Maximum ${maxPanes} panes`}
+                title={canAddPane ? 'Add new pane' : `Maximum ${maxPanes} panes`}
               />
             </>
           )}
