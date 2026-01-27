@@ -84,6 +84,12 @@ function createDefaultStats(): CompanionStats {
       testnetDeploys: 0,
       mainnetDeploys: 0,
     },
+    quests: {
+      created: 0,
+      phasesCompleted: 0,
+      questsCompleted: 0,
+      totalRetries: 0,
+    },
   }
 }
 

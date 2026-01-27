@@ -18,6 +18,7 @@ interface OverviewDashboardProps {
   onCreateWindow: (sessionName: string, windowName: string) => Promise<boolean>
   onRenameWindow: (windowId: string, windowName: string) => Promise<{ ok: boolean; error?: string }>
   onNavigateToCompetitions: () => void
+  onNavigateToQuests?: () => void
 }
 
 interface WindowGroup {
@@ -69,6 +70,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   onCreateWindow,
   onRenameWindow,
   onNavigateToCompetitions,
+  onNavigateToQuests,
 }: OverviewDashboardProps) {
   const { rpgEnabled } = usePaneActions()
   const [collapsedWindows, setCollapsedWindows] = useState<Set<string>>(new Set())
@@ -203,6 +205,9 @@ export const OverviewDashboard = memo(function OverviewDashboard({
               variant="ghost"
               onClick={toggleAllWindows}
             />
+          )}
+          {rpgEnabled && onNavigateToQuests && (
+            <ActionButton icon="Q" label="Quests" shortLabel="Q" variant="ghost" onClick={onNavigateToQuests} className="hidden sm:flex" />
           )}
           {rpgEnabled && (
             <ActionButton icon="🏆" label="Leaderboard" shortLabel="LB" variant="ghost" onClick={onNavigateToCompetitions} className="hidden sm:flex" />

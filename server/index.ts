@@ -14,6 +14,7 @@ const execAsync = promisify(exec)
 import type {
   ClaudeEvent,
   Companion,
+  Quest,
   ServerMessage,
   TmuxWindow,
   TmuxPane,
@@ -26,9 +27,10 @@ import type {
 } from '../shared/types.js'
 import { parseTerminalForPrompt, hasPromptChanged } from './terminal-parser.js'
 import { reconcileSessionState } from './state-reconciler.js'
-import { processEvent, detectCommandXP } from './xp.js'
+import { processEvent, detectCommandXP, processQuestXP } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName } from './companions.js'
 import { getAllCompetitions, getCompetition, getStreakLeaderboard, updateStreak } from './competitions.js'
+import { loadQuests, saveQuests, processQuestEvent, isQuestEvent, type QuestEventPayload } from './quests.js'
 import {
   pollTmuxState,
   updateClaudeSession,
@@ -78,6 +80,7 @@ function sendWindowNotFound(res: http.ServerResponse): void {
 // ═══════════════════════════════════════════════════════════════════════════
 
 let companions: Companion[] = rpgEnabled ? loadCompanions(DATA_DIR) : []
+let quests: Quest[] = rpgEnabled ? loadQuests(DATA_DIR) : []
 let windows: TmuxWindow[] = []
 const events: ClaudeEvent[] = []
 const clients = new Set<WebSocket>()
@@ -423,6 +426,55 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent & { paneId?: string } {
         toolInput: raw.tool_input,
       }
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Quest Event Processing
+// ═══════════════════════════════════════════════════════════════════════════
+
+function handleQuestEvent(event: QuestEventPayload) {
+  if (!rpgEnabled) return
+
+  const updatedQuest = processQuestEvent(quests, event)
+  if (!updatedQuest) {
+    console.log(`[claude-rpg] Quest event ${event.type} had no effect (quest not found?)`)
+    return
+  }
+
+  // Save quests to disk
+  saveQuests(DATA_DIR, quests)
+
+  // Broadcast quest update to all clients
+  broadcast({ type: 'quest_update', payload: updatedQuest } as ServerMessage)
+
+  // Award quest XP to companions for repos involved in this quest
+  if (updatedQuest.repos.length > 0) {
+    for (const repoName of updatedQuest.repos) {
+      const companion = companions.find(c => c.name === repoName || c.repo.name === repoName)
+      if (companion) {
+        // Ensure quests stats exist
+        if (!companion.stats.quests) {
+          companion.stats.quests = { created: 0, phasesCompleted: 0, questsCompleted: 0, totalRetries: 0 }
+        }
+
+        const xpGain = processQuestXP(companion, event)
+        if (xpGain) {
+          saveCompanions(DATA_DIR, companions)
+          broadcast({ type: 'companion_update', payload: companion } as ServerMessage)
+          broadcast({ type: 'xp_gain', payload: xpGain } as ServerMessage)
+
+          // Also broadcast quest-specific XP notification
+          const phaseId = 'phaseId' in event ? (event as { phaseId: string }).phaseId : ''
+          broadcast({
+            type: 'quest_xp',
+            payload: { questId: updatedQuest.id, phaseId, xp: xpGain.amount, reason: xpGain.description }
+          } as ServerMessage)
+        }
+      }
+    }
+  }
+
+  console.log(`[claude-rpg] Quest event: ${event.type} for quest "${updatedQuest.name}"`)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1291,15 +1343,22 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // Event ingestion (from hook)
+  // Event ingestion (from hook or quest skills)
   // Note: Hook already writes to events file, so we only process here (no duplicate write)
   if (url.pathname === '/event' && req.method === 'POST') {
     let body = ''
     req.on('data', chunk => body += chunk)
     req.on('end', () => {
       try {
-        const event = JSON.parse(body) as ClaudeEvent
-        handleEvent(event)
+        const event = JSON.parse(body)
+
+        // Check if this is a quest event (from skills) vs a Claude hook event
+        if (isQuestEvent(event)) {
+          handleQuestEvent(event as QuestEventPayload)
+        } else {
+          handleEvent(event as ClaudeEvent)
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ ok: true }))
       } catch {
@@ -1913,6 +1972,81 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Quest Endpoints
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // List all quests (active + recent completed)
+  if (url.pathname === '/api/quests' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, data: rpgEnabled ? quests : [] }))
+    return
+  }
+
+  // Create quest (from skill event) - also handled via /event, but direct API available
+  if (url.pathname === '/api/quests' && req.method === 'POST') {
+    if (!rpgEnabled) {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, data: null }))
+      return
+    }
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', () => {
+      try {
+        const payload = JSON.parse(body)
+        payload.type = 'quest_created'
+        handleQuestEvent(payload as QuestEventPayload)
+        const quest = quests.find(q => q.id === payload.questId)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true, data: quest }))
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: 'Invalid JSON' }))
+      }
+    })
+    return
+  }
+
+  // Update quest (pause/resume/complete)
+  const questMatch = url.pathname.match(/^\/api\/quests\/([^/]+)$/)
+  if (questMatch && req.method === 'PATCH') {
+    if (!rpgEnabled) {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, data: null }))
+      return
+    }
+    const questId = decodeURIComponent(questMatch[1])
+    const quest = quests.find(q => q.id === questId)
+    if (!quest) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'Quest not found' }))
+      return
+    }
+
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', () => {
+      try {
+        const updates = JSON.parse(body)
+        if (updates.status && ['active', 'completed', 'paused'].includes(updates.status)) {
+          quest.status = updates.status
+          if (updates.status === 'completed') {
+            quest.completedAt = Date.now()
+          }
+          saveQuests(DATA_DIR, quests)
+          broadcast({ type: 'quest_update', payload: quest } as ServerMessage)
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true, data: quest }))
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: 'Invalid JSON' }))
+      }
+    })
+    return
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Competition Endpoints
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1953,7 +2087,7 @@ const server = http.createServer(async (req, res) => {
       return
     }
     const category = competitionMatch[1] as CompetitionCategory
-    const validCategories = ['xp', 'commits', 'tests', 'tools', 'prompts']
+    const validCategories = ['xp', 'commits', 'tests', 'tools', 'prompts', 'quests']
     if (!validCategories.includes(category)) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ ok: false, error: 'Invalid category' }))
@@ -2037,6 +2171,7 @@ wss.on('connection', (ws) => {
   if (rpgEnabled) {
     ws.send(JSON.stringify({ type: 'companions', payload: companions } satisfies ServerMessage))
     ws.send(JSON.stringify({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) } satisfies ServerMessage))
+    ws.send(JSON.stringify({ type: 'quests_init', payload: quests } satisfies ServerMessage))
   }
   ws.send(JSON.stringify({ type: 'history', payload: events.slice(-100) } satisfies ServerMessage))
 

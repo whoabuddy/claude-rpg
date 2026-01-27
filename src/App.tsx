@@ -2,13 +2,14 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import { OverviewDashboard } from './components/OverviewDashboard'
 import { FullScreenPane } from './components/FullScreenPane'
 import { CompetitionsPage } from './components/CompetitionsPage'
+import { QuestsPage } from './components/QuestsPage'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refreshPane, closePane, createPaneInWindow, createClaudeInWindow, createWindow, renameWindow } from './hooks/useWindows'
 import { initTerminalCache } from './hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
 import { PaneActionsProvider, type PaneActionsContextValue } from './contexts/PaneActionsContext'
 
-type ViewTab = 'dashboard' | 'competitions'
+type ViewTab = 'dashboard' | 'quests' | 'competitions'
 
 export default function App() {
   const { connected } = useWebSocket()
@@ -61,6 +62,7 @@ export default function App() {
   const handleExpandPane = useCallback((paneId: string) => setFullscreenPaneId(paneId), [])
   const handleCloseFullscreen = useCallback(() => setFullscreenPaneId(null), [])
   const handleNavigateToCompetitions = useCallback(() => setActiveTab('competitions'), [])
+  const handleNavigateToQuests = useCallback(() => setActiveTab('quests'), [])
   const handleNavigateToDashboard = useCallback(() => setActiveTab('dashboard'), [])
 
   // PaneActionsContext value — module-level functions are stable, only handleExpandPane and rpgEnabled change
@@ -125,6 +127,11 @@ export default function App() {
               connected={connected}
               onNavigateBack={handleNavigateToDashboard}
             />
+          ) : activeTab === 'quests' && rpgEnabled ? (
+            <QuestsPage
+              connected={connected}
+              onNavigateBack={handleNavigateToDashboard}
+            />
           ) : (
             <OverviewDashboard
               windows={windows}
@@ -135,6 +142,7 @@ export default function App() {
               onCreateWindow={handleCreateWindow}
               onRenameWindow={renameWindow}
               onNavigateToCompetitions={handleNavigateToCompetitions}
+              onNavigateToQuests={handleNavigateToQuests}
             />
           )}
         </main>

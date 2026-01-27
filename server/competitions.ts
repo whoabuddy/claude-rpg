@@ -199,6 +199,10 @@ function getCategoryValue(
       // Count prompts in period
       return companionEvents.filter(e => e.type === 'user_prompt_submit').length
 
+    case 'quests':
+      // Quests only use all-time stats (quest events don't flow through ClaudeEvent pipeline)
+      return companion.stats.quests?.questsCompleted ?? 0
+
     default:
       return 0
   }
@@ -236,7 +240,7 @@ export function getAllCompetitions(
   companions: Companion[],
   events: ClaudeEvent[]
 ): Competition[] {
-  const categories: CompetitionCategory[] = ['xp', 'commits', 'tests', 'tools', 'prompts']
+  const categories: CompetitionCategory[] = ['xp', 'commits', 'tests', 'tools', 'prompts', 'quests']
   const periods: TimePeriod[] = ['today', 'week', 'all']
   const now = Date.now()
 

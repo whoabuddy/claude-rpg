@@ -1,5 +1,6 @@
-import type { ClaudeEvent, Companion, XPGain, PreToolUseEvent, PostToolUseEvent } from '../shared/types.js'
+import type { ClaudeEvent, Companion, XPGain, PreToolUseEvent, PostToolUseEvent, QuestEventType } from '../shared/types.js'
 import { xpForLevel } from '../shared/types.js'
+import type { QuestEventPayload } from './quests.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // XP Rewards Configuration
@@ -44,6 +45,13 @@ const XP_REWARDS = {
     clarinet_test: 8,
     testnet_deploy: 25,
     mainnet_deploy: 100,
+  },
+
+  quests: {
+    phase_planned: 10,
+    phase_verified_pass: 25,
+    phase_verified_fail_retry: 5,
+    quest_completed: 100,
   },
 } as const
 
@@ -222,6 +230,34 @@ function incrementStat(stats: Companion['stats'], path: string) {
 
   const key = parts[parts.length - 1]
   obj[key] = ((obj[key] as number) || 0) + 1
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Quest XP Processing
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function processQuestXP(companion: Companion, event: QuestEventPayload): XPGain | null {
+  switch (event.type) {
+    case 'phase_planned':
+      incrementStat(companion.stats, 'quests.created')
+      return awardXP(companion, XP_REWARDS.quests.phase_planned, 'quest.phase_planned', 'Phase planned')
+
+    case 'phase_verified':
+      if (event.result === 'pass') {
+        incrementStat(companion.stats, 'quests.phasesCompleted')
+        return awardXP(companion, XP_REWARDS.quests.phase_verified_pass, 'quest.phase_verified', 'Phase verified!')
+      } else {
+        incrementStat(companion.stats, 'quests.totalRetries')
+        return awardXP(companion, XP_REWARDS.quests.phase_verified_fail_retry, 'quest.phase_retry', 'Phase retry')
+      }
+
+    case 'quest_completed':
+      incrementStat(companion.stats, 'quests.questsCompleted')
+      return awardXP(companion, XP_REWARDS.quests.quest_completed, 'quest.completed', 'Quest complete!')
+
+    default:
+      return null
+  }
 }
 
 function getCommandDescription(type: string, command: string): string {

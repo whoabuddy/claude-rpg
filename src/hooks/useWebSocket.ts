@@ -83,6 +83,19 @@ export function useWebSocket() {
           case 'competitions':
             window.dispatchEvent(new CustomEvent('competitions_update', { detail: message.payload }))
             break
+
+          // Quest messages
+          case 'quest_update':
+            window.dispatchEvent(new CustomEvent('quest_update', { detail: message.payload }))
+            break
+
+          case 'quests_init':
+            window.dispatchEvent(new CustomEvent('quests_init', { detail: message.payload }))
+            break
+
+          case 'quest_xp':
+            window.dispatchEvent(new CustomEvent('quest_xp', { detail: message.payload }))
+            break
         }
       } catch (e) {
         console.error('[claude-rpg] Error parsing message:', e)
