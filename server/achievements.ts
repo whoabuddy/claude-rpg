@@ -1,4 +1,4 @@
-import type { AchievementDefinition, AchievementMeta, CompanionStats, StreakInfo, Achievement } from '@shared/types'
+import type { AchievementDefinition, AchievementMeta, CompanionStats, StreakInfo, Achievement } from '../shared/types.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Achievement Definitions Catalog

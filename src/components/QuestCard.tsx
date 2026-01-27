@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { Quest, QuestPhase, QuestPhaseStatus } from '@shared/types'
+import type { Quest, QuestPhase, QuestPhaseStatus, QuestStatus } from '@shared/types'
 import { updateQuestStatus } from '../hooks/useQuests'
 
 interface QuestCardProps {
@@ -192,7 +192,7 @@ export function QuestCard({ quest }: QuestCardProps) {
   )
 }
 
-function QuestControls({ questId, status }: { questId: string; status: string }) {
+function QuestControls({ questId, status }: { questId: string; status: QuestStatus }) {
   const [confirming, setConfirming] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 

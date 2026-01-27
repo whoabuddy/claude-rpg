@@ -39,11 +39,11 @@ export const ToastContainer = memo(function ToastContainer() {
 
   // Listen for pane_error events (#84)
   useEffect(() => {
-    const handleError = (e: CustomEvent<{ paneId: string; error: string }>) => {
+    const handleError = (e: CustomEvent<{ paneId: string; message: string }>) => {
       addToast({
         type: 'error',
         title: 'Pane Error',
-        body: e.detail.error,
+        body: e.detail.message,
       })
     }
     window.addEventListener('pane_error', handleError as EventListener)
@@ -52,12 +52,12 @@ export const ToastContainer = memo(function ToastContainer() {
 
   // Listen for xp_gain events (#83)
   useEffect(() => {
-    const handleXP = (e: CustomEvent<{ companionName?: string; amount: number; source?: string; category?: string }>) => {
+    const handleXP = (e: CustomEvent<{ companionId: string; amount: number; type?: string; description?: string }>) => {
       const d = e.detail
       addToast({
         type: 'xp',
         title: `+${d.amount} XP`,
-        body: d.companionName ? `${d.companionName}: ${d.source || d.category || 'activity'}` : (d.source || d.category),
+        body: d.description || d.type,
       })
     }
     window.addEventListener('xp_gain', handleXP as EventListener)
@@ -66,12 +66,12 @@ export const ToastContainer = memo(function ToastContainer() {
 
   // Listen for quest_xp events (#83)
   useEffect(() => {
-    const handleQuestXP = (e: CustomEvent<{ companionName?: string; amount: number; questId?: string; phase?: string }>) => {
+    const handleQuestXP = (e: CustomEvent<{ questId: string; phaseId: string; xp: number; reason: string }>) => {
       const d = e.detail
       addToast({
         type: 'quest_xp',
-        title: `+${d.amount} Quest XP`,
-        body: d.companionName ? `${d.companionName}${d.phase ? `: ${d.phase}` : ''}` : d.phase,
+        title: `+${d.xp} Quest XP`,
+        body: d.reason || d.phaseId,
       })
     }
     window.addEventListener('quest_xp', handleQuestXP as EventListener)

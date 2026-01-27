@@ -2,7 +2,7 @@
 
 ## Phase 1: Fix critical input bug
 **Issues:** #87
-**Status:** pending
+**Status:** completed
 **Complexity:** Small
 **Dependencies:** None
 
@@ -10,7 +10,7 @@ Fix Enter key in PaneInput - Enter should send message, Shift+Enter should add n
 
 ## Phase 2: Backend data collection
 **Issues:** #29, #31, #80, #45
-**Status:** pending
+**Status:** completed
 **Complexity:** Medium
 **Dependencies:** None (parallel with Phase 1)
 
@@ -18,7 +18,7 @@ Add backend tracking: tool execution duration (#29), token usage from terminal o
 
 ## Phase 3: Input and interaction polish
 **Issues:** #77 (partial), #62, #34
-**Status:** pending
+**Status:** completed
 **Complexity:** Medium
 **Dependencies:** Phase 1
 
