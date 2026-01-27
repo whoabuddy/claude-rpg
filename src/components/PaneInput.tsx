@@ -112,8 +112,17 @@ export const PaneInput = memo(function PaneInput({ paneId, pane, onSendPrompt, o
                 else send.handleEnter()
               }
             }}
+            onBeforeInput={(e) => {
+              const nativeEvent = e.nativeEvent as InputEvent
+              if (nativeEvent.inputType === 'insertLineBreak') {
+                e.preventDefault()
+                if (hasText) send.handleSend()
+                else send.handleEnter()
+              }
+            }}
             onClick={(e) => e.stopPropagation()}
             disabled={send.isSending}
+            enterKeyHint="send"
             placeholder={isClaudePane ? "Send prompt... (Shift+Enter for newline)" : "Send input..."}
             className={`flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none ${send.isSending ? 'opacity-50' : ''}`}
             rows={1}
