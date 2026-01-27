@@ -21,15 +21,13 @@ import type {
   TerminalOutput,
   ClaudeSessionInfo,
   PreToolUseEvent,
-  CompetitionCategory,
-  TimePeriod,
   TerminalPrompt,
 } from '../shared/types.js'
 import { parseTerminalForPrompt, hasPromptChanged, parseTokenCount } from './terminal-parser.js'
 import { reconcileSessionState } from './state-reconciler.js'
 import { processEvent, detectCommandXP, processQuestXP } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName } from './companions.js'
-import { getAllCompetitions, getCompetition, getStreakLeaderboard, updateStreak } from './competitions.js'
+import { getAllCompetitions, updateStreak } from './competitions.js'
 import { checkAchievements, getAchievementDef } from './achievements.js'
 import { loadQuests, saveQuests, processQuestEvent, isQuestEvent, type QuestEventPayload } from './quests.js'
 import {
@@ -1627,22 +1625,6 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // Get single pane
-  const paneMatch = url.pathname.match(/^\/api\/panes\/([^/]+)$/)
-  if (paneMatch && req.method === 'GET') {
-    const paneId = decodeURIComponent(paneMatch[1])
-    const pane = findPaneById(windows, paneId)
-
-    if (!pane) {
-      sendPaneNotFound(res)
-      return
-    }
-
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, data: pane }))
-    return
-  }
-
   // Send prompt to pane
   const panePromptMatch = url.pathname.match(/^\/api\/panes\/([^/]+)\/prompt$/)
   if (panePromptMatch && req.method === 'POST') {
@@ -2242,14 +2224,6 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // System stats (#80)
-  if (url.pathname === '/api/system-stats' && req.method === 'GET') {
-    const stats = await getSystemStats()
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, data: stats }))
-    return
-  }
-
   // ═══════════════════════════════════════════════════════════════════════════
   // Quest Endpoints
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2344,42 +2318,6 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // Get streaks leaderboard
-  if (url.pathname === '/api/competitions/streaks' && req.method === 'GET') {
-    if (!rpgEnabled) {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: true, data: [] }))
-      return
-    }
-    const entries = getStreakLeaderboard(companions)
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, data: entries }))
-    return
-  }
-
-  // Get single category competition
-  const competitionMatch = url.pathname.match(/^\/api\/competitions\/([^/]+)$/)
-  if (competitionMatch && req.method === 'GET') {
-    if (!rpgEnabled) {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: true, data: { category: competitionMatch[1], period: 'all', entries: [], updatedAt: Date.now() } }))
-      return
-    }
-    const category = competitionMatch[1] as CompetitionCategory
-    const validCategories = ['xp', 'commits', 'tests', 'tools', 'prompts', 'quests']
-    if (!validCategories.includes(category)) {
-      res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Invalid category' }))
-      return
-    }
-
-    const period = (url.searchParams.get('period') || 'all') as TimePeriod
-    const allEvents = getAllEventsFromFile()
-    const competition = getCompetition(companions, allEvents, category, period)
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, data: competition }))
-    return
-  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Static File Serving (production mode serves built client assets)
