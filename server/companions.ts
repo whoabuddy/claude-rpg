@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, existsSync, renameSync } from 'fs'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { randomUUID, createHash } from 'crypto'
 import { DEFAULTS } from '../shared/defaults.js'
 import type { Companion, CompanionStats, StreakInfo } from '../shared/types.js'
@@ -186,6 +186,9 @@ export function findOrCreateCompanion(companions: Companion[], cwd: string): Com
     return byRepoPath
   }
 
+  // Detect npm scripts from package.json (#45)
+  const npmScripts = detectNpmScripts(repoInfo.path)
+
   // Create new companion - use repo name as the companion name
   const companion: Companion = {
     id: randomUUID(),
@@ -196,14 +199,47 @@ export function findOrCreateCompanion(companions: Companion[], cwd: string): Com
     totalExperience: 0,
     stats: createDefaultStats(),
     streak: createDefaultStreak(),
+    npmScripts: npmScripts || undefined,
     createdAt: Date.now(),
     lastActivity: Date.now(),
   }
 
   companions.push(companion)
-  console.log(`[claude-rpg] Created new companion for ${repoInfo.name}`)
+  console.log(`[claude-rpg] Created new companion for ${repoInfo.name}${npmScripts ? ` (${Object.keys(npmScripts).length} npm scripts)` : ''}`)
 
   return companion
+}
+
+/**
+ * Detect available npm scripts from package.json (#45)
+ */
+function detectNpmScripts(repoPath: string): Record<string, string> | null {
+  try {
+    const pkgPath = join(resolve(repoPath), 'package.json')
+    if (!existsSync(pkgPath)) return null
+
+    const content = readFileSync(pkgPath, 'utf-8')
+    const pkg = JSON.parse(content)
+    if (pkg.scripts && typeof pkg.scripts === 'object') {
+      return pkg.scripts as Record<string, string>
+    }
+  } catch {
+    // package.json read/parse failed, skip
+  }
+  return null
+}
+
+/**
+ * Refresh npm scripts for an existing companion
+ * Called periodically or on demand
+ */
+export function refreshNpmScripts(companion: Companion): boolean {
+  const scripts = detectNpmScripts(companion.repo.path)
+  if (scripts) {
+    companion.npmScripts = scripts
+    return true
+  }
+  return false
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

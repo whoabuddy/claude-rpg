@@ -129,6 +129,11 @@ export interface ClaudeSessionInfo {
   lastPrompt?: string     // Last user prompt (truncated for display)
   recentFiles?: string[]  // Recently touched files (last 5 unique)
   activeSubagents?: number // Count of running subagents (Task tool spawns)
+  lastToolDuration?: number  // Duration of last completed tool (ms)
+  tokens?: {
+    current: number      // Current conversation token count
+    cumulative: number   // Total tokens this session
+  }
   stats?: SessionStats    // Stats for this session (in-memory only)
   createdAt: number
   lastActivity: number
@@ -169,6 +174,7 @@ export interface Companion {
   totalExperience: number
   stats: CompanionStats
   streak: StreakInfo
+  npmScripts?: Record<string, string>  // Available npm scripts from package.json
   createdAt: number
   lastActivity: number
 }
@@ -220,6 +226,7 @@ export interface CompanionStats {
     questsCompleted: number
     totalRetries: number
   }
+  tokensUsed?: number  // Lifetime token consumption
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -431,6 +438,25 @@ export interface PaneError {
   timestamp: number
 }
 
+export interface SystemStats {
+  cpu: {
+    count: number
+    loadAvg: [number, number, number]  // 1, 5, 15 min
+  }
+  memory: {
+    totalGB: number
+    freeGB: number
+    usedPercent: number
+  }
+  disk: {
+    totalGB: number
+    freeGB: number
+    usedPercent: number
+  }
+  uptime: number  // seconds
+  timestamp: number
+}
+
 export type ServerMessage =
   | { type: 'connected' }
   | { type: 'windows'; payload: TmuxWindow[] }
@@ -447,6 +473,7 @@ export type ServerMessage =
   | { type: 'quest_update'; payload: Quest }
   | { type: 'quests_init'; payload: Quest[] }
   | { type: 'quest_xp'; payload: { questId: string; phaseId: string; xp: number; reason: string } }
+  | { type: 'system_stats'; payload: SystemStats }
 
 export type ClientMessage =
   | { type: 'subscribe' }

@@ -25,7 +25,7 @@ import type {
   TimePeriod,
   TerminalPrompt,
 } from '../shared/types.js'
-import { parseTerminalForPrompt, hasPromptChanged } from './terminal-parser.js'
+import { parseTerminalForPrompt, hasPromptChanged, parseTokenCount } from './terminal-parser.js'
 import { reconcileSessionState } from './state-reconciler.js'
 import { processEvent, detectCommandXP, processQuestXP } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName } from './companions.js'
@@ -45,6 +45,7 @@ import {
 import { findWindowById } from './utils.js'
 import { getControlClient } from './tmux-control.js'
 import { sendKeysLiteral, isSafeForLiteral, batchCommands, buildBufferCommands } from './tmux-batch.js'
+import { getSystemStats, startDiskMonitoring } from './system-stats.js'
 
 // Maximum panes per window (keeps tmux TUI manageable)
 const MAX_PANES_PER_WINDOW = 4
@@ -87,6 +88,13 @@ const events: ClaudeEvent[] = []
 const clients = new Set<WebSocket>()
 const seenEventIds = new Set<string>()
 const seenQuestEventIds = new Set<string>()
+
+// Tool execution duration tracking (#29)
+// Maps toolUseId -> timestamp of pre_tool_use event
+const toolStartTimes = new Map<string, number>()
+
+// Token usage tracking per pane (#31)
+const paneTokens = new Map<string, { current: number; cumulative: number }>()
 
 // Dev proxy mode - allows production server to forward API/WS to dev backend
 let devProxyMode = false
@@ -557,6 +565,11 @@ async function handleEvent(rawEvent: RawHookEvent) {
         sessionInfo.lastError = undefined
         sessionInfo.currentTool = preEvent.tool
 
+        // Track tool start time for duration calculation (#29)
+        if (preEvent.toolUseId) {
+          toolStartTimes.set(preEvent.toolUseId, event.timestamp)
+        }
+
         if (preEvent.toolInput) {
           const filePath = (preEvent.toolInput.file_path || preEvent.toolInput.path) as string | undefined
           sessionInfo.currentFile = filePath
@@ -654,6 +667,17 @@ async function handleEvent(rawEvent: RawHookEvent) {
         }
       } else if (event.type === 'post_tool_use') {
         const postEvent = event as import('../shared/types.js').PostToolUseEvent
+
+        // Calculate tool execution duration (#29)
+        if (postEvent.toolUseId) {
+          const startTime = toolStartTimes.get(postEvent.toolUseId)
+          if (startTime) {
+            postEvent.duration = event.timestamp - startTime
+            toolStartTimes.delete(postEvent.toolUseId)
+            sessionInfo.lastToolDuration = postEvent.duration
+          }
+        }
+
         sessionInfo.currentTool = undefined
         sessionInfo.currentFile = undefined
 
@@ -680,6 +704,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
           sessionInfo.currentTool = undefined
           sessionInfo.currentFile = undefined
           sessionInfo.pendingQuestion = undefined
+          // Clean up any orphaned tool start times for this session
+          // (post events may have been missed)
         }
       } else if (event.type === 'user_prompt_submit') {
         sessionInfo.status = 'working'
@@ -954,6 +980,29 @@ async function broadcastTerminalUpdates() {
       // This is the source of truth for prompt state
       if (isClaudePane && pane.process.claudeSession) {
         processClaudePaneContent(pane, content)
+
+        // Parse token usage from terminal output (#31)
+        if (contentChanged) {
+          const tokenCount = parseTokenCount(content)
+          if (tokenCount !== null) {
+            const existing = paneTokens.get(pane.id) || { current: 0, cumulative: 0 }
+
+            // If new count is lower than current, a new conversation started
+            // Add the previous count to cumulative
+            if (tokenCount < existing.current) {
+              existing.cumulative += existing.current
+            }
+            existing.current = tokenCount
+            paneTokens.set(pane.id, existing)
+
+            const updated = updateClaudeSession(pane.id, { tokens: { ...existing } })
+            if (updated && pane.process.claudeSession) {
+              pane.process.claudeSession = updated
+              savePanesCache()
+              broadcast({ type: 'pane_update', payload: pane })
+            }
+          }
+        }
       }
 
       // Only broadcast terminal content if changed
@@ -994,6 +1043,15 @@ setInterval(() => {
     }
   }
 }, 2500)
+
+// Clean stale tool start times every 60s (#29)
+// Tools that never got a post_tool_use event (e.g., crash, timeout)
+setInterval(() => {
+  const cutoff = Date.now() - 5 * 60 * 1000
+  for (const [id, timestamp] of toolStartTimes) {
+    if (timestamp < cutoff) toolStartTimes.delete(id)
+  }
+}, 60_000)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Safe Tmux Send Helpers
@@ -2045,6 +2103,14 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // System stats (#80)
+  if (url.pathname === '/api/system-stats' && req.method === 'GET') {
+    const stats = await getSystemStats()
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, data: stats }))
+    return
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // Quest Endpoints
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2433,6 +2499,14 @@ if (rpgEnabled) {
   loadEventsFromFile()
   watchEventsFile()
 }
+
+// Start system stats monitoring (#80)
+startDiskMonitoring()
+// Broadcast system stats every 30 seconds
+setInterval(async () => {
+  const stats = await getSystemStats()
+  broadcast({ type: 'system_stats', payload: stats })
+}, 30_000)
 
 // Control mode disabled - was causing tmux scrollback issues in some terminals
 // TODO: Investigate why control mode affects scrollback in ConnectBot

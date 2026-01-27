@@ -293,6 +293,26 @@ function parsePlanApprovalPrompt(reversedLines: string[]): TerminalPrompt | null
 }
 
 /**
+ * Parse token count from Claude Code's terminal output (#31)
+ * Matches patterns like: "↓ 879 tokens", "↓ 12.5k tokens", "↓ 1.2m tokens"
+ */
+export function parseTokenCount(content: string): number | null {
+  if (!content) return null
+
+  const cleaned = stripAnsi(content)
+  // Search from the end of output (most recent)
+  const match = cleaned.match(/↓\s*([\d.]+)([km]?)\s*tokens/i)
+  if (!match) return null
+
+  let value = parseFloat(match[1])
+  const suffix = match[2]?.toLowerCase()
+  if (suffix === 'k') value *= 1000
+  if (suffix === 'm') value *= 1000000
+
+  return Math.round(value)
+}
+
+/**
  * Check if terminal content has changed enough to warrant re-parsing
  */
 export function hasPromptChanged(
