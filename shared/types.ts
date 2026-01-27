@@ -344,10 +344,8 @@ export type QuestStatus = 'active' | 'completed' | 'paused'
 
 export type QuestPhaseStatus =
   | 'pending'
-  | 'planning'
   | 'planned'
   | 'executing'
-  | 'verifying'
   | 'retrying'
   | 'completed'
   | 'failed'

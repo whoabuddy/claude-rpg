@@ -7,10 +7,8 @@ interface QuestCardProps {
 
 const PHASE_STATUS_COLORS: Record<QuestPhaseStatus, string> = {
   pending: 'bg-rpg-text-dim/30',
-  planning: 'bg-blue-500/60',
   planned: 'bg-blue-500/80',
   executing: 'bg-yellow-500/80',
-  verifying: 'bg-orange-500/80 animate-pulse',
   retrying: 'bg-orange-500/80 animate-pulse',
   completed: 'bg-green-500/80',
   failed: 'bg-rpg-error/80',
@@ -18,10 +16,8 @@ const PHASE_STATUS_COLORS: Record<QuestPhaseStatus, string> = {
 
 const PHASE_STATUS_LABELS: Record<QuestPhaseStatus, string> = {
   pending: 'Pending',
-  planning: 'Planning',
   planned: 'Planned',
   executing: 'Executing',
-  verifying: 'Verifying',
   retrying: 'Retrying',
   completed: 'Complete',
   failed: 'Failed',
@@ -40,10 +36,8 @@ function PhaseSegment({ phase, isActive }: { phase: QuestPhase; isActive: boolea
 function PhaseListItem({ phase }: { phase: QuestPhase }) {
   const statusIcon = {
     pending: '--',
-    planning: '..',
     planned: '>>',
     executing: '=>',
-    verifying: '??',
     retrying: '!!',
     completed: 'OK',
     failed: 'XX',
@@ -54,7 +48,7 @@ function PhaseListItem({ phase }: { phase: QuestPhase }) {
       <span className={`font-mono text-xs w-6 text-center ${
         phase.status === 'completed' ? 'text-green-400' :
         phase.status === 'failed' ? 'text-rpg-error' :
-        phase.status === 'executing' || phase.status === 'verifying' || phase.status === 'retrying' ? 'text-yellow-400' :
+        phase.status === 'executing' || phase.status === 'retrying' ? 'text-yellow-400' :
         'text-rpg-text-dim'
       }`}>
         {statusIcon}
@@ -137,7 +131,7 @@ export function QuestCard({ quest }: QuestCardProps) {
             <span>&middot;</span>
             <span className={
               currentPhase.status === 'executing' ? 'text-yellow-400' :
-              currentPhase.status === 'verifying' || currentPhase.status === 'retrying' ? 'text-orange-400' :
+              currentPhase.status === 'retrying' ? 'text-orange-400' :
               ''
             }>
               {PHASE_STATUS_LABELS[currentPhase.status]}

@@ -133,10 +133,8 @@ export function processQuestEvent(quests: Quest[], event: QuestEventPayload): Qu
 function validatePhaseOrder(quest: Quest, phase: QuestPhase, requiredPriorStatus: 'planned' | 'completed'): boolean {
   const PHASE_PROGRESS: Record<string, number> = {
     pending: 0,
-    planning: 1,
     planned: 2,
     executing: 3,
-    verifying: 4,
     retrying: 3, // same as executing (still in progress)
     completed: 5,
     failed: -1, // blocks downstream
