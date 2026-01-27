@@ -9,6 +9,7 @@ import { initTerminalCache } from './hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
 import { PaneActionsProvider, type PaneActionsContextValue } from './contexts/PaneActionsContext'
 import { BottomNav } from './components/BottomNav'
+import { ToastContainer } from './components/ToastContainer'
 
 type ViewTab = 'dashboard' | 'quests' | 'competitions'
 
@@ -154,6 +155,9 @@ export default function App() {
           rpgEnabled={rpgEnabled}
           attentionCount={attentionPanes.length}
         />
+
+        {/* Toast notifications (#83, #84) */}
+        <ToastContainer />
 
         {/* Full-screen pane overlay */}
         {fullscreenData && (

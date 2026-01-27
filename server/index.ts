@@ -2170,6 +2170,51 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // Send prompt to companion (#85) — routes to their active Claude pane
+  const companionPromptMatch = url.pathname.match(/^\/api\/companions\/([^/]+)\/prompt$/)
+  if (companionPromptMatch && req.method === 'POST') {
+    const companionId = decodeURIComponent(companionPromptMatch[1])
+    const companion = companions.find(c => c.id === companionId)
+
+    if (!companion) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'Companion not found' }))
+      return
+    }
+
+    // Find a Claude pane working on this companion's repo
+    const targetPane = windows.flatMap(w => w.panes).find(p =>
+      p.process.type === 'claude' && p.repo?.path === companion.repo.path
+    )
+
+    if (!targetPane) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: `No active Claude pane for ${companion.name}` }))
+      return
+    }
+
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', async () => {
+      try {
+        const { prompt } = JSON.parse(body)
+        if (!prompt) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: 'prompt is required' }))
+          return
+        }
+
+        await sendPromptToTmux(targetPane.target, prompt)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true, paneId: targetPane.id, companionName: companion.name }))
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: sanitizeTmuxError(e) }))
+      }
+    })
+    return
+  }
+
   // System stats (#80)
   if (url.pathname === '/api/system-stats' && req.method === 'GET') {
     const stats = await getSystemStats()
