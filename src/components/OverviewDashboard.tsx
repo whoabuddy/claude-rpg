@@ -5,6 +5,8 @@ import { ConnectionBanner } from './ConnectionStatus'
 import { StatusPill } from './StatusPill'
 import { usePaneActions } from '../contexts/PaneActionsContext'
 import { ActionButton } from './ActionButton'
+import { closeWindow } from '../hooks/useWindows'
+import { useConfirmAction } from '../hooks/useConfirmAction'
 
 // Maximum panes per window (must match server constant)
 const MAX_PANES_PER_WINDOW = 4
@@ -77,6 +79,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   const [selectedSession, setSelectedSession] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Group panes by window, extract unique sessions
   const { windowGroups, stats, sessions } = useMemo(() => {
@@ -118,6 +121,24 @@ export const OverviewDashboard = memo(function OverviewDashboard({
       sessions: Array.from(sessionSet).sort(),
     }
   }, [windows])
+
+  // Filter windows by search query (#53)
+  const filteredGroups = useMemo(() => {
+    if (!searchQuery.trim()) return windowGroups
+    const q = searchQuery.toLowerCase()
+    return windowGroups.filter(g => {
+      if (g.window.windowName.toLowerCase().includes(q)) return true
+      if (g.window.sessionName.toLowerCase().includes(q)) return true
+      if (g.primaryRepo?.toLowerCase().includes(q)) return true
+      // Search within pane repos and session names
+      return g.panes.some(p => {
+        if (p.repo?.name.toLowerCase().includes(q)) return true
+        if (p.repo?.org?.toLowerCase().includes(q)) return true
+        if (p.process.claudeSession?.name.toLowerCase().includes(q)) return true
+        return false
+      })
+    })
+  }, [windowGroups, searchQuery])
 
   const toggleWindow = useCallback((windowId: string) => {
     setCollapsedWindows(prev => {
@@ -217,6 +238,30 @@ export const OverviewDashboard = memo(function OverviewDashboard({
         </div>
       </div>
 
+      {/* Search/Filter (#53) — visible when 3+ windows */}
+      {windowGroups.length >= 3 && (
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter windows by name, repo, or session..."
+            className="w-full px-3 py-2 pl-8 text-sm rounded bg-rpg-bg border border-rpg-border text-rpg-text placeholder:text-rpg-text-dim focus:outline-none focus:border-rpg-accent"
+          />
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-rpg-text-dim text-xs">
+            /
+          </span>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-rpg-text-dim hover:text-rpg-text text-xs px-1"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Disconnected banner */}
       <ConnectionBanner connected={connected} />
 
@@ -301,9 +346,19 @@ export const OverviewDashboard = memo(function OverviewDashboard({
               </>
             )}
           </div>
+        ) : filteredGroups.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-rpg-text-muted">
+            <p className="text-sm">No windows match "{searchQuery}"</p>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="text-xs text-rpg-accent hover:underline mt-1"
+            >
+              Clear filter
+            </button>
+          </div>
         ) : (
           <div className="space-y-4">
-            {windowGroups.map(group => (
+            {filteredGroups.map(group => (
               <WindowSection
                 key={group.window.id}
                 group={group}
@@ -340,6 +395,12 @@ const WindowSection = memo(function WindowSection({
 }: WindowSectionProps) {
   const hasAttention = group.attentionCount > 0
   const canAddPane = group.panes.length < maxPanes
+
+  // Close window with confirmation (#48)
+  const handleCloseWindow = useCallback(() => {
+    closeWindow(group.window.id)
+  }, [group.window.id])
+  const windowCloseConfirm = useConfirmAction(handleCloseWindow)
 
   // Rename state
   const [isRenaming, setIsRenaming] = useState(false)
@@ -446,7 +507,23 @@ const WindowSection = memo(function WindowSection({
 
         {/* Window-level actions */}
         <div className="flex items-center gap-1">
-          {isRenaming ? (
+          {windowCloseConfirm.confirming ? (
+            <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
+              <span className="text-rpg-error">Close window?</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); windowCloseConfirm.handleCancel() }}
+                className="px-1.5 py-0.5 bg-rpg-idle/30 hover:bg-rpg-idle/50 rounded transition-colors"
+              >
+                No
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); windowCloseConfirm.handleClick() }}
+                className="px-1.5 py-0.5 bg-rpg-error/50 hover:bg-rpg-error/70 text-white rounded transition-colors"
+              >
+                Yes
+              </button>
+            </div>
+          ) : isRenaming ? (
             <>
               <button
                 onClick={handleConfirmRename}
@@ -465,6 +542,7 @@ const WindowSection = memo(function WindowSection({
             </>
           ) : (
             <>
+              <ActionButton icon="×" label="Close Window" variant="danger" onClick={(e: React.MouseEvent) => { e.stopPropagation(); windowCloseConfirm.handleClick() }} iconOnly />
               <ActionButton icon="✏️" label="Rename" variant="ghost" onClick={handleStartRenameClick} iconOnly />
               <ActionButton
                 icon="+"

@@ -185,3 +185,8 @@ export function createWindow(sessionName: string, windowName: string) {
 export function renameWindow(windowId: string, windowName: string) {
   return apiPost<{ ok: boolean; error?: string }>(windowPath(windowId, 'rename'), { windowName })
 }
+
+// Close a window (#48)
+export function closeWindow(windowId: string) {
+  return apiPost<{ ok: boolean; error?: string }>(windowPath(windowId, 'close'))
+}

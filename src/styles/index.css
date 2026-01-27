@@ -143,3 +143,8 @@ html, body, #root {
     opacity: 0.9;
   }
 }
+
+/* Safe area padding for mobile bottom nav (#59) */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

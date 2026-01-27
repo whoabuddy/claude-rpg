@@ -2021,6 +2021,32 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Close Window Endpoint (#48)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const windowCloseMatch = url.pathname.match(/^\/api\/windows\/([^/]+)\/close$/)
+  if (windowCloseMatch && req.method === 'POST') {
+    const windowId = decodeURIComponent(windowCloseMatch[1])
+    const window = findWindowById(windows, windowId)
+
+    if (!window) {
+      sendWindowNotFound(res)
+      return
+    }
+
+    try {
+      await execAsync(`tmux kill-window -t "${windowId}"`)
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, windowId }))
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: sanitizeTmuxError(e) }))
+    }
+    return
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Window-level Pane Creation Endpoints
   // ═══════════════════════════════════════════════════════════════════════════
 
