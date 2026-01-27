@@ -85,6 +85,7 @@ let windows: TmuxWindow[] = []
 const events: ClaudeEvent[] = []
 const clients = new Set<WebSocket>()
 const seenEventIds = new Set<string>()
+const seenQuestEventIds = new Set<string>()
 
 // Dev proxy mode - allows production server to forward API/WS to dev backend
 let devProxyMode = false
@@ -434,6 +435,22 @@ function normalizeEvent(raw: RawHookEvent): ClaudeEvent & { paneId?: string } {
 
 function handleQuestEvent(event: QuestEventPayload) {
   if (!rpgEnabled) return
+
+  // Deduplicate quest events (5-second window)
+  const coarseTime = Math.floor(Date.now() / 5000)
+  const phaseIdPart = 'phaseId' in event ? (event as { phaseId: string }).phaseId : ''
+  const questEventKey = `${event.type}-${'questId' in event ? (event as { questId: string }).questId : ''}-${phaseIdPart}-${coarseTime}`
+  if (seenQuestEventIds.has(questEventKey)) {
+    console.log(`[claude-rpg] Duplicate quest event skipped: ${event.type}`)
+    return
+  }
+  seenQuestEventIds.add(questEventKey)
+
+  // Keep bounded (quest events are low volume)
+  if (seenQuestEventIds.size > 200) {
+    const arr = Array.from(seenQuestEventIds)
+    arr.slice(0, 100).forEach(id => seenQuestEventIds.delete(id))
+  }
 
   const updatedQuest = processQuestEvent(quests, event)
   if (!updatedQuest) {
