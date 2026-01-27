@@ -1,5 +1,6 @@
-import { useRef, useEffect, useMemo, memo } from 'react'
+import { useRef, useEffect, useMemo, useCallback, memo } from 'react'
 import { ansiToHtml } from '../utils/ansi'
+import { linkifyTerminalHtml } from '../utils/linkify'
 
 interface TerminalDisplayProps {
   content: string | undefined
@@ -10,7 +11,10 @@ interface TerminalDisplayProps {
 export const TerminalDisplay = memo(function TerminalDisplay({ content, onTerminalClick, className }: TerminalDisplayProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
 
-  const htmlContent = useMemo(() => content ? ansiToHtml(content) : null, [content])
+  const htmlContent = useMemo(() => {
+    if (!content) return null
+    return linkifyTerminalHtml(ansiToHtml(content))
+  }, [content])
 
   useEffect(() => {
     if (!terminalRef.current) return
@@ -21,10 +25,33 @@ export const TerminalDisplay = memo(function TerminalDisplay({ content, onTermin
     })
   }, [content])
 
+  // Handle Ctrl+Click on terminal links
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement
+    if (target.classList.contains('terminal-link') && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+      e.stopPropagation()
+      const href = target.getAttribute('data-href')
+      const type = target.getAttribute('data-type')
+      if (href) {
+        if (type === 'url') {
+          window.open(href, '_blank', 'noopener,noreferrer')
+        }
+        // File paths: could integrate with editor opening in the future
+        // For now, just copy to clipboard
+        if (type === 'file') {
+          navigator.clipboard.writeText(href).catch(() => {})
+        }
+      }
+      return
+    }
+    onTerminalClick?.()
+  }, [onTerminalClick])
+
   return (
     <div
       ref={terminalRef}
-      onClick={onTerminalClick}
+      onClick={handleClick}
       className={className || "bg-rpg-bg rounded p-3 text-xs font-mono text-rpg-working overflow-auto max-h-64 whitespace-pre-wrap border border-rpg-border-dim cursor-text"}
     >
       {htmlContent ? (
