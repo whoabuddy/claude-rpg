@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.0](https://github.com/whoabuddy/claude-rpg/compare/v1.6.1...v1.7.0) (2026-01-27)
+
+
+### Features
+
+* add quest tracking with server, data model, and UI ([#76](https://github.com/whoabuddy/claude-rpg/issues/76)) ([17bb494](https://github.com/whoabuddy/claude-rpg/commit/17bb494094c5a582002e976baf1986b965b75470))
+* **ui:** game HUD button layouts & responsive design ([#74](https://github.com/whoabuddy/claude-rpg/issues/74)) ([80e9625](https://github.com/whoabuddy/claude-rpg/commit/80e9625f9b85f7ce8f88aca87ce63a3aeb737082))
+
+
+### Bug Fixes
+
+* usability bugs and UI polish ([#66](https://github.com/whoabuddy/claude-rpg/issues/66), [#67](https://github.com/whoabuddy/claude-rpg/issues/67), [#68](https://github.com/whoabuddy/claude-rpg/issues/68), [#77](https://github.com/whoabuddy/claude-rpg/issues/77), [#78](https://github.com/whoabuddy/claude-rpg/issues/78)) ([#79](https://github.com/whoabuddy/claude-rpg/issues/79)) ([d5c672a](https://github.com/whoabuddy/claude-rpg/commit/d5c672a5a4f963337a826b421f0ae05c86cd699d))
+
 ## [1.6.1](https://github.com/whoabuddy/claude-rpg/compare/v1.6.0...v1.6.1) (2026-01-26)
 
 
