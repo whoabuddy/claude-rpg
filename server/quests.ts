@@ -5,6 +5,29 @@ import type { Quest, QuestPhase, QuestPhaseStatus, QuestEventType } from '../sha
 const QUESTS_FILE = 'quests.json'
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Config Loading
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface QuestConfig {
+  maxRetries: number
+}
+
+const DEFAULT_CONFIG: QuestConfig = { maxRetries: 3 }
+
+function loadQuestConfig(): QuestConfig {
+  try {
+    const configPath = join(process.cwd(), '.planning', 'config.json')
+    const raw = readFileSync(configPath, 'utf-8')
+    const parsed = JSON.parse(raw)
+    return {
+      maxRetries: typeof parsed.maxRetries === 'number' ? parsed.maxRetries : DEFAULT_CONFIG.maxRetries,
+    }
+  } catch {
+    return DEFAULT_CONFIG
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Persistence
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -166,6 +189,8 @@ function handleQuestCreated(quests: Quest[], event: QuestCreatedPayload): Quest 
   const existing = quests.find(q => q.id === event.questId)
   if (existing) return existing
 
+  const config = loadQuestConfig()
+
   const quest: Quest = {
     id: event.questId,
     name: event.name,
@@ -177,7 +202,7 @@ function handleQuestCreated(quests: Quest[], event: QuestCreatedPayload): Quest 
       order: p.order,
       status: 'pending' as QuestPhaseStatus,
       retryCount: 0,
-      maxRetries: 3,
+      maxRetries: config.maxRetries,
     })),
     status: 'active',
     createdAt: Date.now(),
