@@ -40,6 +40,7 @@ import {
   findPaneById,
   getSessionCache,
   setSessionCache,
+  getActiveSessionNames,
 } from './tmux.js'
 import { findWindowById } from './utils.js'
 import { getControlClient } from './tmux-control.js'
@@ -528,8 +529,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
     let sessionInfo = getClaudeSession(pane.id)
 
     if (!sessionInfo) {
-      // Create new Claude session
-      const name = getSessionName(event.sessionId)
+      // Create new Claude session (avoid name collisions with active sessions)
+      const name = getSessionName(event.sessionId, getActiveSessionNames())
       sessionInfo = updateClaudeSession(pane.id, {
         id: event.sessionId,
         name,

@@ -11,23 +11,96 @@ import { createDefaultStreak } from './competitions.js'
 // ═══════════════════════════════════════════════════════════════════════════
 
 const ENGLISH_NAMES = [
-  'Alice', 'Bob', 'Charlie', 'Diana', 'Edward',
-  'Fiona', 'George', 'Hannah', 'Isaac', 'Julia',
-  'Kevin', 'Laura', 'Michael', 'Nancy', 'Oliver',
-  'Patricia', 'Quinn', 'Robert', 'Sarah', 'Thomas',
-  'Ursula', 'Victor', 'Wendy', 'Xavier', 'Yvonne',
-  'Zachary', 'Abigail', 'Benjamin', 'Catherine', 'Daniel',
-  'Eleanor', 'Franklin', 'Grace', 'Henry', 'Iris',
-  'James', 'Katherine', 'Leonard', 'Margaret', 'Nathan',
-  'Olivia', 'Patrick', 'Rachel', 'Samuel', 'Teresa',
-  'Vincent', 'William', 'Zoe', 'Arthur', 'Beatrice',
+  // A
+  'Ada', 'Agnes', 'Albert', 'Alice', 'Alma', 'Amos', 'Anna', 'Archer', 'Arthur', 'Astrid',
+  'Audrey', 'August', 'Aurora', 'Avery', 'Abigail',
+  // B
+  'Barnaby', 'Basil', 'Beatrice', 'Benedict', 'Benjamin', 'Bernadette', 'Bertram', 'Bianca',
+  'Blake', 'Bonnie', 'Boris', 'Bridget', 'Bruno', 'Bryce', 'Bob',
+  // C
+  'Calvin', 'Camille', 'Carlton', 'Caroline', 'Casper', 'Catherine', 'Cecil', 'Celeste',
+  'Charlie', 'Chester', 'Clara', 'Clarence', 'Clifford', 'Clive', 'Conrad', 'Cordelia', 'Cyrus',
+  // D
+  'Dagmar', 'Dallas', 'Daniel', 'Daphne', 'Darcy', 'Deirdre', 'Delilah', 'Desmond', 'Diana',
+  'Dolores', 'Dominic', 'Doris', 'Douglas', 'Duncan', 'Dustin',
+  // E
+  'Edgar', 'Edith', 'Edmund', 'Edward', 'Edwin', 'Eleanor', 'Elias', 'Eloise', 'Emmett',
+  'Enid', 'Ernest', 'Esther', 'Eugene', 'Evelyn', 'Ezra',
+  // F
+  'Felicity', 'Felix', 'Fergus', 'Fern', 'Fiona', 'Fletcher', 'Flora', 'Floyd', 'Frances',
+  'Franklin', 'Frederick', 'Freya',
+  // G
+  'Gabriel', 'Garrett', 'Gemma', 'Genevieve', 'George', 'Gerald', 'Gideon', 'Gilbert',
+  'Gladys', 'Gloria', 'Gordon', 'Grace', 'Graham', 'Greta', 'Gwendolyn',
+  // H
+  'Hadley', 'Hannah', 'Harold', 'Harriet', 'Harvey', 'Hazel', 'Hector', 'Helen', 'Henry',
+  'Herbert', 'Homer', 'Howard', 'Hugo', 'Humphrey',
+  // I
+  'Ida', 'Ignatius', 'Imogen', 'Ingrid', 'Irene', 'Iris', 'Irving', 'Isaac', 'Isolde', 'Ivan',
+  // J
+  'Jasper', 'James', 'Jerome', 'Josephine', 'Joyce', 'Julia', 'Julius', 'Juniper',
+  // K
+  'Katherine', 'Keaton', 'Keith', 'Kenneth', 'Kevin', 'Kieran', 'Knox',
+  // L
+  'Lachlan', 'Laura', 'Lawrence', 'Leander', 'Leonard', 'Leopold', 'Lester', 'Lillian',
+  'Lionel', 'Lorraine', 'Lucille', 'Luther', 'Lydia',
+  // M
+  'Mabel', 'Malcolm', 'Marcel', 'Margaret', 'Marion', 'Martin', 'Matilda', 'Maurice',
+  'Maxine', 'Melvin', 'Michael', 'Mildred', 'Milton', 'Miriam', 'Monroe', 'Mortimer', 'Myrtle',
+  // N
+  'Nancy', 'Nathaniel', 'Neville', 'Nolan', 'Nora', 'Norman', 'Norris',
+  // O
+  'Octavia', 'Oliver', 'Olivia', 'Ophelia', 'Orson', 'Oscar', 'Oswald', 'Otto', 'Owen',
+  // P
+  'Palmer', 'Patricia', 'Patrick', 'Pauline', 'Penelope', 'Percival', 'Perry', 'Phoebe',
+  'Porter', 'Preston', 'Priscilla', 'Prudence',
+  // Q
+  'Quentin', 'Quincy', 'Quinn',
+  // R
+  'Rachel', 'Ramona', 'Randolph', 'Raymond', 'Regina', 'Reginald', 'Renata', 'Rhett',
+  'Robert', 'Roland', 'Rosalind', 'Roscoe', 'Rowena', 'Rupert', 'Russell', 'Ruth',
+  // S
+  'Sabrina', 'Samuel', 'Sarah', 'Sawyer', 'Sebastian', 'Selma', 'Seymour', 'Sheldon',
+  'Silas', 'Simon', 'Solomon', 'Spencer', 'Stanley', 'Sterling', 'Stuart', 'Sylvia',
+  // T
+  'Tabitha', 'Teresa', 'Theodore', 'Thomas', 'Tobias', 'Truman',
+  // U
+  'Ulysses', 'Ursula',
+  // V
+  'Valentina', 'Vaughn', 'Vera', 'Vernon', 'Victor', 'Vincent', 'Viola', 'Virginia', 'Vivian',
+  // W
+  'Wallace', 'Walter', 'Warren', 'Wendell', 'Wendy', 'Wesley', 'Wilbur', 'William',
+  'Winifred', 'Winston',
+  // X-Z
+  'Xavier', 'Yvonne', 'Zachary', 'Zelda', 'Zoe',
 ]
 
-// Deterministic name from session ID
-export function getSessionName(sessionId: string): string {
+// Deterministic name from session ID, with collision avoidance
+export function getSessionName(sessionId: string, activeNames?: Set<string>): string {
   const hash = createHash('md5').update(sessionId).digest()
   const index = hash.readUInt16BE(0) % ENGLISH_NAMES.length
-  return ENGLISH_NAMES[index]
+  const baseName = ENGLISH_NAMES[index]
+
+  // No collision tracking requested, or name is available
+  if (!activeNames || !activeNames.has(baseName)) {
+    return baseName
+  }
+
+  // Try secondary hash bytes for an alternative name
+  for (let offset = 2; offset < 14; offset += 2) {
+    const altIndex = hash.readUInt16BE(offset) % ENGLISH_NAMES.length
+    const altName = ENGLISH_NAMES[altIndex]
+    if (!activeNames.has(altName)) {
+      return altName
+    }
+  }
+
+  // All hash-based names collide — append numeric suffix
+  let suffix = 2
+  while (activeNames.has(`${baseName} ${suffix}`)) {
+    suffix++
+  }
+  return `${baseName} ${suffix}`
 }
 
 // Bitcoin face URL (cached SVG fetched separately)

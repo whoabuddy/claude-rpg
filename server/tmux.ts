@@ -281,6 +281,17 @@ export function removeClaudeSession(paneId: string): void {
 }
 
 /**
+ * Get the set of names currently in use by active Claude sessions
+ */
+export function getActiveSessionNames(): Set<string> {
+  const names = new Set<string>()
+  for (const session of claudeSessionsByPane.values()) {
+    if (session.name) names.add(session.name)
+  }
+  return names
+}
+
+/**
  * Export session cache for persistence
  */
 export function getSessionCache(): Map<string, ClaudeSessionInfo> {
