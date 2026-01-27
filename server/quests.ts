@@ -190,9 +190,16 @@ function handlePhaseVerified(quests: Quest[], event: PhaseVerifiedPayload): Ques
   if (event.result === 'pass') {
     phase.status = 'completed'
     phase.completedAt = Date.now()
+    phase.retryCount = 0
   } else {
     phase.status = 'failed'
     phase.gaps = event.gaps
+
+    // Auto-pause quest when phase exhausts retries
+    if (phase.retryCount >= phase.maxRetries) {
+      quest.status = 'paused'
+      console.log(`[claude-rpg] Quest "${quest.name}" paused: phase "${phase.name}" failed after ${phase.retryCount} retries`)
+    }
   }
 
   // Check if all phases completed
