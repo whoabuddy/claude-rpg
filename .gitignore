@@ -22,3 +22,6 @@ npm-debug.log*
 
 # Data (user-specific)
 data/
+
+# Quest planning (local state)
+.planning/

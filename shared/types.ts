@@ -213,6 +213,12 @@ export interface CompanionStats {
     testnetDeploys: number
     mainnetDeploys: number
   }
+  quests: {
+    created: number
+    phasesCompleted: number
+    questsCompleted: number
+    totalRetries: number
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -331,6 +337,53 @@ export function levelFromTotalXP(totalXP: number): { level: number; currentXP: n
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// QUESTS (Cross-repo goals with phased execution)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type QuestStatus = 'active' | 'completed' | 'paused'
+
+export type QuestPhaseStatus =
+  | 'pending'
+  | 'planned'
+  | 'executing'
+  | 'retrying'
+  | 'completed'
+  | 'failed'
+
+export interface QuestPhase {
+  id: string
+  name: string
+  order: number
+  status: QuestPhaseStatus
+  retryCount: number
+  maxRetries: number           // Default 3
+  taskCount?: number
+  verificationResult?: 'pass' | 'fail'
+  gaps?: string[]              // From verifier diagnosis
+  startedAt?: number
+  completedAt?: number
+}
+
+export interface Quest {
+  id: string
+  name: string
+  description: string
+  repos: string[]              // Cross-repo: ["claude-rpg", "x402-api"]
+  phases: QuestPhase[]
+  status: QuestStatus
+  createdAt: number
+  completedAt?: number
+}
+
+export type QuestEventType =
+  | 'quest_created'
+  | 'phase_planned'
+  | 'phase_executing'
+  | 'phase_verified'
+  | 'phase_retrying'
+  | 'quest_completed'
+
+// ═══════════════════════════════════════════════════════════════════════════
 // COMPETITIONS / LEADERBOARDS
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -340,6 +393,7 @@ export type CompetitionCategory =
   | 'tests'     // Tests run
   | 'tools'     // Total tool uses
   | 'prompts'   // Prompts received
+  | 'quests'    // Quests completed
 
 export type TimePeriod = 'today' | 'week' | 'all'
 
@@ -389,6 +443,9 @@ export type ServerMessage =
   | { type: 'history'; payload: ClaudeEvent[] }
   | { type: 'terminal_output'; payload: TerminalOutput }
   | { type: 'competitions'; payload: Competition[] }
+  | { type: 'quest_update'; payload: Quest }
+  | { type: 'quests_init'; payload: Quest[] }
+  | { type: 'quest_xp'; payload: { questId: string; phaseId: string; xp: number; reason: string } }
 
 export type ClientMessage =
   | { type: 'subscribe' }

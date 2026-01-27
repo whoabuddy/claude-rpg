@@ -3,6 +3,7 @@ import type { TmuxPane, TmuxWindow } from '@shared/types'
 import { sendPromptToPane } from '../hooks/useWindows'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { useConfirmAction } from '../hooks/useConfirmAction'
+import { useQuests } from '../hooks/useQuests'
 import { getPaneStatus, paneEqual } from '../utils/pane-status'
 import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
 import { usePaneActions } from '../contexts/PaneActionsContext'
@@ -31,9 +32,14 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
 
   const closeConfirm = useConfirmAction(useCallback(() => onClosePane(pane.id), [onClosePane, pane.id]))
 
+  const { questForRepo } = useQuests()
+
   const isClaudePane = pane.process.type === 'claude'
   const session = pane.process.claudeSession
   const status = getPaneStatus(pane)
+  const activeQuest = pane.repo ? questForRepo(pane.repo.name) : undefined
+  const questCurrentPhase = activeQuest?.phases.find(p => p.status !== 'completed' && p.status !== 'pending')
+    || activeQuest?.phases.find(p => p.status === 'pending')
 
   const theme = STATUS_THEME[status as keyof typeof STATUS_THEME] || STATUS_THEME.idle
   const statusLabel = STATUS_LABELS[status] || status
@@ -153,6 +159,13 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
                 </span>
               )}
             </div>
+
+            {/* Quest badge */}
+            {activeQuest && questCurrentPhase && (
+              <div className="text-xs text-rpg-accent/80 truncate mt-0.5">
+                Quest: {activeQuest.name} &middot; Phase {questCurrentPhase.order}/{activeQuest.phases.length}
+              </div>
+            )}
           </div>
 
           {/* Actions */}

@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, renameSync } from 'fs'
 import { join } from 'path'
 import { randomUUID, createHash } from 'crypto'
 import { DEFAULTS } from '../shared/defaults.js'
@@ -84,6 +84,12 @@ function createDefaultStats(): CompanionStats {
       testnetDeploys: 0,
       mainnetDeploys: 0,
     },
+    quests: {
+      created: 0,
+      phasesCompleted: 0,
+      questsCompleted: 0,
+      totalRetries: 0,
+    },
   }
 }
 
@@ -160,9 +166,11 @@ export function loadCompanions(dataDir: string): Companion[] {
 
 export function saveCompanions(dataDir: string, companions: Companion[]) {
   const file = join(dataDir, DEFAULTS.COMPANIONS_FILE)
+  const tmpFile = file + '.tmp'
 
   try {
-    writeFileSync(file, JSON.stringify({ companions }, null, 2))
+    writeFileSync(tmpFile, JSON.stringify({ companions }, null, 2))
+    renameSync(tmpFile, file)
   } catch (e) {
     console.error(`[claude-rpg] Error saving companions:`, e)
   }
