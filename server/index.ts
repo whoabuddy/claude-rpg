@@ -470,6 +470,8 @@ function handleQuestEvent(event: QuestEventPayload) {
             payload: { questId: updatedQuest.id, phaseId, xp: xpGain.amount, reason: xpGain.description }
           } as ServerMessage)
         }
+      } else {
+        console.warn(`[claude-rpg] Quest XP: companion not found for repo "${repoName}", XP not awarded for ${event.type}`)
       }
     }
   }
