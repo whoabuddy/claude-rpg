@@ -569,6 +569,11 @@ async function handleEvent(rawEvent: RawHookEvent) {
           }
         }
 
+        // Track subagent spawns (Task tool)
+        if (preEvent.tool === 'Task') {
+          sessionInfo.activeSubagents = (sessionInfo.activeSubagents || 0) + 1
+        }
+
         // Detect AskUserQuestion
         if (preEvent.tool === 'AskUserQuestion' && preEvent.toolInput) {
           sessionInfo.status = 'waiting'
@@ -666,10 +671,16 @@ async function handleEvent(rawEvent: RawHookEvent) {
           sessionInfo.status = 'working'
         }
       } else if (event.type === 'stop') {
-        sessionInfo.status = 'idle'
-        sessionInfo.currentTool = undefined
-        sessionInfo.currentFile = undefined
-        sessionInfo.pendingQuestion = undefined
+        // Guard: if subagents are still running, this stop is likely a subagent
+        // echoing as a parent stop event — keep working
+        if ((sessionInfo.activeSubagents || 0) > 0) {
+          console.log(`[claude-rpg] Ignoring stop event — ${sessionInfo.activeSubagents} subagent(s) still active`)
+        } else {
+          sessionInfo.status = 'idle'
+          sessionInfo.currentTool = undefined
+          sessionInfo.currentFile = undefined
+          sessionInfo.pendingQuestion = undefined
+        }
       } else if (event.type === 'user_prompt_submit') {
         sessionInfo.status = 'working'
         // Don't clear pendingQuestion here - multi-question flows need it
@@ -682,27 +693,37 @@ async function handleEvent(rawEvent: RawHookEvent) {
         }
       } else if (event.type === 'notification') {
         // Notification may indicate permission prompts or other waiting states
+        // Guard: never downgrade from 'working' — subagent completion notifications
+        // should not change the parent session's status
         const notifEvent = event as import('../shared/types.js').NotificationEvent
-        if (notifEvent.message) {
-          // Check for permission-related notifications
+        if (notifEvent.message && sessionInfo.status !== 'working') {
           if (notifEvent.message.includes('permission') || notifEvent.message.includes('waiting')) {
             sessionInfo.status = 'waiting'
           }
         }
       } else if (event.type === 'subagent_stop') {
-        // Subagent finished - main agent continues working
+        // Subagent finished - decrement counter, main agent continues working
+        if ((sessionInfo.activeSubagents || 0) > 0) {
+          sessionInfo.activeSubagents = (sessionInfo.activeSubagents || 0) - 1
+        }
         // Don't change status - main agent is still running
       } else if (event.type === 'session_start') {
-        // New or resumed session - reset to idle state
+        // New or resumed session - but guard against subagent spawns resetting parent
         const startEvent = event as import('../shared/types.js').SessionStartEvent
-        sessionInfo.status = 'idle'
-        sessionInfo.currentTool = undefined
-        sessionInfo.currentFile = undefined
-        sessionInfo.pendingQuestion = undefined
-        sessionInfo.lastError = undefined
-        // Set lastPrompt to show the command that triggered the new session
-        if (startEvent.source === 'clear') {
-          sessionInfo.lastPrompt = '/clear'
+        if (sessionInfo.status === 'working' && (sessionInfo.activeSubagents || 0) > 0) {
+          // Subagent starting a new session context — don't reset parent
+          console.log(`[claude-rpg] Ignoring session_start during active subagent work`)
+        } else {
+          sessionInfo.status = 'idle'
+          sessionInfo.currentTool = undefined
+          sessionInfo.currentFile = undefined
+          sessionInfo.pendingQuestion = undefined
+          sessionInfo.lastError = undefined
+          sessionInfo.activeSubagents = 0
+          // Set lastPrompt to show the command that triggered the new session
+          if (startEvent.source === 'clear') {
+            sessionInfo.lastPrompt = '/clear'
+          }
         }
       } else if (event.type === 'session_end') {
         // Session ended - remove from cache
