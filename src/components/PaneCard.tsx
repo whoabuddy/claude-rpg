@@ -145,8 +145,6 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
               ) : (
                 <span className="font-mono text-sm">{pane.process.command}</span>
               )}
-
-              <StatusIndicator status={status} onDismiss={handleDismiss} />
             </div>
 
             {/* Activity line */}
@@ -168,8 +166,9 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
             )}
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+          {/* Status + Actions — aligned together */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <StatusIndicator status={status} onDismiss={handleDismiss} />
             {closeConfirm.confirming ? (
               <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
                 <span className="text-rpg-error">Close?</span>
@@ -188,9 +187,9 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
               </div>
             ) : (
               <>
-                <ActionButton icon="×" label="Close" onClick={handleCloseClick} variant="danger" />
-                <ActionButton icon="↻" label="Refresh" onClick={handleRefresh} />
-                <ActionButton icon="⛶" label="Expand" onClick={handleExpand} />
+                <ActionButton icon="×" label="Close" onClick={handleCloseClick} variant="danger" iconOnly />
+                <ActionButton icon="↻" label="Refresh" onClick={handleRefresh} iconOnly />
+                <ActionButton icon="⛶" label="Expand" onClick={handleExpand} iconOnly />
               </>
             )}
             <span className="text-rpg-text-dim text-xs w-4 text-center">

@@ -9,6 +9,7 @@ interface ActionButtonProps {
   disabled?: boolean
   title?: string
   className?: string
+  iconOnly?: boolean
 }
 
 const VARIANT_CLASSES = {
@@ -27,6 +28,7 @@ export const ActionButton = memo(function ActionButton({
   disabled = false,
   title,
   className,
+  iconOnly = false,
 }: ActionButtonProps) {
   const variantClasses = VARIANT_CLASSES[variant]
 
@@ -40,8 +42,12 @@ export const ActionButton = memo(function ActionButton({
       title={title || label}
     >
       <span>{icon}</span>
-      <span className="hidden sm:inline lg:hidden ml-1 text-xs">{shortLabel || label}</span>
-      <span className="hidden lg:inline ml-1 text-xs">{label}</span>
+      {!iconOnly && (
+        <>
+          <span className="hidden sm:inline lg:hidden ml-1 text-xs">{shortLabel || label}</span>
+          <span className="hidden lg:inline ml-1 text-xs">{label}</span>
+        </>
+      )}
     </button>
   )
 })
