@@ -23,6 +23,7 @@ export const PaneInput = memo(function PaneInput({ paneId, pane, onSendPrompt, o
   const isPassword = useMemo(() => isPasswordPrompt(terminalContent), [terminalContent])
 
   const canInterrupt = (isClaudePane && session?.status === 'working') || pane.process.type === 'process'
+  const hasText = send.inputValue.trim().length > 0
 
   const handleCtrlC = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -34,151 +35,138 @@ export const PaneInput = memo(function PaneInput({ paneId, pane, onSendPrompt, o
     ;(send.inputRef.current as HTMLTextAreaElement | null)?.focus()
   }, [send])
 
+  const handleSendOrEnter = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (send.inputValue.trim()) {
+      send.handleSend()
+    } else {
+      send.handleEnter()
+    }
+  }, [send])
+
   const isFullscreen = variant === 'fullscreen'
+
+  // Password input — same in both modes
+  if (isPassword) {
+    return (
+      <div className="space-y-2">
+        <div className="flex gap-2 items-center">
+          <span className="text-rpg-waiting text-sm">🔒</span>
+          <input
+            ref={passwordInputRef}
+            type="password"
+            value={send.inputValue}
+            onChange={(e) => send.setInputValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                e.stopPropagation()
+                send.handleSend()
+              }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            disabled={send.isSending}
+            placeholder="Enter password..."
+            className={`flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-waiting/50 rounded focus:border-rpg-waiting outline-none min-h-[44px] ${send.isSending ? 'opacity-50' : ''}`}
+            autoComplete="off"
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-2">
-      {/* Input area - always visible */}
-      {isPassword ? (
-            /* Password input - masked */
-            <div className="flex gap-2 items-center">
-              <span className="text-rpg-waiting text-sm">🔒</span>
-              <input
-                ref={passwordInputRef}
-                type="password"
-                value={send.inputValue}
-                onChange={(e) => send.setInputValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    send.handleSend()
-                  }
-                }}
-                onClick={(e) => e.stopPropagation()}
-                disabled={send.isSending}
-                placeholder="Enter password..."
-                className={`flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-waiting/50 rounded focus:border-rpg-waiting outline-none min-h-[44px] ${send.isSending ? 'opacity-50' : ''}`}
-                autoComplete="off"
-              />
-            </div>
-          ) : isFullscreen ? (
-            /* Fullscreen: single-line input with separate buttons */
-            <div className="flex gap-2 items-center">
-              <input
-                ref={send.inputRef as React.RefObject<HTMLInputElement>}
-                type="text"
-                value={send.inputValue}
-                onChange={(e) => send.setInputValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    if (send.inputValue.trim()) {
-                      send.handleSend()
-                    } else {
-                      send.handleEnter()
-                    }
-                  }
-                }}
-                disabled={send.isSending}
-                placeholder={isClaudePane ? "Send prompt..." : "Send input..."}
-                className={`flex-1 px-4 py-3 text-base bg-rpg-bg border border-rpg-border rounded-lg focus:border-rpg-accent outline-none ${send.isSending ? 'opacity-50' : ''}`}
-              />
-              <button
-                onClick={send.handleEnter}
-                disabled={send.isSending}
-                className={`px-4 py-3 bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle rounded-lg transition-colors active:scale-95 ${send.isSending ? 'opacity-50 cursor-not-allowed' : ''}`}
-                title="Send Enter"
-              >
-                ⏎
-              </button>
-              <VoiceButton onTranscription={handleVoiceTranscription} />
-              <button
-                onClick={(e) => { e.stopPropagation(); send.handleSend() }}
-                disabled={!send.inputValue.trim() || send.isSending}
-                className="px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95 bg-rpg-accent/30 hover:bg-rpg-accent/50"
-              >
-                {send.isSending ? 'Sending...' : 'Send'}
-              </button>
-            </div>
-          ) : (
-            /* Card: textarea with voice button */
-            <div className="flex gap-2 items-end">
-              <textarea
-                ref={send.inputRef as React.RefObject<HTMLTextAreaElement>}
-                value={send.inputValue}
-                onChange={(e) => {
-                  send.setInputValue(e.target.value)
-                  // Auto-resize textarea
-                  e.target.style.height = 'auto'
-                  e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    if (send.inputValue.trim()) {
-                      send.handleSend()
-                    } else {
-                      send.handleEnter()
-                    }
-                  }
-                }}
-                onClick={(e) => e.stopPropagation()}
-                disabled={send.isSending}
-                placeholder={isClaudePane ? "Send prompt... (Shift+Enter for newline)" : "Send input..."}
-                className={`flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none ${send.isSending ? 'opacity-50' : ''}`}
-                rows={1}
-              />
-              <VoiceButton onTranscription={handleVoiceTranscription} />
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            {!isFullscreen && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (send.inputValue.trim()) {
-                    send.handleSend()
-                  } else {
-                    send.handleEnter()
-                  }
-                }}
-                disabled={send.isSending}
-                className={`flex-1 sm:flex-none px-4 py-2 text-sm rounded transition-colors active:scale-95 min-h-[44px] ${
-                  send.isSending
-                    ? 'bg-rpg-accent/20 text-rpg-text-muted cursor-not-allowed'
-                    : send.inputValue.trim()
-                      ? isPassword ? 'bg-rpg-waiting/30 hover:bg-rpg-waiting/50' : 'bg-rpg-accent/30 hover:bg-rpg-accent/50'
-                      : 'bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle'
-                }`}
-                title={send.inputValue.trim() ? "Send message" : "Send Enter (accept suggestion)"}
-              >
-                {send.isSending ? 'Sending...' : send.inputValue.trim() ? 'Send' : '⏎ Enter'}
-              </button>
-            )}
-            {!send.isSending && !send.inputValue && send.hasLastPrompt && (
-              <button
-                onClick={(e) => { e.stopPropagation(); send.handleRestoreLast() }}
-                className="px-2 py-1 text-xs text-rpg-text-muted hover:text-rpg-accent transition-colors"
-                title="Restore last sent prompt"
-              >
-                ↩ Restore last
-              </button>
-            )}
-          </div>
+      {/* Row 1: Input + Voice */}
+      <div className={`flex gap-2 ${isFullscreen ? 'items-center' : 'items-end'}`}>
+        {isFullscreen ? (
+          <input
+            ref={send.inputRef as React.RefObject<HTMLInputElement>}
+            type="text"
+            value={send.inputValue}
+            onChange={(e) => send.setInputValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                if (hasText) send.handleSend()
+                else send.handleEnter()
+              }
+            }}
+            disabled={send.isSending}
+            placeholder={isClaudePane ? "Send prompt..." : "Send input..."}
+            className={`flex-1 px-4 py-3 text-base bg-rpg-bg border border-rpg-border rounded-lg focus:border-rpg-accent outline-none ${send.isSending ? 'opacity-50' : ''}`}
+          />
+        ) : (
+          <textarea
+            ref={send.inputRef as React.RefObject<HTMLTextAreaElement>}
+            value={send.inputValue}
+            onChange={(e) => {
+              send.setInputValue(e.target.value)
+              e.target.style.height = 'auto'
+              e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                e.stopPropagation()
+                if (hasText) send.handleSend()
+                else send.handleEnter()
+              }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            disabled={send.isSending}
+            placeholder={isClaudePane ? "Send prompt... (Shift+Enter for newline)" : "Send input..."}
+            className={`flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none ${send.isSending ? 'opacity-50' : ''}`}
+            rows={1}
+          />
+        )}
+        <VoiceButton onTranscription={handleVoiceTranscription} />
+      </div>
 
-      {/* Interrupt button - always visible, dimmed when not applicable */}
-      <button
-        onClick={handleCtrlC}
-        disabled={!canInterrupt}
-        className={`${isFullscreen ? 'ml-auto px-6 py-3 rounded-lg' : 'w-full sm:w-auto px-4 py-2 rounded'} text-sm transition-colors active:scale-95 min-h-[44px] ${
-          canInterrupt
-            ? 'bg-rpg-error/20 hover:bg-rpg-error/40 text-rpg-error'
-            : 'opacity-30 cursor-not-allowed bg-rpg-error/10 text-rpg-error/50'
-        }`}
-      >
-        Interrupt
-      </button>
+      {/* Row 2: Actions — Send/Enter + Restore + Interrupt */}
+      <div className="flex items-center gap-2">
+        {/* Primary: Send or Enter */}
+        <button
+          onClick={handleSendOrEnter}
+          disabled={send.isSending}
+          className={`px-4 ${isFullscreen ? 'py-3 rounded-lg' : 'py-2 rounded'} text-sm transition-colors active:scale-95 min-h-[44px] ${
+            send.isSending
+              ? 'bg-rpg-accent/20 text-rpg-text-muted cursor-not-allowed'
+              : hasText
+                ? 'bg-rpg-accent/30 hover:bg-rpg-accent/50'
+                : 'bg-rpg-idle/20 hover:bg-rpg-idle/40 text-rpg-idle'
+          }`}
+          title={hasText ? "Send message" : "Send Enter (accept suggestion)"}
+        >
+          {send.isSending ? '...' : hasText ? 'Send' : '⏎ Enter'}
+        </button>
+
+        {/* Restore last prompt */}
+        {!send.isSending && !send.inputValue && send.hasLastPrompt && (
+          <button
+            onClick={(e) => { e.stopPropagation(); send.handleRestoreLast() }}
+            className="px-2 py-1 text-xs text-rpg-text-muted hover:text-rpg-accent transition-colors"
+            title="Restore last sent prompt"
+          >
+            ↩ Last
+          </button>
+        )}
+
+        {/* Spacer pushes interrupt to the right */}
+        <div className="flex-1" />
+
+        {/* Interrupt — secondary, right-aligned */}
+        <button
+          onClick={handleCtrlC}
+          disabled={!canInterrupt}
+          className={`px-3 ${isFullscreen ? 'py-3 rounded-lg' : 'py-2 rounded'} text-sm transition-colors active:scale-95 min-h-[44px] border ${
+            canInterrupt
+              ? 'border-rpg-error/40 text-rpg-error hover:bg-rpg-error/20'
+              : 'border-transparent opacity-20 cursor-not-allowed text-rpg-error/50'
+          }`}
+        >
+          Interrupt
+        </button>
+      </div>
 
       {/* Inline error banner */}
       {send.inlineError && (

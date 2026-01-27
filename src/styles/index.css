@@ -123,6 +123,19 @@ html, body, #root {
 .ansi-italic { font-style: italic; }
 .ansi-strikethrough { text-decoration: line-through; }
 
+/* Terminal links (Ctrl+Click to open) */
+.terminal-link {
+  color: #5bcefa;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.terminal-link:hover {
+  text-decoration-style: solid;
+  color: #82e0ff;
+}
+
 /* Mobile touch feedback */
 @media (hover: none) {
   .touch-feedback:active {

@@ -88,48 +88,50 @@ export function StatusPill({ connected }: StatusPillProps) {
     return (
       <button
         onClick={() => setExpanded(true)}
-        className="min-w-[44px] min-h-[44px] flex items-center justify-center"
+        className="min-w-[44px] min-h-[44px] flex items-center justify-center gap-1.5"
         title={dotTitle}
       >
         <div className={`w-2.5 h-2.5 rounded-full ${dotClass}`} />
+        <span className="text-xs text-rpg-text-dim hidden sm:inline">
+          {!connected ? 'offline' : isProd ? 'prod' : 'dev'}
+        </span>
       </button>
     )
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1 bg-rpg-card rounded-lg px-2 py-1 border border-rpg-border">
       <button
         onClick={() => setExpanded(false)}
-        className="min-w-[44px] min-h-[44px] flex items-center justify-center"
+        className="flex items-center gap-1.5 px-1"
         title="Collapse"
       >
         <div className={`w-2.5 h-2.5 rounded-full ${dotClass}`} />
+        <span className="text-xs text-rpg-text-muted">
+          {isProd ? 'prod' : 'dev'}:{isProd ? status?.production.port : status?.dev.port}
+        </span>
       </button>
-      {status && (
-        <>
-          <span className="text-xs text-rpg-text-muted">
-            {isProd ? 'prod' : 'dev'}:{isProd ? status.production.port : status.dev.port}
-          </span>
-          <button
-            onClick={switchBackend}
-            disabled={switching || (isProd && !devAvailable)}
-            className={`px-2 py-0.5 text-xs rounded transition-colors ${
-              switching
-                ? 'opacity-50 cursor-wait'
-                : isProd && !devAvailable
-                  ? 'text-rpg-text-dim cursor-default'
-                  : 'text-rpg-accent hover:bg-rpg-card-hover cursor-pointer'
-            }`}
-            title={
-              isProd
-                ? devAvailable ? 'Switch to dev' : 'Dev server not running'
-                : 'Switch to production'
-            }
-          >
-            {switching ? '...' : isProd ? 'use dev' : 'use prod'}
-          </button>
-        </>
+      {status && devAvailable && (
+        <button
+          onClick={switchBackend}
+          disabled={switching}
+          className={`px-2 py-0.5 text-xs rounded transition-colors ${
+            switching
+              ? 'opacity-50 cursor-wait'
+              : 'text-rpg-accent hover:bg-rpg-accent/10 cursor-pointer'
+          }`}
+          title={isProd ? 'Switch to dev backend' : 'Switch to production backend'}
+        >
+          {switching ? '...' : isProd ? '→ dev' : '→ prod'}
+        </button>
       )}
+      <button
+        onClick={() => setExpanded(false)}
+        className="text-rpg-text-dim hover:text-rpg-text text-xs px-1"
+        title="Close"
+      >
+        ×
+      </button>
     </div>
   )
 }

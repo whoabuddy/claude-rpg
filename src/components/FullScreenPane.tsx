@@ -113,8 +113,9 @@ export const FullScreenPane = memo(function FullScreenPane({
           </div>
         </div>
 
-        {/* Pane close control */}
+        {/* Status + Pane close control — aligned together */}
         <div className="flex items-center gap-1">
+          <StatusIndicator status={status} onDismiss={handleDismiss} />
           {closeConfirm.confirming ? (
             <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
               <span className="text-rpg-error">Close?</span>
@@ -132,12 +133,9 @@ export const FullScreenPane = memo(function FullScreenPane({
               </button>
             </div>
           ) : (
-            <ActionButton icon="×" label="Close Pane" shortLabel="Close" variant="danger" onClick={closeConfirm.handleClick} />
+            <ActionButton icon="×" label="Close Pane" variant="danger" onClick={closeConfirm.handleClick} iconOnly />
           )}
         </div>
-
-        {/* Status */}
-        <StatusIndicator status={status} onDismiss={handleDismiss} />
 
         {/* Attention badge for other panes */}
         {attentionCount > 0 && (

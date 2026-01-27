@@ -4,7 +4,7 @@ import { FullScreenPane } from './components/FullScreenPane'
 import { CompetitionsPage } from './components/CompetitionsPage'
 import { QuestsPage } from './components/QuestsPage'
 import { useWebSocket } from './hooks/useWebSocket'
-import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refreshPane, closePane, createPaneInWindow, createClaudeInWindow, createWindow, renameWindow } from './hooks/useWindows'
+import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refreshPane, closePane, createPaneInWindow, createWindow, renameWindow } from './hooks/useWindows'
 import { initTerminalCache } from './hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
 import { PaneActionsProvider, type PaneActionsContextValue } from './contexts/PaneActionsContext'
@@ -138,7 +138,6 @@ export default function App() {
               attentionCount={attentionPanes.length}
               connected={connected}
               onNewPane={createPaneInWindow}
-              onNewClaude={createClaudeInWindow}
               onCreateWindow={handleCreateWindow}
               onRenameWindow={renameWindow}
               onNavigateToCompetitions={handleNavigateToCompetitions}

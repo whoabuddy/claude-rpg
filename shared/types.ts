@@ -128,6 +128,7 @@ export interface ClaudeSessionInfo {
   currentFile?: string
   lastPrompt?: string     // Last user prompt (truncated for display)
   recentFiles?: string[]  // Recently touched files (last 5 unique)
+  activeSubagents?: number // Count of running subagents (Task tool spawns)
   stats?: SessionStats    // Stats for this session (in-memory only)
   createdAt: number
   lastActivity: number
