@@ -58,6 +58,8 @@ import { isWhisperAvailable, transcribeAudio } from './whisper.js'
 const PORT = parseInt(process.env.CLAUDE_RPG_PORT || String(DEFAULTS.SERVER_PORT))
 const DATA_DIR = expandPath(process.env.CLAUDE_RPG_DATA_DIR || DEFAULTS.DATA_DIR)
 const rpgEnabled = process.env.CLAUDE_RPG_FEATURES !== 'false'
+const AUTO_ACCEPT_BYPASS = process.env.CLAUDE_RPG_AUTO_ACCEPT_BYPASS === 'true'
+const bypassWarningHandled = new Set<string>()
 const EVENTS_FILE = join(DATA_DIR, DEFAULTS.EVENTS_FILE)
 const PANES_CACHE_FILE = join(DATA_DIR, 'panes-cache.json')
 
@@ -976,6 +978,21 @@ async function broadcastTerminalUpdates() {
         broadcast({ type: 'pane_update', payload: pane })
       }
 
+      // Auto-accept bypass warning (#34)
+      if (AUTO_ACCEPT_BYPASS && isClaudePane && contentChanged) {
+        const paneKey = `${pane.id}-bypass`
+        if (!bypassWarningHandled.has(paneKey)) {
+          const cleaned = content.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+          if (cleaned.includes('--dangerously-skip-permissions') ||
+              cleaned.includes('bypass permission checks')) {
+            // Send option "2" to accept the warning
+            execAsync(`tmux send-keys -t "${pane.target}" 2`).catch(() => {})
+            bypassWarningHandled.add(paneKey)
+            console.log(`[claude-rpg] Auto-accepted bypass warning for pane ${pane.id}`)
+          }
+        }
+      }
+
       // Terminal-based prompt detection for Claude panes
       // This is the source of truth for prompt state
       if (isClaudePane && pane.process.claudeSession) {
@@ -1470,6 +1487,7 @@ const server = http.createServer(async (req, res) => {
       windows: windows.length,
       whisper: isWhisperAvailable(),
       rpgFeatures: rpgEnabled,
+      autoAcceptBypass: AUTO_ACCEPT_BYPASS,
       activeBackend: devProxyMode ? 'dev' : 'production',
     }))
     return

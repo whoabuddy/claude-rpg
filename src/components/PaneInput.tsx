@@ -75,10 +75,12 @@ export const PaneInput = memo(function PaneInput({ paneId, pane, onSendPrompt, o
     )
   }
 
+  const showSecondaryRow = canInterrupt || (!send.isSending && !send.inputValue && send.hasLastPrompt)
+
   return (
-    <div className="space-y-2">
-      {/* Row 1: Input + Voice */}
-      <div className={`flex gap-2 ${isFullscreen ? 'items-center' : 'items-end'}`}>
+    <div className="space-y-1.5">
+      {/* Row 1: Input + Send + Voice — all inline */}
+      <div className={`flex gap-1.5 ${isFullscreen ? 'items-center' : 'items-end'}`}>
         {isFullscreen ? (
           <input
             ref={send.inputRef as React.RefObject<HTMLInputElement>}
@@ -123,21 +125,17 @@ export const PaneInput = memo(function PaneInput({ paneId, pane, onSendPrompt, o
             onClick={(e) => e.stopPropagation()}
             disabled={send.isSending}
             enterKeyHint="send"
-            placeholder={isClaudePane ? "Send prompt... (Shift+Enter for newline)" : "Send input..."}
+            placeholder={isClaudePane ? "Send prompt..." : "Send input..."}
             className={`flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:border-rpg-accent outline-none min-h-[44px] max-h-[200px] resize-none ${send.isSending ? 'opacity-50' : ''}`}
             rows={1}
           />
         )}
-        <VoiceButton onTranscription={handleVoiceTranscription} />
-      </div>
 
-      {/* Row 2: Actions — Send/Enter + Restore + Interrupt */}
-      <div className="flex items-center gap-2">
-        {/* Primary: Send or Enter */}
+        {/* Send/Enter button — inline with input */}
         <button
           onClick={handleSendOrEnter}
           disabled={send.isSending}
-          className={`px-4 ${isFullscreen ? 'py-3 rounded-lg' : 'py-2 rounded'} text-sm transition-colors active:scale-95 min-h-[44px] ${
+          className={`px-3 ${isFullscreen ? 'py-3 rounded-lg' : 'py-2 rounded'} text-sm transition-colors active:scale-95 min-h-[44px] shrink-0 ${
             send.isSending
               ? 'bg-rpg-accent/20 text-rpg-text-muted cursor-not-allowed'
               : hasText
@@ -146,36 +144,40 @@ export const PaneInput = memo(function PaneInput({ paneId, pane, onSendPrompt, o
           }`}
           title={hasText ? "Send message" : "Send Enter (accept suggestion)"}
         >
-          {send.isSending ? '...' : hasText ? 'Send' : '⏎ Enter'}
+          {send.isSending ? '...' : hasText ? 'Send' : '⏎'}
         </button>
 
-        {/* Restore last prompt */}
-        {!send.isSending && !send.inputValue && send.hasLastPrompt && (
-          <button
-            onClick={(e) => { e.stopPropagation(); send.handleRestoreLast() }}
-            className="px-2 py-1 text-xs text-rpg-text-muted hover:text-rpg-accent transition-colors"
-            title="Restore last sent prompt"
-          >
-            ↩ Last
-          </button>
-        )}
-
-        {/* Spacer pushes interrupt to the right */}
-        <div className="flex-1" />
-
-        {/* Interrupt — secondary, right-aligned */}
-        <button
-          onClick={handleCtrlC}
-          disabled={!canInterrupt}
-          className={`px-3 ${isFullscreen ? 'py-3 rounded-lg' : 'py-2 rounded'} text-sm transition-colors active:scale-95 min-h-[44px] border ${
-            canInterrupt
-              ? 'border-rpg-error/40 text-rpg-error hover:bg-rpg-error/20'
-              : 'border-transparent opacity-20 cursor-not-allowed text-rpg-error/50'
-          }`}
-        >
-          Interrupt
-        </button>
+        <VoiceButton onTranscription={handleVoiceTranscription} />
       </div>
+
+      {/* Row 2: Secondary actions — only when relevant */}
+      {showSecondaryRow && (
+        <div className="flex items-center gap-2">
+          {/* Restore last prompt */}
+          {!send.isSending && !send.inputValue && send.hasLastPrompt && (
+            <button
+              onClick={(e) => { e.stopPropagation(); send.handleRestoreLast() }}
+              className="px-2 py-1 text-xs text-rpg-text-muted hover:text-rpg-accent transition-colors"
+              title="Restore last sent prompt"
+            >
+              ↩ Last
+            </button>
+          )}
+
+          {/* Spacer pushes interrupt to the right */}
+          <div className="flex-1" />
+
+          {/* Interrupt — only visible when active */}
+          {canInterrupt && (
+            <button
+              onClick={handleCtrlC}
+              className={`px-3 py-1.5 rounded text-xs transition-colors active:scale-95 border border-rpg-error/40 text-rpg-error hover:bg-rpg-error/20`}
+            >
+              Interrupt
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Inline error banner */}
       {send.inlineError && (

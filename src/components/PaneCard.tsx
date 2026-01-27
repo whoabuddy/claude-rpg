@@ -1,4 +1,4 @@
-import { useState, memo, useCallback } from 'react'
+import { useState, useRef, memo, useCallback } from 'react'
 import type { TmuxPane, TmuxWindow } from '@shared/types'
 import { sendPromptToPane } from '../hooks/useWindows'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
@@ -29,6 +29,13 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
   const { onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onClosePane, rpgEnabled } = usePaneActions()
   const [expanded, setExpanded] = useState(false)
   const terminalContent = usePaneTerminal(pane.id)
+  const inputAreaRef = useRef<HTMLDivElement>(null)
+
+  // After copying from terminal, refocus the input (#62)
+  const handleTerminalCopy = useCallback(() => {
+    const input = inputAreaRef.current?.querySelector('textarea, input') as HTMLElement | null
+    input?.focus()
+  }, [])
 
   const closeConfirm = useConfirmAction(useCallback(() => onClosePane(pane.id), [onClosePane, pane.id]))
 
@@ -224,7 +231,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
 
           {/* Terminal with prompt overlays */}
           <div className="relative">
-            <TerminalDisplay content={terminalContent} />
+            <TerminalDisplay content={terminalContent} onCopy={handleTerminalCopy} />
 
             {/* Prompt overlays on terminal area */}
             {isClaudePane && session?.terminalPrompt && (
@@ -249,13 +256,15 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
           </div>
 
           {/* Input - always visible */}
-          <PaneInput
-            paneId={pane.id}
-            pane={pane}
-            onSendPrompt={onSendPrompt}
-            onSendSignal={onSendSignal}
-            variant="card"
-          />
+          <div ref={inputAreaRef}>
+            <PaneInput
+              paneId={pane.id}
+              pane={pane}
+              onSendPrompt={onSendPrompt}
+              onSendSignal={onSendSignal}
+              variant="card"
+            />
+          </div>
         </div>
       )}
     </div>
