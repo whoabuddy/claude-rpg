@@ -1043,15 +1043,21 @@ async function sendPromptToTmux(target: string, prompt: string): Promise<void> {
     return
   }
 
-  // Simple prompts: use send-keys -l (literal mode) with batched Enter
+  // Slash commands (e.g. /clear, /exit) trigger Claude Code's TUI autocomplete
+  // menu. The TUI intercepts typed characters and shows a selection popup.
+  // Strategy: paste the text via tmux buffer (bypasses TUI character interception),
+  // wait for TUI popup to appear, send Escape to dismiss it, then Enter.
+  const isSlashCommand = prompt.startsWith('/')
+
+  // Simple prompts (non-slash): use send-keys -l (literal mode) with batched Enter
   // This avoids temp file overhead for common cases
-  if (isSafeForLiteral(prompt)) {
+  if (!isSlashCommand && isSafeForLiteral(prompt)) {
     await sendKeysLiteral(target, prompt, { withEnter: true })
     return
   }
 
-  // Complex prompts: use buffer approach for special characters
-  // Batch the load-buffer + paste-buffer + delete-buffer + send-keys Enter
+  // Complex prompts or slash commands: use buffer approach
+  // Batch the load-buffer + paste-buffer + delete-buffer
   const tempFile = `/tmp/claude-rpg-prompt-${Date.now()}.txt`
   const bufferName = `rpg-${Date.now()}`
   writeFileSync(tempFile, prompt)
@@ -1063,6 +1069,13 @@ async function sendPromptToTmux(target: string, prompt: string): Promise<void> {
 
     // Small settle delay before Enter (paste can be async in terminal)
     await new Promise(r => setTimeout(r, PASTE_SETTLE_MS))
+
+    if (isSlashCommand) {
+      // Dismiss TUI autocomplete popup that appears for slash commands
+      await execAsync(`tmux send-keys -t "${target}" Escape`)
+      await new Promise(r => setTimeout(r, PASTE_SETTLE_MS))
+    }
+
     await execAsync(`tmux send-keys -t "${target}" Enter`)
   } finally {
     await unlink(tempFile).catch(() => {})
