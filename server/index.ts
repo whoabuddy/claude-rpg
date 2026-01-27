@@ -1,7 +1,7 @@
 import http from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
 import { watch } from 'chokidar'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, statSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, statSync, renameSync } from 'fs'
 import { unlink } from 'fs/promises'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -127,13 +127,15 @@ function loadPanesCache(): void {
 }
 
 function savePanesCache(): void {
+  const tmpFile = PANES_CACHE_FILE + '.tmp'
   try {
     const cache = getSessionCache()
     const sessions: Record<string, ClaudeSessionInfo> = {}
     for (const [paneId, session] of cache) {
       sessions[paneId] = session
     }
-    writeFileSync(PANES_CACHE_FILE, JSON.stringify({ sessions }, null, 2))
+    writeFileSync(tmpFile, JSON.stringify({ sessions }, null, 2))
+    renameSync(tmpFile, PANES_CACHE_FILE)
   } catch (e) {
     console.error('[claude-rpg] Cache save error:', e)
   }
@@ -1058,6 +1060,18 @@ function loadEventsFromFile() {
   const content = readFileSync(EVENTS_FILE, 'utf-8')
   const lines = content.trim().split('\n').filter(Boolean)
 
+  if (lines.length === 0) {
+    lastFileSize = content.length
+    return
+  }
+
+  // Reset companions to empty - rebuild entirely from events.
+  // This prevents double-counting when companions.json was saved
+  // with accumulated stats and events are replayed on startup.
+  // Only reset when there are events to replay; after rotation
+  // (empty file), companions stay loaded from companions.json.
+  companions.length = 0
+
   // Mark that we're loading historical events (skip streak updates)
   isLoadingHistoricalEvents = true
 
@@ -1130,6 +1144,12 @@ function watchEventsFile() {
 
   watcher.on('change', () => {
     const content = readFileSync(EVENTS_FILE, 'utf-8')
+
+    // Handle rotation: file was truncated
+    if (content.length < lastFileSize) {
+      lastFileSize = 0
+    }
+
     if (content.length <= lastFileSize) return
 
     const newContent = content.slice(lastFileSize)
