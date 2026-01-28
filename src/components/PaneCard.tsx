@@ -1,6 +1,6 @@
 import { useState, useRef, memo, useCallback } from 'react'
 import type { TmuxPane, TmuxWindow } from '@shared/types'
-import { sendPromptToPane } from '../hooks/useWindows'
+import { sendPromptToPane, sendArrowKey } from '../hooks/useWindows'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { useConfirmAction } from '../hooks/useConfirmAction'
 import { useQuests } from '../hooks/useQuests'
@@ -90,6 +90,10 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
   const handleAnswer = useCallback((answer: string) => {
     onSendPrompt(pane.id, answer)
   }, [onSendPrompt, pane.id])
+
+  const handleNavigate = useCallback((direction: 'up' | 'down') => {
+    sendArrowKey(pane.id, direction)
+  }, [pane.id])
 
   // Compact mode: simpler display for idle panes
   if (compact && !expanded) {
@@ -265,6 +269,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
                   prompt={session.terminalPrompt}
                   onAnswer={handleTerminalPromptAnswer}
                   onCancel={handleCancelPrompt}
+                  onNavigate={handleNavigate}
                 />
               </div>
             )}

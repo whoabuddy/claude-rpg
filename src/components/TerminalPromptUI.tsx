@@ -5,11 +5,13 @@ interface TerminalPromptUIProps {
   prompt: TerminalPrompt
   onAnswer: (answer: string, isPermission?: boolean) => void
   onCancel: () => void
+  onNavigate?: (direction: 'up' | 'down') => void
 }
 
-export const TerminalPromptUI = memo(function TerminalPromptUI({ prompt, onAnswer, onCancel }: TerminalPromptUIProps) {
+export const TerminalPromptUI = memo(function TerminalPromptUI({ prompt, onAnswer, onCancel, onNavigate }: TerminalPromptUIProps) {
   const isPermission = prompt.type === 'permission'
   const isPlan = prompt.type === 'plan'
+  const hasSelector = prompt.selectedIndex !== undefined
 
   // Different styling based on prompt type
   const bgColor = isPermission ? 'bg-rpg-waiting/10' : isPlan ? 'bg-rpg-accent/10' : 'bg-rpg-bg-elevated'
@@ -43,9 +45,30 @@ export const TerminalPromptUI = memo(function TerminalPromptUI({ prompt, onAnswe
       {/* Question text */}
       <p className="text-sm font-medium">{prompt.question}</p>
 
+      {/* Arrow navigation controls (for selector-style prompts) */}
+      {hasSelector && onNavigate && (
+        <div className="flex items-center gap-2 justify-center">
+          <button
+            onClick={() => onNavigate('up')}
+            className="px-3 py-1.5 text-sm rounded border border-rpg-border bg-rpg-bg hover:bg-rpg-accent/20 transition-colors min-h-[44px]"
+            title="Navigate up"
+          >
+            ▲
+          </button>
+          <span className="text-xs text-rpg-text-muted">Use arrows to navigate</span>
+          <button
+            onClick={() => onNavigate('down')}
+            className="px-3 py-1.5 text-sm rounded border border-rpg-border bg-rpg-bg hover:bg-rpg-accent/20 transition-colors min-h-[44px]"
+            title="Navigate down"
+          >
+            ▼
+          </button>
+        </div>
+      )}
+
       {/* Options */}
       <div className={`flex flex-wrap gap-2 ${isPermission ? '' : 'flex-col'}`}>
-        {prompt.options.map((option) => {
+        {prompt.options.map((option, idx) => {
           // Permission prompts: inline buttons with key hints
           if (isPermission) {
             // Highlight Allow (y) and Deny (n) prominently
@@ -70,14 +93,21 @@ export const TerminalPromptUI = memo(function TerminalPromptUI({ prompt, onAnswe
           }
 
           // Question/Plan prompts: vertical list with numbers
+          // Highlight the currently selected option (if selector mode)
+          const isSelected = hasSelector && idx === prompt.selectedIndex
+          const btnClass = isSelected
+            ? 'bg-rpg-accent/20 border-rpg-accent/50'
+            : 'bg-rpg-bg hover:bg-rpg-border border-rpg-border'
+
           return (
             <button
               key={option.key}
               onClick={() => onAnswer(option.key)}
-              className="flex items-start gap-2 px-3 py-2 text-sm text-left bg-rpg-bg hover:bg-rpg-border rounded border border-rpg-border transition-colors min-h-[44px]"
+              className={`flex items-start gap-2 px-3 py-2 text-sm text-left rounded border transition-colors min-h-[44px] ${btnClass}`}
             >
               <span className="font-mono text-rpg-accent shrink-0">({option.key})</span>
               <span className="text-rpg-text">{option.label}</span>
+              {isSelected && <span className="ml-auto text-rpg-accent">←</span>}
             </button>
           )
         })}

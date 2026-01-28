@@ -1713,6 +1713,14 @@ const server = http.createServer(async (req, res) => {
           return
         }
 
+        // Handle arrow key navigation (Up/Down)
+        if (prompt === 'Up' || prompt === 'Down') {
+          await execAsync(`tmux send-keys -t "${pane.target}" ${prompt}`)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: true }))
+          return
+        }
+
         // Determine response type from terminal prompt
         const isPermission = isPermissionResponse ||
           terminalPrompt?.type === 'permission' ||

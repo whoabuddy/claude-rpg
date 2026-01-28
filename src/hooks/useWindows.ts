@@ -198,3 +198,9 @@ export function sendPromptToCompanion(companionId: string, prompt: string) {
     { prompt },
   )
 }
+
+// Send arrow key navigation (Up/Down) for selector-style prompts
+export async function sendArrowKey(paneId: string, direction: 'up' | 'down'): Promise<boolean> {
+  const key = direction === 'up' ? 'Up' : 'Down'
+  return (await apiPost(panePath(paneId, 'prompt'), { prompt: key })).ok
+}
