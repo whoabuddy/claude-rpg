@@ -105,21 +105,63 @@ export function useWindows() {
   }
 }
 
-// Generic POST helper — eliminates repeated fetch/try-catch boilerplate
+// Generic POST helper with retry logic and better error messages
 async function apiPost<T extends { ok: boolean }>(
   path: string,
   body: Record<string, unknown> = {},
 ): Promise<T> {
-  try {
-    const res = await fetch(`${API_URL}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    return await res.json()
-  } catch {
-    return { ok: false, error: 'Network error' } as unknown as T
+  // Check if device is offline before attempting request
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return { ok: false, error: 'Device offline' } as unknown as T
   }
+
+  const maxAttempts = 3
+  const retryDelay = 500 // ms
+  const timeout = 10000 // 10 seconds
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), timeout)
+
+      const res = await fetch(`${API_URL}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      // HTTP errors (4xx, 5xx) should not be retried
+      if (!res.ok) {
+        return { ok: false, error: `Server error (${res.status})` } as unknown as T
+      }
+
+      return await res.json()
+    } catch (error) {
+      // Handle timeout specifically
+      if (error instanceof Error && error.name === 'AbortError') {
+        if (attempt < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay))
+          continue
+        }
+        return { ok: false, error: 'Request timed out' } as unknown as T
+      }
+
+      // Network errors - retry if attempts remain
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay))
+        continue
+      }
+
+      // Final attempt failed
+      return { ok: false, error: 'Connection failed - check your network' } as unknown as T
+    }
+  }
+
+  // Should never reach here, but TypeScript needs it
+  return { ok: false, error: 'Connection failed - check your network' } as unknown as T
 }
 
 function panePath(paneId: string, action: string) {
