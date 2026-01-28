@@ -1,6 +1,6 @@
 import { memo } from 'react'
 
-type ViewTab = 'dashboard' | 'quests' | 'competitions'
+type ViewTab = 'dashboard' | 'quests' | 'workers' | 'competitions'
 
 interface BottomNavProps {
   activeTab: ViewTab
@@ -12,6 +12,7 @@ interface BottomNavProps {
 const TAB_CONFIG: { id: ViewTab; label: string; icon: string; rpgOnly?: boolean }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '⬡' },
   { id: 'quests', label: 'Quests', icon: 'Q', rpgOnly: true },
+  { id: 'workers', label: 'Workers', icon: '⚙', rpgOnly: true },
   { id: 'competitions', label: 'Leaderboard', icon: '★', rpgOnly: true },
 ]
 

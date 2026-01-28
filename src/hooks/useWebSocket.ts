@@ -100,6 +100,10 @@ export function useWebSocket() {
           case 'achievement_unlocked':
             window.dispatchEvent(new CustomEvent('achievement_unlocked', { detail: message.payload }))
             break
+
+          case 'workers_init':
+            window.dispatchEvent(new CustomEvent('workers_init', { detail: message.payload }))
+            break
         }
       } catch (e) {
         console.error('[claude-rpg] Error parsing message:', e)
