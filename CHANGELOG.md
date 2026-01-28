@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/whoabuddy/claude-rpg/compare/v1.7.0...v1.8.0) (2026-01-28)
+
+
+### Features
+
+* resolve all 11 open issues ([#89](https://github.com/whoabuddy/claude-rpg/issues/89)-99) ([#103](https://github.com/whoabuddy/claude-rpg/issues/103)) ([e223db7](https://github.com/whoabuddy/claude-rpg/commit/e223db75665a50a83ec57050993168344fe203e7))
+
 ## [1.7.0](https://github.com/whoabuddy/claude-rpg/compare/v1.6.1...v1.7.0) (2026-01-27)
 
 
