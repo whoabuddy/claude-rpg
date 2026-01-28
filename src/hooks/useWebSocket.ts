@@ -5,6 +5,11 @@ import type { ServerMessage } from '@shared/types'
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
 const WS_URL = `${WS_PROTOCOL}//${window.location.host}/ws`
 
+// Backoff constants
+const MIN_RECONNECT_DELAY = 1000
+const MAX_RECONNECT_DELAY = 30000
+const SLEEP_DETECTION_THRESHOLD = 5000
+
 // Clean up WebSocket handlers and close connection
 function cleanupWebSocket(ws: WebSocket | null): void {
   if (!ws) return
@@ -19,8 +24,20 @@ function cleanupWebSocket(ws: WebSocket | null): void {
 
 export function useWebSocket() {
   const [connected, setConnected] = useState(false)
+  const [reconnectAttempt, setReconnectAttempt] = useState(0)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number>()
+  const lastActivityTimeRef = useRef<number>(Date.now())
+  const scheduledReconnectTimeRef = useRef<number>(0)
+
+  // Helper to clear pending reconnect and reset attempt counter
+  const clearReconnect = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = undefined
+    }
+    setReconnectAttempt(0)
+  }, [])
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
@@ -34,6 +51,8 @@ export function useWebSocket() {
     ws.onopen = () => {
       console.log('[claude-rpg] Connected to server')
       setConnected(true)
+      setReconnectAttempt(0) // Reset backoff on successful connection
+      lastActivityTimeRef.current = Date.now()
     }
 
     ws.onmessage = (event) => {
@@ -114,8 +133,31 @@ export function useWebSocket() {
       console.log('[claude-rpg] Disconnected from server')
       setConnected(false)
 
-      // Reconnect after delay
-      reconnectTimeoutRef.current = window.setTimeout(connect, 2000)
+      // Calculate exponential backoff delay with jitter
+      setReconnectAttempt((attempt) => {
+        const nextAttempt = attempt + 1
+        const baseDelay = Math.min(MIN_RECONNECT_DELAY * Math.pow(2, attempt), MAX_RECONNECT_DELAY)
+        const jitter = baseDelay * 0.1 * Math.random() // 10% jitter
+        const delay = baseDelay + jitter
+
+        // Track when we scheduled the reconnect and when we last had activity
+        lastActivityTimeRef.current = Date.now()
+        scheduledReconnectTimeRef.current = delay
+
+        reconnectTimeoutRef.current = window.setTimeout(() => {
+          const elapsed = Date.now() - lastActivityTimeRef.current
+
+          // If elapsed time is significantly more than scheduled delay,
+          // device likely slept - reset backoff
+          if (elapsed > scheduledReconnectTimeRef.current + SLEEP_DETECTION_THRESHOLD) {
+            console.log('[claude-rpg] Sleep detected, resetting backoff')
+            setReconnectAttempt(0)
+          }
+          connect()
+        }, delay)
+
+        return nextAttempt
+      })
     }
 
     ws.onerror = (error) => {
@@ -131,10 +173,7 @@ export function useWebSocket() {
     // Listen for backend switch events to reconnect WebSocket
     const handleBackendSwitch = () => {
       console.log('[claude-rpg] Backend switched, reconnecting WebSocket...')
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
-        reconnectTimeoutRef.current = undefined
-      }
+      clearReconnect()
       cleanupWebSocket(wsRef.current)
       wsRef.current = null
       // Small delay to let the proxy settle
@@ -142,16 +181,53 @@ export function useWebSocket() {
     }
     window.addEventListener('backend_switch', handleBackendSwitch)
 
+    // Listen for visibility changes - reconnect immediately when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === 'visible' &&
+        (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+      ) {
+        console.log('[claude-rpg] Tab visible, reconnecting...')
+        clearReconnect()
+        connect()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Listen for online/offline events
+    const handleOnline = () => {
+      console.log('[claude-rpg] Network online, reconnecting...')
+      clearReconnect()
+      connect()
+    }
+
+    const handleOffline = () => {
+      console.log('[claude-rpg] Network offline')
+      clearReconnect()
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
     return () => {
       window.removeEventListener('backend_switch', handleBackendSwitch)
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
-        reconnectTimeoutRef.current = undefined
-      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+      clearReconnect()
       cleanupWebSocket(wsRef.current)
       wsRef.current = null
     }
-  }, [connect])
+  }, [connect, clearReconnect])
 
-  return { connected }
+  // Force immediate reconnection (for manual retry button)
+  const forceReconnect = useCallback(() => {
+    console.log('[claude-rpg] Manual reconnect requested')
+    clearReconnect()
+    cleanupWebSocket(wsRef.current)
+    wsRef.current = null
+    connect()
+  }, [connect, clearReconnect])
+
+  return { connected, reconnectAttempt, forceReconnect }
 }

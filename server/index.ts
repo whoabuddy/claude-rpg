@@ -537,7 +537,7 @@ function handleQuestEvent(event: QuestEventPayload) {
 
           saveCompanions(DATA_DIR, companions)
           broadcast({ type: 'companion_update', payload: companion } as ServerMessage)
-          broadcast({ type: 'xp_gain', payload: xpGain } as ServerMessage)
+          broadcast({ type: 'xp_gain', payload: { ...xpGain, companionName: companion.name } } as ServerMessage)
 
           // Also broadcast quest-specific XP notification
           const phaseId = 'phaseId' in event ? (event as { phaseId: string }).phaseId : ''
@@ -960,7 +960,7 @@ async function handleEvent(rawEvent: RawHookEvent) {
       if (xpGain) {
         // Skip broadcasts during historical loading - O(n²) performance issue
         if (!isLoadingHistoricalEvents) {
-          broadcast({ type: 'xp_gain', payload: xpGain })
+          broadcast({ type: 'xp_gain', payload: { ...xpGain, companionName: companion.name } })
           // Update competitions leaderboard when XP changes (use full event history)
           broadcast({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) })
         }

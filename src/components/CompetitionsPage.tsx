@@ -7,6 +7,8 @@ import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
 
 interface CompetitionsPageProps {
   connected: boolean
+  reconnectAttempt?: number
+  onRetry?: () => void
   onNavigateBack: () => void
   onNavigateToProject: (companionId: string) => void
 }
@@ -25,7 +27,7 @@ const CATEGORY_CONFIG = {
   prompts: { title: 'Prompt Pioneers', unit: '' },
 }
 
-export function CompetitionsPage({ connected, onNavigateBack, onNavigateToProject }: CompetitionsPageProps) {
+export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavigateBack, onNavigateToProject }: CompetitionsPageProps) {
   const [period, setPeriod] = useState<TimePeriod>('all')
   const { competitions, loading, getByCategory } = useCompetitions(period)
   const [companions, setCompanions] = useState<Companion[]>([])
@@ -84,7 +86,7 @@ export function CompetitionsPage({ connected, onNavigateBack, onNavigateToProjec
       </div>
 
       {/* Disconnected banner */}
-      <ConnectionBanner connected={connected} />
+      <ConnectionBanner connected={connected} reconnectAttempt={reconnectAttempt} onRetry={onRetry} />
 
       {/* Time Period Selector */}
       <div className="flex gap-1 p-1 bg-rpg-card rounded-lg">

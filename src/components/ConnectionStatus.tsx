@@ -4,8 +4,14 @@ interface ConnectionStatusProps {
   connected: boolean
 }
 
+interface ConnectionBannerProps {
+  connected: boolean
+  reconnectAttempt?: number
+  onRetry?: () => void
+}
+
 /** Full-width banner shown when disconnected */
-export function ConnectionBanner({ connected }: ConnectionStatusProps) {
+export function ConnectionBanner({ connected, reconnectAttempt = 0, onRetry }: ConnectionBannerProps) {
   const [disconnectedAt, setDisconnectedAt] = useState<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
 
@@ -28,12 +34,28 @@ export function ConnectionBanner({ connected }: ConnectionStatusProps) {
 
   if (connected) return null
 
+  // Cap elapsed display at 60 seconds to avoid huge numbers
+  const isCapped = elapsed > 60
+  const displayElapsed = isCapped ? '60+' : String(elapsed)
+  const attemptText = reconnectAttempt > 3 ? ` (attempt ${reconnectAttempt})` : ''
+  const showRetryButton = elapsed >= 10 && onRetry
+
   return (
-    <div className="px-4 py-2 bg-rpg-error/20 border border-rpg-error/40 rounded-lg flex items-center gap-3">
-      <div className="w-2 h-2 rounded-full bg-rpg-error animate-pulse flex-shrink-0" />
-      <span className="text-sm text-rpg-error">
-        Disconnected{elapsed > 0 ? ` ${elapsed}s ago` : ''} — Reconnecting...
-      </span>
+    <div className="px-4 py-2 bg-rpg-error/20 border border-rpg-error/40 rounded-lg flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <div className="w-2 h-2 rounded-full bg-rpg-error animate-pulse flex-shrink-0" />
+        <span className="text-sm text-rpg-error">
+          Disconnected{elapsed > 0 ? ` ${displayElapsed}s ago` : ''} — Reconnecting{attemptText}...
+        </span>
+      </div>
+      {showRetryButton && (
+        <button
+          onClick={onRetry}
+          className="px-3 py-1 text-sm bg-rpg-error/30 hover:bg-rpg-error/40 text-rpg-error font-medium rounded transition-colors"
+        >
+          Retry Now
+        </button>
+      )}
     </div>
   )
 }

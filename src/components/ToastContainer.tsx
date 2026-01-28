@@ -10,10 +10,29 @@ interface Toast {
 
 const TOAST_DURATION = 4000
 const MAX_TOASTS = 5
+const XP_AGGREGATION_WINDOW_MS = 2000
+
+interface XPAggregation {
+  total: number
+  companionName: string
+  types: Set<string>
+  timer: ReturnType<typeof setTimeout>
+}
+
+// Create XP toast from aggregation data
+function formatXPToast(agg: XPAggregation): { type: 'xp'; title: string; body: string } {
+  const types = Array.from(agg.types).join(', ')
+  return {
+    type: 'xp',
+    title: `+${agg.total} XP`,
+    body: `${agg.companionName} (${types})`,
+  }
+}
 
 export const ToastContainer = memo(function ToastContainer() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const counterRef = useRef(0)
+  const xpAggregationRef = useRef<Map<string, XPAggregation>>(new Map())
 
   const addToast = useCallback((toast: Omit<Toast, 'id' | 'timestamp'>) => {
     const id = `toast-${++counterRef.current}`
@@ -50,18 +69,52 @@ export const ToastContainer = memo(function ToastContainer() {
     return () => window.removeEventListener('pane_error', handleError as EventListener)
   }, [addToast])
 
-  // Listen for xp_gain events (#83)
+  // Listen for xp_gain events with aggregation (#83, #85)
   useEffect(() => {
-    const handleXP = (e: CustomEvent<{ companionId: string; amount: number; type?: string; description?: string }>) => {
+    const handleXP = (e: CustomEvent<{ companionId: string; companionName?: string; amount: number; type?: string; description?: string }>) => {
       const d = e.detail
-      addToast({
-        type: 'xp',
-        title: `+${d.amount} XP`,
-        body: d.description || d.type,
-      })
+      const companionId = d.companionId
+      const companionName = d.companionName || companionId
+      const type = d.type || 'XP'
+
+      const existing = xpAggregationRef.current.get(companionId)
+
+      // Helper to flush aggregation and show toast
+      const flushAggregation = (id: string) => {
+        const agg = xpAggregationRef.current.get(id)
+        if (agg) {
+          addToast(formatXPToast(agg))
+          xpAggregationRef.current.delete(id)
+        }
+      }
+
+      if (existing) {
+        // Add to existing aggregation
+        existing.total += d.amount
+        existing.types.add(type)
+        // Reset timer
+        clearTimeout(existing.timer)
+        existing.timer = setTimeout(() => flushAggregation(companionId), XP_AGGREGATION_WINDOW_MS)
+      } else {
+        // Start new aggregation
+        const timer = setTimeout(() => flushAggregation(companionId), XP_AGGREGATION_WINDOW_MS)
+
+        xpAggregationRef.current.set(companionId, {
+          total: d.amount,
+          companionName,
+          types: new Set([type]),
+          timer,
+        })
+      }
     }
+
     window.addEventListener('xp_gain', handleXP as EventListener)
-    return () => window.removeEventListener('xp_gain', handleXP as EventListener)
+    return () => {
+      window.removeEventListener('xp_gain', handleXP as EventListener)
+      // Clean up any pending timers
+      xpAggregationRef.current.forEach(agg => clearTimeout(agg.timer))
+      xpAggregationRef.current.clear()
+    }
   }, [addToast])
 
   // Listen for quest_xp events (#83)

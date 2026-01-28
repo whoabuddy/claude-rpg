@@ -4,10 +4,12 @@ import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
 
 interface WorkersPageProps {
   connected: boolean
+  reconnectAttempt?: number
+  onRetry?: () => void
   onNavigateBack: () => void
 }
 
-export function WorkersPage({ connected, onNavigateBack }: WorkersPageProps) {
+export function WorkersPage({ connected, reconnectAttempt, onRetry, onNavigateBack }: WorkersPageProps) {
   const { workers, loading } = useWorkers()
 
   return (
@@ -30,7 +32,7 @@ export function WorkersPage({ connected, onNavigateBack }: WorkersPageProps) {
       </div>
 
       {/* Connection banner */}
-      <ConnectionBanner connected={connected} />
+      <ConnectionBanner connected={connected} reconnectAttempt={reconnectAttempt} onRetry={onRetry} />
 
       {/* Main content - dimmed when disconnected */}
       <div className={!connected ? 'opacity-60 pointer-events-none' : undefined}>

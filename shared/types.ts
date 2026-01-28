@@ -330,6 +330,7 @@ export type ClaudeEvent =
 
 export interface XPGain {
   companionId: string
+  companionName: string
   amount: number
   type: string
   description: string
