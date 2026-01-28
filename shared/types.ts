@@ -101,6 +101,7 @@ export interface TerminalPrompt {
   question: string           // Main question text
   options: TerminalPromptOption[]
   multiSelect: boolean
+  selectedIndex?: number     // For selector-style prompts (arrow navigation)
   footer?: string            // "Esc to cancel", etc.
   detectedAt: number
   contentHash: string        // For change detection

@@ -41,6 +41,10 @@ export function parseTerminalForPrompt(content: string): TerminalPrompt | null {
   const planPrompt = parsePlanApprovalPrompt(reversedLines)
   if (planPrompt) return planPrompt
 
+  // Check for selector-style prompts (arrow navigation)
+  const selectorPrompt = parseSelectorPrompt(reversedLines)
+  if (selectorPrompt) return selectorPrompt
+
   return null
 }
 
@@ -289,6 +293,99 @@ function parsePlanApprovalPrompt(reversedLines: string[]): TerminalPrompt | null
   return {
     ...questionPrompt,
     type: 'plan',
+  }
+}
+
+/**
+ * Parse selector-style prompts with arrow navigation like:
+ * What would you like to do?
+ *   ❯ 1. Continue with current plan
+ *     2. Revise the plan
+ *     3. Start over
+ *
+ * ctrl-g to edit | enter to submit
+ */
+function parseSelectorPrompt(reversedLines: string[]): TerminalPrompt | null {
+  const lines = [...reversedLines].reverse() // Restore original order
+
+  let question = ''
+  const options: TerminalPromptOption[] = []
+  let selectedIndex: number | undefined
+  let footer = ''
+  let inPromptBlock = false
+  let promptStartIndex = -1
+
+  // Scan for selector pattern from bottom up
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i]
+    const trimmed = line.trim()
+
+    // Look for footer first (indicates we're at the end of a prompt)
+    if (trimmed.match(/ctrl-[a-z].*\|.*enter/i)) {
+      footer = trimmed
+      inPromptBlock = true
+      promptStartIndex = i
+      continue
+    }
+
+    if (inPromptBlock) {
+      // Check for selected option: ❯ N. Label or › N. Label or > N. Label
+      const selectedMatch = trimmed.match(/^[❯›>]\s*(\d+)\.\s*(.+)$/)
+      if (selectedMatch) {
+        const optionNumber = parseInt(selectedMatch[1], 10)
+        selectedIndex = options.length
+        options.unshift({
+          label: selectedMatch[2].trim(),
+          key: optionNumber.toString(),
+        })
+        continue
+      }
+
+      // Check for unselected option: N. Label (with leading spaces)
+      const unselectedMatch = trimmed.match(/^(\d+)\.\s*(.+)$/)
+      if (unselectedMatch) {
+        const optionNumber = parseInt(unselectedMatch[1], 10)
+        options.unshift({
+          label: unselectedMatch[2].trim(),
+          key: optionNumber.toString(),
+        })
+        continue
+      }
+
+      // If we have options and hit non-option text, it's the question
+      if (options.length > 0 && trimmed.length > 0 && !trimmed.match(/^\d+\./)) {
+        question = trimmed
+        break
+      }
+    }
+  }
+
+  // Must have found options with footer
+  if (options.length === 0 || !footer) {
+    return null
+  }
+
+  // Determine type based on footer content
+  const isPlanPrompt = footer.toLowerCase().includes('ctrl-g to edit')
+  const type = isPlanPrompt ? 'plan' : 'question'
+
+  // Build content hash including selectedIndex
+  const hashContent = [
+    question,
+    ...options.map(o => o.label),
+    selectedIndex?.toString() ?? '',
+    footer,
+  ].join('\n')
+
+  return {
+    type,
+    question: question || 'Select an option',
+    options,
+    multiSelect: false,
+    selectedIndex,
+    footer,
+    detectedAt: Date.now(),
+    contentHash: simpleHash(hashContent),
   }
 }
 
