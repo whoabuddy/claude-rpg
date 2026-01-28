@@ -6,6 +6,7 @@ interface LeaderboardCardProps {
   title: string
   unit: string
   emptyMessage?: string
+  onSelectEntry?: (companionId: string) => void
 }
 
 // Trophy/medal icons for top 3
@@ -68,7 +69,7 @@ function formatValue(value: number): string {
   return value.toLocaleString()
 }
 
-function EntryRow({ entry, unit }: { entry: LeaderboardEntry; unit: string }) {
+function EntryRow({ entry, unit, onSelect }: { entry: LeaderboardEntry; unit: string; onSelect?: (companionId: string) => void }) {
   const isTopThree = entry.rank <= 3
   const rankText = getRankDisplay(entry.rank)
 
@@ -88,7 +89,16 @@ function EntryRow({ entry, unit }: { entry: LeaderboardEntry; unit: string }) {
       {/* Name with project indicator */}
       <span className="flex-1 flex items-center gap-1 text-sm truncate text-rpg-text">
         <span className="text-rpg-text-dim text-xs" title="Project">P</span>
-        <span className="truncate">{entry.companionName}</span>
+        {onSelect ? (
+          <button
+            onClick={() => onSelect(entry.companionId)}
+            className="truncate hover:text-rpg-accent cursor-pointer transition-colors text-left"
+          >
+            {entry.companionName}
+          </button>
+        ) : (
+          <span className="truncate">{entry.companionName}</span>
+        )}
       </span>
 
       {/* Streak indicator */}
@@ -114,6 +124,7 @@ export const LeaderboardCard = memo(function LeaderboardCard({
   title,
   unit,
   emptyMessage = 'No data yet',
+  onSelectEntry,
 }: LeaderboardCardProps) {
   const entries = competition?.entries ?? []
   const filteredEntries = entries.filter(e => e.value > 0)
@@ -135,6 +146,7 @@ export const LeaderboardCard = memo(function LeaderboardCard({
               key={entry.companionId}
               entry={entry}
               unit={unit}
+              onSelect={onSelectEntry}
             />
           ))
         )}
@@ -163,9 +175,10 @@ function FireIcon() {
 // Streak-specific leaderboard
 interface StreakCardProps {
   entries: LeaderboardEntry[]
+  onSelectEntry?: (companionId: string) => void
 }
 
-export const StreakCard = memo(function StreakCard({ entries }: StreakCardProps) {
+export const StreakCard = memo(function StreakCard({ entries, onSelectEntry }: StreakCardProps) {
   // Sort entries by current streak descending
   const sortedEntries = [...entries]
     .filter(e => e.streak.current > 0)
@@ -204,7 +217,16 @@ export const StreakCard = memo(function StreakCard({ entries }: StreakCardProps)
                 {/* Name with project indicator */}
                 <span className="flex-1 flex items-center gap-1 text-sm truncate text-rpg-text">
                   <span className="text-rpg-text-dim text-xs" title="Project">P</span>
-                  <span className="truncate">{entry.companionName}</span>
+                  {onSelectEntry ? (
+                    <button
+                      onClick={() => onSelectEntry(entry.companionId)}
+                      className="truncate hover:text-rpg-accent cursor-pointer transition-colors text-left"
+                    >
+                      {entry.companionName}
+                    </button>
+                  ) : (
+                    <span className="truncate">{entry.companionName}</span>
+                  )}
                 </span>
 
                 {/* Current streak with fire */}

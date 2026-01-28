@@ -4,6 +4,7 @@ import { FullScreenPane } from './components/FullScreenPane'
 import { CompetitionsPage } from './components/CompetitionsPage'
 import { QuestsPage } from './components/QuestsPage'
 import { WorkersPage } from './components/WorkersPage'
+import { ProjectDetailPage } from './components/ProjectDetailPage'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refreshPane, closePane, createPaneInWindow, createWindow, renameWindow } from './hooks/useWindows'
 import { initTerminalCache } from './hooks/usePaneTerminal'
@@ -12,7 +13,7 @@ import { PaneActionsProvider, type PaneActionsContextValue } from './contexts/Pa
 import { BottomNav } from './components/BottomNav'
 import { ToastContainer } from './components/ToastContainer'
 
-type ViewTab = 'dashboard' | 'quests' | 'workers' | 'competitions'
+type ViewTab = 'dashboard' | 'quests' | 'workers' | 'competitions' | 'project'
 
 export default function App() {
   const { connected } = useWebSocket()
@@ -20,6 +21,7 @@ export default function App() {
   const [notificationsDismissed, setNotificationsDismissed] = useState(false)
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard')
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [rpgEnabled, setRpgEnabled] = useState(true)
   const [activeBackend, setActiveBackend] = useState<'production' | 'dev'>('production')
 
@@ -68,6 +70,10 @@ export default function App() {
   const handleNavigateToQuests = useCallback(() => setActiveTab('quests'), [])
   const handleNavigateToWorkers = useCallback(() => setActiveTab('workers'), [])
   const handleNavigateToDashboard = useCallback(() => setActiveTab('dashboard'), [])
+  const handleNavigateToProject = useCallback((companionId: string) => {
+    setSelectedProjectId(companionId)
+    setActiveTab('project')
+  }, [])
 
   // PaneActionsContext value — module-level functions are stable, only handleExpandPane and rpgEnabled change
   const paneActions = useMemo<PaneActionsContextValue>(() => ({
@@ -126,10 +132,17 @@ export default function App() {
 
         {/* Main content — bottom padding for mobile nav */}
         <main className="flex-1 overflow-y-auto pb-[52px] sm:pb-0">
-          {activeTab === 'competitions' && rpgEnabled ? (
+          {activeTab === 'project' && selectedProjectId && rpgEnabled ? (
+            <ProjectDetailPage
+              companionId={selectedProjectId}
+              connected={connected}
+              onNavigateBack={handleNavigateToDashboard}
+            />
+          ) : activeTab === 'competitions' && rpgEnabled ? (
             <CompetitionsPage
               connected={connected}
               onNavigateBack={handleNavigateToDashboard}
+              onNavigateToProject={handleNavigateToProject}
             />
           ) : activeTab === 'quests' && rpgEnabled ? (
             <QuestsPage
