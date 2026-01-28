@@ -33,6 +33,10 @@ export function parseTerminalForPrompt(content: string): TerminalPrompt | null {
   const permissionPrompt = parsePermissionPrompt(reversedLines)
   if (permissionPrompt) return permissionPrompt
 
+  // Check for feedback prompts (Anthropic feedback)
+  const feedbackPrompt = parseFeedbackPrompt(reversedLines)
+  if (feedbackPrompt) return feedbackPrompt
+
   // Check for question prompts (AskUserQuestion)
   const questionPrompt = parseQuestionPrompt(reversedLines)
   if (questionPrompt) return questionPrompt
@@ -156,6 +160,57 @@ function parsePermissionPrompt(reversedLines: string[]): TerminalPrompt | null {
     detectedAt: Date.now(),
     contentHash: simpleHash(boxContent.join('\n')),
   }
+}
+
+/**
+ * Parse feedback prompts from Anthropic like:
+ * ● How would you rate this response?
+ * 1: Bad    2: Fine   3: Good   0: Dismiss
+ */
+function parseFeedbackPrompt(reversedLines: string[]): TerminalPrompt | null {
+  const lines = [...reversedLines].reverse() // Restore original order
+
+  // Look for feedback pattern from bottom up
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim()
+
+    // Match line starting with ● followed by question text
+    if (line.startsWith('●') && line.includes('?')) {
+      const question = line.slice(1).trim()
+
+      // Check next line for options with "N: Label" format
+      if (i + 1 < lines.length) {
+        const optionsLine = lines[i + 1].trim()
+        const options: TerminalPromptOption[] = []
+
+        // Parse options: "1: Bad    2: Fine   3: Good   0: Dismiss"
+        // Pattern: digit followed by colon and label
+        const optionPattern = /(\d+):\s*(\w+)/g
+        let match: RegExpExecArray | null
+
+        while ((match = optionPattern.exec(optionsLine)) !== null) {
+          options.push({
+            label: match[2],
+            key: match[1],
+          })
+        }
+
+        // Must have at least 2 options to be valid
+        if (options.length >= 2) {
+          return {
+            type: 'feedback',
+            question,
+            options,
+            multiSelect: false,
+            detectedAt: Date.now(),
+            contentHash: simpleHash(question + optionsLine),
+          }
+        }
+      }
+    }
+  }
+
+  return null
 }
 
 /**

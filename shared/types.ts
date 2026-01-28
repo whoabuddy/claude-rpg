@@ -95,7 +95,7 @@ export interface TerminalPromptOption {
 }
 
 export interface TerminalPrompt {
-  type: 'question' | 'permission' | 'plan'
+  type: 'question' | 'permission' | 'plan' | 'feedback'
   tool?: string              // 'Bash', 'Edit', 'Write' for permissions
   command?: string           // Command preview for Bash permissions
   question: string           // Main question text
