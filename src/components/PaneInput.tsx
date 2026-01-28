@@ -102,7 +102,9 @@ export const PaneInput = memo(function PaneInput({ paneId, pane, onSendPrompt, o
             ref={send.inputRef as React.RefObject<HTMLTextAreaElement>}
             value={send.inputValue}
             onChange={(e) => {
-              send.setInputValue(e.target.value)
+              // Strip any newlines that were inserted (fixes Enter key adding newline)
+              const value = e.target.value.replace(/\n+$/, '')
+              send.setInputValue(value)
               e.target.style.height = 'auto'
               e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
             }}
@@ -110,14 +112,6 @@ export const PaneInput = memo(function PaneInput({ paneId, pane, onSendPrompt, o
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 e.stopPropagation()
-                if (hasText) send.handleSend()
-                else send.handleEnter()
-              }
-            }}
-            onBeforeInput={(e) => {
-              const nativeEvent = e.nativeEvent as InputEvent
-              if (nativeEvent.inputType === 'insertLineBreak') {
-                e.preventDefault()
                 if (hasText) send.handleSend()
                 else send.handleEnter()
               }
