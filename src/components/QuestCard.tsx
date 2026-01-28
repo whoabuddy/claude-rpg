@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import type { Quest, QuestPhase, QuestPhaseStatus, QuestStatus } from '@shared/types'
-import { updateQuestStatus } from '../hooks/useQuests'
+import { updateQuestStatus, archiveQuest } from '../hooks/useQuests'
 
 interface QuestCardProps {
   quest: Quest
@@ -13,6 +13,7 @@ const PHASE_STATUS_COLORS: Record<QuestPhaseStatus, string> = {
   retrying: 'bg-orange-500/80 animate-pulse',
   completed: 'bg-green-500/80',
   failed: 'bg-rpg-error/80',
+  skipped: 'bg-rpg-text-dim/50',
 }
 
 const PHASE_STATUS_LABELS: Record<QuestPhaseStatus, string> = {
@@ -22,6 +23,7 @@ const PHASE_STATUS_LABELS: Record<QuestPhaseStatus, string> = {
   retrying: 'Retrying',
   completed: 'Complete',
   failed: 'Failed',
+  skipped: 'Skipped',
 }
 
 const PHASE_STATUS_ICONS: Record<QuestPhaseStatus, string> = {
@@ -31,6 +33,7 @@ const PHASE_STATUS_ICONS: Record<QuestPhaseStatus, string> = {
   retrying: '\u21BB',   // ↻ refresh
   completed: '\u2713',  // ✓ check
   failed: '\u2717',     // ✗ cross
+  skipped: '\u2014',    // — em dash
 }
 
 function PhaseSegment({ phase, isActive }: { phase: QuestPhase; isActive: boolean }) {
@@ -59,6 +62,7 @@ function PhaseTimelineItem({ phase, isActive }: { phase: QuestPhase; isActive: b
         phase.status === 'failed' ? 'border-rpg-error bg-rpg-error/20 text-rpg-error' :
         phase.status === 'executing' || phase.status === 'retrying' ? 'border-yellow-500 bg-yellow-500/20 text-yellow-400' :
         phase.status === 'planned' ? 'border-blue-500 bg-blue-500/20 text-blue-400' :
+        phase.status === 'skipped' ? 'border-rpg-text-dim bg-rpg-text-dim/20 text-rpg-text-dim' :
         'border-rpg-text-dim bg-rpg-text-dim/10 text-rpg-text-dim'
       }`}>
         <span className="text-sm">{statusIcon}</span>
@@ -75,6 +79,7 @@ function PhaseTimelineItem({ phase, isActive }: { phase: QuestPhase; isActive: b
             phase.status === 'failed' ? 'bg-rpg-error/20 text-rpg-error' :
             phase.status === 'executing' || phase.status === 'retrying' ? 'bg-yellow-500/20 text-yellow-400' :
             phase.status === 'planned' ? 'bg-blue-500/20 text-blue-400' :
+            phase.status === 'skipped' ? 'bg-rpg-text-dim/30 text-rpg-text-dim' :
             'bg-rpg-text-dim/20 text-rpg-text-dim'
           }`}>
             {PHASE_STATUS_LABELS[phase.status]}
@@ -132,14 +137,16 @@ export function QuestCard({ quest }: QuestCardProps) {
 
   const isActive = quest.status === 'active'
   const isCompleted = quest.status === 'completed'
+  const isArchived = quest.status === 'archived'
 
   const timeSinceCreated = formatTimeAgo(quest.createdAt)
-  const totalDuration = quest.createdAt && quest.completedAt
-    ? formatDuration(quest.completedAt - quest.createdAt)
+  const totalDuration = quest.createdAt && (quest.completedAt || quest.archivedAt)
+    ? formatDuration((quest.completedAt || quest.archivedAt!) - quest.createdAt)
     : null
 
   return (
     <div className={`rounded-lg border ${
+      isArchived ? 'border-purple-500/30 bg-purple-500/5' :
       isCompleted ? 'border-green-500/30 bg-green-500/5' :
       isActive ? 'border-rpg-accent/30 bg-rpg-card' :
       'border-rpg-border bg-rpg-card/50'
@@ -147,10 +154,11 @@ export function QuestCard({ quest }: QuestCardProps) {
       {/* Header */}
       <div className="p-3 cursor-pointer" onClick={toggleExpanded}>
         <div className="flex items-center gap-2 mb-1">
-          <span className={`text-sm font-medium ${isCompleted ? 'text-green-400' : ''}`}>
+          <span className={`text-sm font-medium ${isArchived ? 'text-purple-400' : isCompleted ? 'text-green-400' : ''}`}>
             {quest.name}
           </span>
           <span className={`text-xs px-1.5 py-0.5 rounded ${
+            isArchived ? 'bg-purple-500/20 text-purple-400' :
             isCompleted ? 'bg-green-500/20 text-green-400' :
             quest.status === 'paused' ? 'bg-rpg-text-dim/20 text-rpg-text-dim' :
             'bg-rpg-accent/20 text-rpg-accent'
@@ -200,10 +208,10 @@ export function QuestCard({ quest }: QuestCardProps) {
           </div>
         )}
 
-        {/* Completed quest summary */}
-        {isCompleted && (
+        {/* Completed/archived quest summary */}
+        {(isCompleted || isArchived) && (
           <div className="flex items-center gap-3 text-xs text-rpg-text-muted">
-            <span className="text-green-400">{completedCount}/{totalCount} phases</span>
+            <span className={isArchived ? 'text-purple-400' : 'text-green-400'}>{completedCount}/{totalCount} phases</span>
             {totalDuration && (
               <>
                 <span>\u2022</span>
@@ -228,6 +236,12 @@ export function QuestCard({ quest }: QuestCardProps) {
                 <span>{quest.testsRun} tests</span>
               </>
             )}
+            {isArchived && quest.archiveSource === 'computed' && (
+              <>
+                <span>\u2022</span>
+                <span className="text-purple-400/70">computed</span>
+              </>
+            )}
           </div>
         )}
 
@@ -246,10 +260,12 @@ export function QuestCard({ quest }: QuestCardProps) {
       {/* Expanded timeline view */}
       {expanded && (
         <div className="px-3 pb-3 border-t border-rpg-border/50">
-          {/* Completed quest summary card */}
-          {isCompleted && (quest.xpEarned || quest.commits || quest.testsRun || quest.toolsUsed) && (
-            <div className="mt-3 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-              <div className="text-xs font-medium text-green-400 mb-2">Quest Complete!</div>
+          {/* Completed/archived quest summary card */}
+          {(isCompleted || isArchived) && (quest.xpEarned || quest.commits || quest.testsRun || quest.toolsUsed) && (
+            <div className={`mt-3 p-3 rounded-lg ${isArchived ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-green-500/10 border border-green-500/20'}`}>
+              <div className={`text-xs font-medium mb-2 ${isArchived ? 'text-purple-400' : 'text-green-400'}`}>
+                {isArchived ? 'Quest Archived' : 'Quest Complete!'}{isArchived && quest.archiveSource === 'computed' && ' (stats computed)'}
+              </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {quest.xpEarned !== undefined && quest.xpEarned > 0 && (
                   <div className="flex items-center gap-1.5">
@@ -277,7 +293,7 @@ export function QuestCard({ quest }: QuestCardProps) {
                 )}
               </div>
               {quest.toolsUsed && Object.keys(quest.toolsUsed).length > 0 && (
-                <div className="mt-2 pt-2 border-t border-green-500/20">
+                <div className={`mt-2 pt-2 border-t ${isArchived ? 'border-purple-500/20' : 'border-green-500/20'}`}>
                   <div className="text-xs text-rpg-text-dim mb-1">Tools Used:</div>
                   <div className="flex flex-wrap gap-1">
                     {Object.entries(quest.toolsUsed)
@@ -292,7 +308,7 @@ export function QuestCard({ quest }: QuestCardProps) {
                 </div>
               )}
               {quest.repos.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-green-500/20">
+                <div className={`mt-2 pt-2 border-t ${isArchived ? 'border-purple-500/20' : 'border-green-500/20'}`}>
                   <div className="text-xs text-rpg-text-dim">
                     Contributed to {quest.repos.map((repo, i) => (
                       <span key={repo}>
@@ -321,7 +337,7 @@ export function QuestCard({ quest }: QuestCardProps) {
           </div>
 
           {/* Quest management controls (#81) */}
-          {!isCompleted && (
+          {!isArchived && (
             <QuestControls questId={quest.id} status={quest.status} />
           )}
         </div>
@@ -334,14 +350,22 @@ function QuestControls({ questId, status }: { questId: string; status: QuestStat
   const [confirming, setConfirming] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const handleAction = useCallback(async (action: 'active' | 'paused' | 'completed') => {
+  const handleAction = useCallback(async (action: 'active' | 'paused' | 'completed' | 'archive') => {
     if (action === 'completed' && confirming !== 'complete') {
       setConfirming('complete')
       return
     }
+    if (action === 'archive' && confirming !== 'archive') {
+      setConfirming('archive')
+      return
+    }
     setLoading(true)
     setConfirming(null)
-    await updateQuestStatus(questId, action)
+    if (action === 'archive') {
+      await archiveQuest(questId)
+    } else {
+      await updateQuestStatus(questId, action)
+    }
     setLoading(false)
   }, [questId, confirming])
 
@@ -364,6 +388,40 @@ function QuestControls({ questId, status }: { questId: string; status: QuestStat
           className="px-2 py-1 rounded bg-rpg-border text-rpg-text-muted hover:bg-rpg-card-hover transition-colors"
         >
           Cancel
+        </button>
+      </div>
+    )
+  }
+
+  if (confirming === 'archive') {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-xs">
+        <span className="text-rpg-text-muted">Archive and compute stats?</span>
+        <button
+          onClick={() => handleAction('archive')}
+          className="px-2 py-1 rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors"
+        >
+          Yes
+        </button>
+        <button
+          onClick={() => setConfirming(null)}
+          className="px-2 py-1 rounded bg-rpg-border text-rpg-text-muted hover:bg-rpg-card-hover transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    )
+  }
+
+  // Completed quests show Archive button
+  if (status === 'completed') {
+    return (
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          onClick={() => handleAction('archive')}
+          className="px-2 py-1 text-xs rounded bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 transition-colors"
+        >
+          Archive
         </button>
       </div>
     )

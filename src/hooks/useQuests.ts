@@ -17,6 +17,20 @@ export async function updateQuestStatus(questId: string, status: QuestStatus): P
   }
 }
 
+// Archive quest (compute stats from event history)
+export async function archiveQuest(questId: string): Promise<{ ok: boolean; data?: Quest; error?: string }> {
+  try {
+    const res = await fetch(`${API_URL}/api/quests/${encodeURIComponent(questId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'archive' }),
+    })
+    return await res.json()
+  } catch {
+    return { ok: false, error: 'Network error' }
+  }
+}
+
 export function useQuests() {
   const [quests, setQuests] = useState<Quest[]>([])
   const [loading, setLoading] = useState(true)
