@@ -10,12 +10,23 @@ interface Toast {
 
 const TOAST_DURATION = 4000
 const MAX_TOASTS = 5
+const XP_AGGREGATION_WINDOW_MS = 2000
 
 interface XPAggregation {
   total: number
   companionName: string
   types: Set<string>
   timer: ReturnType<typeof setTimeout>
+}
+
+// Create XP toast from aggregation data
+function formatXPToast(agg: XPAggregation): { type: 'xp'; title: string; body: string } {
+  const types = Array.from(agg.types).join(', ')
+  return {
+    type: 'xp',
+    title: `+${agg.total} XP`,
+    body: `${agg.companionName} (${types})`,
+  }
 }
 
 export const ToastContainer = memo(function ToastContainer() {
@@ -68,36 +79,25 @@ export const ToastContainer = memo(function ToastContainer() {
 
       const existing = xpAggregationRef.current.get(companionId)
 
+      // Helper to flush aggregation and show toast
+      const flushAggregation = (id: string) => {
+        const agg = xpAggregationRef.current.get(id)
+        if (agg) {
+          addToast(formatXPToast(agg))
+          xpAggregationRef.current.delete(id)
+        }
+      }
+
       if (existing) {
         // Add to existing aggregation
         existing.total += d.amount
         existing.types.add(type)
         // Reset timer
         clearTimeout(existing.timer)
-        existing.timer = setTimeout(() => {
-          // Show aggregated toast
-          const types = Array.from(existing.types).join(', ')
-          addToast({
-            type: 'xp',
-            title: `+${existing.total} XP`,
-            body: `${existing.companionName} (${types})`,
-          })
-          xpAggregationRef.current.delete(companionId)
-        }, 2000)
+        existing.timer = setTimeout(() => flushAggregation(companionId), XP_AGGREGATION_WINDOW_MS)
       } else {
         // Start new aggregation
-        const timer = setTimeout(() => {
-          const agg = xpAggregationRef.current.get(companionId)
-          if (agg) {
-            const types = Array.from(agg.types).join(', ')
-            addToast({
-              type: 'xp',
-              title: `+${agg.total} XP`,
-              body: `${agg.companionName} (${types})`,
-            })
-            xpAggregationRef.current.delete(companionId)
-          }
-        }, 2000)
+        const timer = setTimeout(() => flushAggregation(companionId), XP_AGGREGATION_WINDOW_MS)
 
         xpAggregationRef.current.set(companionId, {
           total: d.amount,

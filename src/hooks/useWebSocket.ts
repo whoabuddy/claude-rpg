@@ -5,6 +5,11 @@ import type { ServerMessage } from '@shared/types'
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
 const WS_URL = `${WS_PROTOCOL}//${window.location.host}/ws`
 
+// Backoff constants
+const MIN_RECONNECT_DELAY = 1000
+const MAX_RECONNECT_DELAY = 30000
+const SLEEP_DETECTION_THRESHOLD = 5000
+
 // Clean up WebSocket handlers and close connection
 function cleanupWebSocket(ws: WebSocket | null): void {
   if (!ws) return
@@ -24,6 +29,15 @@ export function useWebSocket() {
   const reconnectTimeoutRef = useRef<number>()
   const lastActivityTimeRef = useRef<number>(Date.now())
   const scheduledReconnectTimeRef = useRef<number>(0)
+
+  // Helper to clear pending reconnect and reset attempt counter
+  const clearReconnect = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = undefined
+    }
+    setReconnectAttempt(0)
+  }, [])
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
@@ -122,7 +136,7 @@ export function useWebSocket() {
       // Calculate exponential backoff delay with jitter
       setReconnectAttempt((attempt) => {
         const nextAttempt = attempt + 1
-        const baseDelay = Math.min(1000 * Math.pow(2, attempt), 30000) // Cap at 30s
+        const baseDelay = Math.min(MIN_RECONNECT_DELAY * Math.pow(2, attempt), MAX_RECONNECT_DELAY)
         const jitter = baseDelay * 0.1 * Math.random() // 10% jitter
         const delay = baseDelay + jitter
 
@@ -131,18 +145,15 @@ export function useWebSocket() {
         scheduledReconnectTimeRef.current = delay
 
         reconnectTimeoutRef.current = window.setTimeout(() => {
-          const now = Date.now()
-          const elapsed = now - lastActivityTimeRef.current
+          const elapsed = Date.now() - lastActivityTimeRef.current
 
           // If elapsed time is significantly more than scheduled delay,
-          // device likely slept - reconnect immediately and reset backoff
-          if (elapsed > scheduledReconnectTimeRef.current + 5000) {
-            console.log('[claude-rpg] Sleep detected, reconnecting immediately')
+          // device likely slept - reset backoff
+          if (elapsed > scheduledReconnectTimeRef.current + SLEEP_DETECTION_THRESHOLD) {
+            console.log('[claude-rpg] Sleep detected, resetting backoff')
             setReconnectAttempt(0)
-            connect()
-          } else {
-            connect()
           }
+          connect()
         }, delay)
 
         return nextAttempt
@@ -162,11 +173,7 @@ export function useWebSocket() {
     // Listen for backend switch events to reconnect WebSocket
     const handleBackendSwitch = () => {
       console.log('[claude-rpg] Backend switched, reconnecting WebSocket...')
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
-        reconnectTimeoutRef.current = undefined
-      }
-      setReconnectAttempt(0)
+      clearReconnect()
       cleanupWebSocket(wsRef.current)
       wsRef.current = null
       // Small delay to let the proxy settle
@@ -178,11 +185,7 @@ export function useWebSocket() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && !wsRef.current || wsRef.current?.readyState !== WebSocket.OPEN) {
         console.log('[claude-rpg] Tab visible, reconnecting...')
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current)
-          reconnectTimeoutRef.current = undefined
-        }
-        setReconnectAttempt(0)
+        clearReconnect()
         connect()
       }
     }
@@ -191,20 +194,13 @@ export function useWebSocket() {
     // Listen for online/offline events
     const handleOnline = () => {
       console.log('[claude-rpg] Network online, reconnecting...')
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
-        reconnectTimeoutRef.current = undefined
-      }
-      setReconnectAttempt(0)
+      clearReconnect()
       connect()
     }
 
     const handleOffline = () => {
       console.log('[claude-rpg] Network offline')
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
-        reconnectTimeoutRef.current = undefined
-      }
+      clearReconnect()
     }
 
     window.addEventListener('online', handleOnline)
@@ -215,27 +211,20 @@ export function useWebSocket() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
-        reconnectTimeoutRef.current = undefined
-      }
+      clearReconnect()
       cleanupWebSocket(wsRef.current)
       wsRef.current = null
     }
-  }, [connect])
+  }, [connect, clearReconnect])
 
   // Force immediate reconnection (for manual retry button)
   const forceReconnect = useCallback(() => {
     console.log('[claude-rpg] Manual reconnect requested')
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current)
-      reconnectTimeoutRef.current = undefined
-    }
-    setReconnectAttempt(0)
+    clearReconnect()
     cleanupWebSocket(wsRef.current)
     wsRef.current = null
     connect()
-  }, [connect])
+  }, [connect, clearReconnect])
 
   return { connected, reconnectAttempt, forceReconnect }
 }
