@@ -1,6 +1,6 @@
 import { useEffect, useCallback, memo } from 'react'
 import type { TmuxPane, TmuxWindow } from '@shared/types'
-import { sendPromptToPane } from '../hooks/useWindows'
+import { sendPromptToPane, sendArrowKey } from '../hooks/useWindows'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { useConfirmAction } from '../hooks/useConfirmAction'
 import { getPaneStatus, paneEqual } from '../utils/pane-status'
@@ -69,6 +69,10 @@ export const FullScreenPane = memo(function FullScreenPane({
 
   const handleCancelPrompt = useCallback(() => {
     sendPromptToPane(pane.id, 'Escape')
+  }, [pane.id])
+
+  const handleNavigate = useCallback((direction: 'up' | 'down') => {
+    sendArrowKey(pane.id, direction)
   }, [pane.id])
 
   return (
@@ -171,6 +175,7 @@ export const FullScreenPane = memo(function FullScreenPane({
               prompt={session.terminalPrompt}
               onAnswer={handleTerminalPromptAnswer}
               onCancel={handleCancelPrompt}
+              onNavigate={handleNavigate}
             />
           </div>
         )}

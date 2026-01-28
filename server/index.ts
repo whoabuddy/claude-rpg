@@ -26,10 +26,10 @@ import type {
 import { parseTerminalForPrompt, hasPromptChanged, parseTokenCount } from './terminal-parser.js'
 import { reconcileSessionState } from './state-reconciler.js'
 import { processEvent, detectCommandXP, processQuestXP } from './xp.js'
-import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName } from './companions.js'
+import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName, sanitizeSvgPaths } from './companions.js'
 import { getAllCompetitions, updateStreak } from './competitions.js'
 import { checkAchievements, getAchievementDef } from './achievements.js'
-import { loadQuests, saveQuests, processQuestEvent, isQuestEvent, type QuestEventPayload } from './quests.js'
+import { loadQuests, saveQuests, processQuestEvent, isQuestEvent, type QuestEventPayload, getQuestForRepo, updateQuestSummary, computeQuestSummary } from './quests.js'
 import {
   pollTmuxState,
   updateClaudeSession,
@@ -127,13 +127,63 @@ function loadPanesCache(): void {
     if (data.sessions && typeof data.sessions === 'object') {
       const cache = new Map<string, ClaudeSessionInfo>()
       for (const [paneId, session] of Object.entries(data.sessions)) {
-        cache.set(paneId, session as ClaudeSessionInfo)
+        const sessionInfo = session as ClaudeSessionInfo
+        // Sanitize any existing cached avatar SVGs to remove malformed path commands
+        if (sessionInfo.avatarSvg) {
+          sessionInfo.avatarSvg = sanitizeSvgPaths(sessionInfo.avatarSvg)
+        }
+        cache.set(paneId, sessionInfo)
       }
       setSessionCache(cache)
     }
   } catch (e) {
     console.error('[claude-rpg] Cache load error:', e)
   }
+}
+
+/**
+ * Re-fetch missing avatars after cache restore
+ * (#90: Issue 1 - Avatars missing after server restart)
+ */
+async function refetchMissingAvatars(): Promise<void> {
+  const cache = getSessionCache()
+  const sessionsToRefetch: Array<{ paneId: string; session: ClaudeSessionInfo }> = []
+
+  // Identify sessions missing avatars
+  for (const [paneId, session] of cache) {
+    if (!session.avatarSvg) {
+      sessionsToRefetch.push({ paneId, session })
+    }
+  }
+
+  if (sessionsToRefetch.length === 0) {
+    return
+  }
+
+  console.log(`[claude-rpg] Re-fetching ${sessionsToRefetch.length} missing avatar(s)...`)
+
+  // Fetch avatars concurrently
+  const results = await Promise.allSettled(
+    sessionsToRefetch.map(async ({ paneId, session }) => {
+      const svg = await fetchBitcoinFace(session.id)
+      if (svg) {
+        session.avatarSvg = svg
+        updateClaudeSession(paneId, { avatarSvg: svg })
+        console.log(`[claude-rpg] Restored avatar for ${session.name} (${session.id.slice(0, 8)})`)
+      } else {
+        console.error(`[claude-rpg] Failed to fetch avatar for ${session.name} (${session.id.slice(0, 8)})`)
+      }
+    })
+  )
+
+  // Count failures
+  const failures = results.filter(r => r.status === 'rejected').length
+  if (failures > 0) {
+    console.error(`[claude-rpg] ${failures} avatar fetch(es) failed`)
+  }
+
+  // Save updated cache
+  savePanesCache()
 }
 
 function savePanesCache(): void {
@@ -470,12 +520,6 @@ function handleQuestEvent(event: QuestEventPayload) {
     return
   }
 
-  // Save quests to disk
-  saveQuests(DATA_DIR, quests)
-
-  // Broadcast quest update to all clients
-  broadcast({ type: 'quest_update', payload: updatedQuest } as ServerMessage)
-
   // Award quest XP to companions for repos involved in this quest
   if (updatedQuest.repos.length > 0) {
     for (const repoName of updatedQuest.repos) {
@@ -488,6 +532,9 @@ function handleQuestEvent(event: QuestEventPayload) {
 
         const xpGain = processQuestXP(companion, event)
         if (xpGain) {
+          // Track XP in quest summary
+          updateQuestSummary(updatedQuest.id, { xpEarned: xpGain.amount })
+
           saveCompanions(DATA_DIR, companions)
           broadcast({ type: 'companion_update', payload: companion } as ServerMessage)
           broadcast({ type: 'xp_gain', payload: xpGain } as ServerMessage)
@@ -504,6 +551,15 @@ function handleQuestEvent(event: QuestEventPayload) {
       }
     }
   }
+
+  // Compute and attach summary before broadcasting
+  computeQuestSummary(updatedQuest)
+
+  // Save quests to disk
+  saveQuests(DATA_DIR, quests)
+
+  // Broadcast quest update to all clients with computed summary
+  broadcast({ type: 'quest_update', payload: updatedQuest } as ServerMessage)
 
   console.log(`[claude-rpg] Quest event: ${event.type} for quest "${updatedQuest.name}"`)
 }
@@ -592,6 +648,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
             description: input.description || 'Subagent',
             prompt: input.prompt ? input.prompt.slice(0, 100) : undefined,
             startedAt: event.timestamp,
+            lastActivity: event.timestamp,
+            isCurrentContext: true,
           })
         } else if (preEvent.tool === 'Task') {
           if (!sessionInfo.activeSubagents) sessionInfo.activeSubagents = []
@@ -599,6 +657,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
             id: preEvent.toolUseId,
             description: 'Subagent',
             startedAt: event.timestamp,
+            lastActivity: event.timestamp,
+            isCurrentContext: true,
           })
         }
 
@@ -714,6 +774,17 @@ async function handleEvent(rawEvent: RawHookEvent) {
         // echoing as a parent stop event — keep working
         if (sessionInfo.activeSubagents && sessionInfo.activeSubagents.length > 0) {
           console.log(`[claude-rpg] Ignoring stop event — ${sessionInfo.activeSubagents.length} subagent(s) still active`)
+          // Timeout: force clear activeSubagents if no subagent_stop within 5s
+          setTimeout(() => {
+            const session = getClaudeSession(pane.id)
+            if (session && session.activeSubagents && session.activeSubagents.length > 0) {
+              console.warn(`[claude-rpg] Timeout: forcing clear of ${session.activeSubagents.length} orphaned subagent(s)`)
+              session.activeSubagents = []
+              session.status = 'idle'
+              updateClaudeSession(pane.id, session)
+              broadcast({ type: 'pane_update', payload: pane })
+            }
+          }, 5000)
         } else {
           sessionInfo.status = 'idle'
           sessionInfo.currentTool = undefined
@@ -745,15 +816,40 @@ async function handleEvent(rawEvent: RawHookEvent) {
       } else if (event.type === 'subagent_stop') {
         // Subagent finished - remove from list, main agent continues working (#32)
         if (sessionInfo.activeSubagents && sessionInfo.activeSubagents.length > 0) {
-          // Try to match by toolUseId if available, otherwise remove oldest
+          // Try to match by toolUseId if available
           const stopEvent = event as import('../shared/types.js').SubagentStopEvent
           const toolUseId = (stopEvent as unknown as Record<string, unknown>).toolUseId as string | undefined
-          const idx = toolUseId ? sessionInfo.activeSubagents.findIndex(s => s.id === toolUseId) : -1
-          if (idx >= 0) {
+          let idx = toolUseId ? sessionInfo.activeSubagents.findIndex(s => s.id === toolUseId) : -1
+
+          // Fallback 1: Check for stale subagents (active >10 minutes)
+          if (idx < 0) {
+            const now = event.timestamp
+            const staleIdx = sessionInfo.activeSubagents.findIndex(s => now - s.startedAt > 10 * 60 * 1000)
+            if (staleIdx >= 0) {
+              console.warn(`[claude-rpg] Removing stale subagent (${sessionInfo.activeSubagents[staleIdx].description}) - active >10min`)
+              idx = staleIdx
+            }
+          }
+
+          // Fallback 2: Match by description/prompt prefix if available
+          if (idx < 0 && toolUseId) {
+            const matchIdx = sessionInfo.activeSubagents.findIndex(s =>
+              s.description?.includes(toolUseId.slice(0, 8)) || s.prompt?.includes(toolUseId.slice(0, 8))
+            )
+            if (matchIdx >= 0) {
+              console.warn(`[claude-rpg] Matched subagent by description/prompt prefix: ${sessionInfo.activeSubagents[matchIdx].description}`)
+              idx = matchIdx
+            }
+          }
+
+          // Fallback 3: Remove the oldest subagent
+          if (idx < 0) {
+            console.warn(`[claude-rpg] Removing oldest subagent (no matching toolUseId)`)
+            idx = 0
+          }
+
+          if (idx >= 0 && idx < sessionInfo.activeSubagents.length) {
             sessionInfo.activeSubagents.splice(idx, 1)
-          } else {
-            // Fallback: remove the oldest subagent
-            sessionInfo.activeSubagents.shift()
           }
         }
         // Don't change status - main agent is still running
@@ -761,8 +857,26 @@ async function handleEvent(rawEvent: RawHookEvent) {
         // New or resumed session - but guard against subagent spawns resetting parent
         const startEvent = event as import('../shared/types.js').SessionStartEvent
         if (sessionInfo.status === 'working' && sessionInfo.activeSubagents && sessionInfo.activeSubagents.length > 0) {
-          // Subagent starting a new session context — don't reset parent
-          console.log(`[claude-rpg] Ignoring session_start during active subagent work`)
+          // Check if this is from subagent context (has isCurrentContext=true)
+          const hasCurrentContext = sessionInfo.activeSubagents.some(s => s.isCurrentContext)
+          if (hasCurrentContext) {
+            // Subagent starting a new session context — don't reset parent
+            console.log(`[claude-rpg] Ignoring session_start during active subagent work`)
+            // Clear isCurrentContext flag for all subagents
+            sessionInfo.activeSubagents.forEach(s => s.isCurrentContext = false)
+          } else {
+            // No current context flag, treat as real session start
+            sessionInfo.status = 'idle'
+            sessionInfo.currentTool = undefined
+            sessionInfo.currentFile = undefined
+            sessionInfo.pendingQuestion = undefined
+            sessionInfo.lastError = undefined
+            sessionInfo.activeSubagents = []
+            // Set lastPrompt to show the command that triggered the new session
+            if (startEvent.source === 'clear') {
+              sessionInfo.lastPrompt = '/clear'
+            }
+          }
         } else {
           sessionInfo.status = 'idle'
           sessionInfo.currentTool = undefined
@@ -849,6 +963,37 @@ async function handleEvent(rawEvent: RawHookEvent) {
           broadcast({ type: 'xp_gain', payload: xpGain })
           // Update competitions leaderboard when XP changes (use full event history)
           broadcast({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) })
+        }
+
+        // Track quest activity for active quests involving this companion's repo
+        const activeQuest = getQuestForRepo(quests, companion.repo.name)
+        if (activeQuest && activeQuest.status === 'active') {
+          // Track tool usage
+          if (event.type === 'post_tool_use') {
+            const postEvent = event as import('../shared/types.js').PostToolUseEvent
+            if (postEvent.tool && postEvent.success) {
+              updateQuestSummary(activeQuest.id, {
+                toolsUsed: { [postEvent.tool]: 1 },
+              })
+            }
+          }
+
+          // Track git commits
+          if (xpGain.type.startsWith('git.commit')) {
+            updateQuestSummary(activeQuest.id, { commits: 1 })
+          }
+
+          // Track test runs
+          if (xpGain.type === 'commands.test' || xpGain.type === 'blockchain.test') {
+            updateQuestSummary(activeQuest.id, { testsRun: 1 })
+          }
+
+          // Compute and broadcast updated quest summary
+          if (!isLoadingHistoricalEvents) {
+            computeQuestSummary(activeQuest)
+            saveQuests(DATA_DIR, quests)
+            broadcast({ type: 'quest_update', payload: activeQuest } as ServerMessage)
+          }
         }
 
         // Also update session stats if we have an active session
@@ -1663,6 +1808,14 @@ const server = http.createServer(async (req, res) => {
           return
         }
 
+        // Handle arrow key navigation (Up/Down)
+        if (prompt === 'Up' || prompt === 'Down') {
+          await execAsync(`tmux send-keys -t "${pane.target}" ${prompt}`)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: true }))
+          return
+        }
+
         // Determine response type from terminal prompt
         const isPermission = isPermissionResponse ||
           terminalPrompt?.type === 'permission' ||
@@ -2179,6 +2332,14 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // List workers (Claude sessions)
+  if (url.pathname === '/api/workers' && req.method === 'GET') {
+    const sessions = Array.from(getSessionCache().values()).sort((a, b) => b.lastActivity - a.lastActivity)
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, data: sessions }))
+    return
+  }
+
   // Send prompt to companion (#85) — routes to their active Claude pane
   const companionPromptMatch = url.pathname.match(/^\/api\/companions\/([^/]+)\/prompt$/)
   if (companionPromptMatch && req.method === 'POST') {
@@ -2390,6 +2551,8 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) } satisfies ServerMessage))
     ws.send(JSON.stringify({ type: 'quests_init', payload: quests } satisfies ServerMessage))
   }
+  const sessions = Array.from(getSessionCache().values()).sort((a, b) => b.lastActivity - a.lastActivity)
+  ws.send(JSON.stringify({ type: 'workers_init', payload: sessions } satisfies ServerMessage))
   ws.send(JSON.stringify({ type: 'history', payload: events.slice(-100) } satisfies ServerMessage))
 
   // Send current terminal content for all panes
@@ -2572,6 +2735,9 @@ function initControlMode(): void {
 // ═══════════════════════════════════════════════════════════════════════════
 
 loadPanesCache()
+// Re-fetch missing avatars after cache restore (#90)
+refetchMissingAvatars().catch(e => console.error('[claude-rpg] Avatar refetch error:', e))
+
 if (rpgEnabled) {
   loadEventsFromFile()
   watchEventsFile()

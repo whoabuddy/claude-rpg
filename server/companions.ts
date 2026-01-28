@@ -108,6 +108,16 @@ function getBitcoinFaceUrl(sessionId: string): string {
   return `https://bitcoinfaces.xyz/api/get-image?name=${encodeURIComponent(sessionId)}`
 }
 
+/**
+ * Sanitize malformed SVG path commands from bitcoinfaces.xyz
+ * Fixes patterns like h0a and v0a (horizontal/vertical line of 0 followed by arc)
+ * These cause "Path contains invalid move commands" console errors
+ */
+export function sanitizeSvgPaths(svg: string): string {
+  // Pattern: h0a or v0a -> remove the h0 or v0, keep just the a
+  return svg.replace(/([hv])0([a])/gi, '$2')
+}
+
 // Fetch and cache Bitcoin face SVG
 const bitcoinFaceCache = new Map<string, string>()
 
@@ -121,8 +131,9 @@ export async function fetchBitcoinFace(sessionId: string): Promise<string | unde
     const response = await fetch(url)
     if (response.ok) {
       const svg = await response.text()
-      bitcoinFaceCache.set(sessionId, svg)
-      return svg
+      const sanitized = sanitizeSvgPaths(svg)
+      bitcoinFaceCache.set(sessionId, sanitized)
+      return sanitized
     }
   } catch (e) {
     console.error(`[claude-rpg] Error fetching Bitcoin face for ${sessionId}:`, e)

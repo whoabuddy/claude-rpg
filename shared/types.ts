@@ -95,12 +95,13 @@ export interface TerminalPromptOption {
 }
 
 export interface TerminalPrompt {
-  type: 'question' | 'permission' | 'plan'
+  type: 'question' | 'permission' | 'plan' | 'feedback'
   tool?: string              // 'Bash', 'Edit', 'Write' for permissions
   command?: string           // Command preview for Bash permissions
   question: string           // Main question text
   options: TerminalPromptOption[]
   multiSelect: boolean
+  selectedIndex?: number     // For selector-style prompts (arrow navigation)
   footer?: string            // "Esc to cancel", etc.
   detectedAt: number
   contentHash: string        // For change detection
@@ -120,6 +121,8 @@ export interface SubagentInfo {
   description: string     // short description (3-5 words)
   prompt?: string         // first 100 chars of the full prompt
   startedAt: number
+  lastActivity?: number   // for staleness tracking
+  isCurrentContext?: boolean  // true if this subagent is the active context
 }
 
 /**
@@ -410,6 +413,8 @@ export interface QuestPhase {
   gaps?: string[]              // From verifier diagnosis
   startedAt?: number
   completedAt?: number
+  xpEarned?: number            // XP earned in this phase
+  achievements?: string[]      // Achievement IDs unlocked
 }
 
 export interface Quest {
@@ -421,6 +426,11 @@ export interface Quest {
   status: QuestStatus
   createdAt: number
   completedAt?: number
+  // Summary stats (aggregated from phase execution)
+  xpEarned?: number            // Total XP earned across all phases
+  commits?: number             // Total commits made
+  testsRun?: number            // Total test runs
+  toolsUsed?: Record<string, number>  // Tool name -> count
 }
 
 export type QuestEventType =
@@ -515,6 +525,7 @@ export type ServerMessage =
   | { type: 'quest_xp'; payload: { questId: string; phaseId: string; xp: number; reason: string } }
   | { type: 'achievement_unlocked'; payload: { companionId: string; companionName: string; achievementId: string; achievementName: string; achievementIcon: string; rarity: AchievementRarity } }
   | { type: 'system_stats'; payload: SystemStats }
+  | { type: 'workers_init'; payload: ClaudeSessionInfo[] }
 
 export type ClientMessage =
   | { type: 'subscribe' }

@@ -8,6 +8,7 @@ import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
 interface CompetitionsPageProps {
   connected: boolean
   onNavigateBack: () => void
+  onNavigateToProject: (companionId: string) => void
 }
 
 const PERIOD_LABELS: Record<TimePeriod, string> = {
@@ -24,7 +25,7 @@ const CATEGORY_CONFIG = {
   prompts: { title: 'Prompt Pioneers', unit: '' },
 }
 
-export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPageProps) {
+export function CompetitionsPage({ connected, onNavigateBack, onNavigateToProject }: CompetitionsPageProps) {
   const [period, setPeriod] = useState<TimePeriod>('all')
   const { competitions, loading, getByCategory } = useCompetitions(period)
   const [companions, setCompanions] = useState<Companion[]>([])
@@ -120,10 +121,11 @@ export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPage
               title={CATEGORY_CONFIG.xp.title}
               unit={CATEGORY_CONFIG.xp.unit}
               emptyMessage="No XP earned yet"
+              onSelectEntry={onNavigateToProject}
             />
 
             {/* Streaks - always visible (#82) */}
-            <StreakCard entries={streakEntries} />
+            <StreakCard entries={streakEntries} onSelectEntry={onNavigateToProject} />
 
             {/* Achievements showcase (#37) */}
             <AchievementsCard achievements={allAchievements} />
@@ -136,6 +138,7 @@ export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPage
                 title={CATEGORY_CONFIG.commits.title}
                 unit={CATEGORY_CONFIG.commits.unit}
                 emptyMessage="No commits yet"
+                onSelectEntry={onNavigateToProject}
               />
 
               {/* Tests */}
@@ -144,6 +147,7 @@ export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPage
                 title={CATEGORY_CONFIG.tests.title}
                 unit={CATEGORY_CONFIG.tests.unit}
                 emptyMessage="No tests run yet"
+                onSelectEntry={onNavigateToProject}
               />
 
               {/* Tools */}
@@ -152,6 +156,7 @@ export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPage
                 title={CATEGORY_CONFIG.tools.title}
                 unit={CATEGORY_CONFIG.tools.unit}
                 emptyMessage="No tools used yet"
+                onSelectEntry={onNavigateToProject}
               />
 
               {/* Prompts */}
@@ -160,6 +165,7 @@ export function CompetitionsPage({ connected, onNavigateBack }: CompetitionsPage
                 title={CATEGORY_CONFIG.prompts.title}
                 unit={CATEGORY_CONFIG.prompts.unit}
                 emptyMessage="No prompts sent yet"
+                onSelectEntry={onNavigateToProject}
               />
             </div>
           </div>
