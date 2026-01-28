@@ -121,6 +121,8 @@ export interface SubagentInfo {
   description: string     // short description (3-5 words)
   prompt?: string         // first 100 chars of the full prompt
   startedAt: number
+  lastActivity?: number   // for staleness tracking
+  isCurrentContext?: boolean  // true if this subagent is the active context
 }
 
 /**

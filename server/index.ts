@@ -642,6 +642,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
             description: input.description || 'Subagent',
             prompt: input.prompt ? input.prompt.slice(0, 100) : undefined,
             startedAt: event.timestamp,
+            lastActivity: event.timestamp,
+            isCurrentContext: true,
           })
         } else if (preEvent.tool === 'Task') {
           if (!sessionInfo.activeSubagents) sessionInfo.activeSubagents = []
@@ -649,6 +651,8 @@ async function handleEvent(rawEvent: RawHookEvent) {
             id: preEvent.toolUseId,
             description: 'Subagent',
             startedAt: event.timestamp,
+            lastActivity: event.timestamp,
+            isCurrentContext: true,
           })
         }
 
@@ -764,6 +768,17 @@ async function handleEvent(rawEvent: RawHookEvent) {
         // echoing as a parent stop event — keep working
         if (sessionInfo.activeSubagents && sessionInfo.activeSubagents.length > 0) {
           console.log(`[claude-rpg] Ignoring stop event — ${sessionInfo.activeSubagents.length} subagent(s) still active`)
+          // Timeout: force clear activeSubagents if no subagent_stop within 5s
+          setTimeout(() => {
+            const session = getClaudeSession(pane.id)
+            if (session && session.activeSubagents && session.activeSubagents.length > 0) {
+              console.warn(`[claude-rpg] Timeout: forcing clear of ${session.activeSubagents.length} orphaned subagent(s)`)
+              session.activeSubagents = []
+              session.status = 'idle'
+              updateClaudeSession(pane.id, session)
+              broadcast({ type: 'pane_update', payload: pane })
+            }
+          }, 5000)
         } else {
           sessionInfo.status = 'idle'
           sessionInfo.currentTool = undefined
@@ -795,15 +810,40 @@ async function handleEvent(rawEvent: RawHookEvent) {
       } else if (event.type === 'subagent_stop') {
         // Subagent finished - remove from list, main agent continues working (#32)
         if (sessionInfo.activeSubagents && sessionInfo.activeSubagents.length > 0) {
-          // Try to match by toolUseId if available, otherwise remove oldest
+          // Try to match by toolUseId if available
           const stopEvent = event as import('../shared/types.js').SubagentStopEvent
           const toolUseId = (stopEvent as unknown as Record<string, unknown>).toolUseId as string | undefined
-          const idx = toolUseId ? sessionInfo.activeSubagents.findIndex(s => s.id === toolUseId) : -1
-          if (idx >= 0) {
+          let idx = toolUseId ? sessionInfo.activeSubagents.findIndex(s => s.id === toolUseId) : -1
+
+          // Fallback 1: Check for stale subagents (active >10 minutes)
+          if (idx < 0) {
+            const now = event.timestamp
+            const staleIdx = sessionInfo.activeSubagents.findIndex(s => now - s.startedAt > 10 * 60 * 1000)
+            if (staleIdx >= 0) {
+              console.warn(`[claude-rpg] Removing stale subagent (${sessionInfo.activeSubagents[staleIdx].description}) - active >10min`)
+              idx = staleIdx
+            }
+          }
+
+          // Fallback 2: Match by description/prompt prefix if available
+          if (idx < 0 && toolUseId) {
+            const matchIdx = sessionInfo.activeSubagents.findIndex(s =>
+              s.description?.includes(toolUseId.slice(0, 8)) || s.prompt?.includes(toolUseId.slice(0, 8))
+            )
+            if (matchIdx >= 0) {
+              console.warn(`[claude-rpg] Matched subagent by description/prompt prefix: ${sessionInfo.activeSubagents[matchIdx].description}`)
+              idx = matchIdx
+            }
+          }
+
+          // Fallback 3: Remove the oldest subagent
+          if (idx < 0) {
+            console.warn(`[claude-rpg] Removing oldest subagent (no matching toolUseId)`)
+            idx = 0
+          }
+
+          if (idx >= 0 && idx < sessionInfo.activeSubagents.length) {
             sessionInfo.activeSubagents.splice(idx, 1)
-          } else {
-            // Fallback: remove the oldest subagent
-            sessionInfo.activeSubagents.shift()
           }
         }
         // Don't change status - main agent is still running
@@ -811,8 +851,26 @@ async function handleEvent(rawEvent: RawHookEvent) {
         // New or resumed session - but guard against subagent spawns resetting parent
         const startEvent = event as import('../shared/types.js').SessionStartEvent
         if (sessionInfo.status === 'working' && sessionInfo.activeSubagents && sessionInfo.activeSubagents.length > 0) {
-          // Subagent starting a new session context — don't reset parent
-          console.log(`[claude-rpg] Ignoring session_start during active subagent work`)
+          // Check if this is from subagent context (has isCurrentContext=true)
+          const hasCurrentContext = sessionInfo.activeSubagents.some(s => s.isCurrentContext)
+          if (hasCurrentContext) {
+            // Subagent starting a new session context — don't reset parent
+            console.log(`[claude-rpg] Ignoring session_start during active subagent work`)
+            // Clear isCurrentContext flag for all subagents
+            sessionInfo.activeSubagents.forEach(s => s.isCurrentContext = false)
+          } else {
+            // No current context flag, treat as real session start
+            sessionInfo.status = 'idle'
+            sessionInfo.currentTool = undefined
+            sessionInfo.currentFile = undefined
+            sessionInfo.pendingQuestion = undefined
+            sessionInfo.lastError = undefined
+            sessionInfo.activeSubagents = []
+            // Set lastPrompt to show the command that triggered the new session
+            if (startEvent.source === 'clear') {
+              sessionInfo.lastPrompt = '/clear'
+            }
+          }
         } else {
           sessionInfo.status = 'idle'
           sessionInfo.currentTool = undefined
