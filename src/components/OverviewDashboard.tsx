@@ -450,6 +450,8 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 function WorkersSummary({ windows, onExpandPane }: WorkersSummaryProps) {
+  const [collapsed, setCollapsed] = useState(false)
+
   // Collect all Claude panes across windows
   const workers = useMemo(() => {
     const result: { pane: TmuxPane; windowName: string }[] = []
@@ -465,62 +467,94 @@ function WorkersSummary({ windows, onExpandPane }: WorkersSummaryProps) {
 
   if (workers.length < 2) return null
 
+  // Helper to format elapsed time
+  const formatElapsed = (startedAt: number) => {
+    const elapsed = Math.floor((Date.now() - startedAt) / 1000)
+    if (elapsed < 60) return `${elapsed}s`
+    const mins = Math.floor(elapsed / 60)
+    if (mins < 60) return `${mins}m`
+    const hours = Math.floor(mins / 60)
+    return `${hours}h ${mins % 60}m`
+  }
+
   return (
     <div className="rounded-lg border border-rpg-border bg-rpg-card/50 p-3">
-      <div className="text-xs font-medium text-rpg-text-muted mb-2">
-        Active Workers ({workers.length})
-      </div>
-      <div className="space-y-1.5">
-        {workers.map(({ pane, windowName }) => {
-          const session = pane.process.claudeSession!
-          const status = session.status
-          const repoLabel = pane.repo
-            ? (pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name)
-            : windowName
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="w-full flex items-center gap-2 text-left hover:bg-rpg-card-hover transition-colors rounded px-1 -mx-1 py-1"
+      >
+        <span className="text-xs text-rpg-text-dim">
+          {collapsed ? '▶' : '▼'}
+        </span>
+        <div className="text-xs font-medium text-rpg-text-muted">
+          Active Workers ({workers.length})
+        </div>
+      </button>
+      {!collapsed && (
+        <div className="space-y-1.5 mt-2">
+          {workers.map(({ pane, windowName }) => {
+            const session = pane.process.claudeSession!
+            const status = session.status
+            const repoLabel = pane.repo
+              ? (pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name)
+              : windowName
 
-          // Activity summary
-          let activity = ''
-          if (session.currentTool) {
-            activity = session.currentTool
-            if (session.currentFile) {
-              activity += `: ${session.currentFile.split('/').pop()}`
+            // Activity summary
+            let activity = ''
+            if (session.currentTool) {
+              activity = session.currentTool
+              if (session.currentFile) {
+                activity += `: ${session.currentFile.split('/').pop()}`
+              }
+            } else if (status === 'waiting') {
+              activity = 'Waiting for input'
+            } else if (session.lastPrompt?.trim()) {
+              activity = session.lastPrompt
             }
-          } else if (status === 'waiting') {
-            activity = 'Waiting for input'
-          } else if (session.lastPrompt?.trim()) {
-            activity = session.lastPrompt
-          }
 
-          return (
-            <button
-              key={pane.id}
-              onClick={() => onExpandPane(pane.id)}
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-rpg-card-hover transition-colors text-left"
-            >
-              {/* Status dot */}
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[status] || 'bg-rpg-text-dim'}`} />
-              {/* Name */}
-              <span className="text-sm text-rpg-text font-medium truncate w-16 flex-shrink-0">
-                {session.name}
-              </span>
-              {/* Repo */}
-              <span className="text-xs text-rpg-accent truncate max-w-[120px] flex-shrink-0">
-                {repoLabel}
-              </span>
-              {/* Activity */}
-              <span className="text-xs text-rpg-text-dim truncate flex-1 min-w-0">
-                {activity || STATUS_LABEL[status] || 'Ready'}
-              </span>
-              {/* Subagent badge */}
-              {(session.activeSubagents?.length || 0) > 0 && (
-                <span className="text-[10px] text-rpg-accent flex-shrink-0">
-                  {session.activeSubagents!.length} sub{session.activeSubagents!.length > 1 ? 's' : ''}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
+            return (
+              <div key={pane.id}>
+                <button
+                  onClick={() => onExpandPane(pane.id)}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-rpg-card-hover transition-colors text-left"
+                >
+                  {/* Status dot */}
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[status] || 'bg-rpg-text-dim'}`} />
+                  {/* Name */}
+                  <span className="text-sm text-rpg-text font-medium truncate w-16 flex-shrink-0">
+                    {session.name}
+                  </span>
+                  {/* Repo */}
+                  <span className="text-xs text-rpg-accent truncate max-w-[120px] flex-shrink-0">
+                    {repoLabel}
+                  </span>
+                  {/* Activity */}
+                  <span className="text-xs text-rpg-text-dim truncate flex-1 min-w-0">
+                    {activity || STATUS_LABEL[status] || 'Ready'}
+                  </span>
+                  {/* Subagent badge */}
+                  {(session.activeSubagents?.length || 0) > 0 && (
+                    <span className="text-[10px] text-rpg-accent flex-shrink-0">
+                      {session.activeSubagents!.length} sub{session.activeSubagents!.length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </button>
+                {/* Subagent details */}
+                {session.activeSubagents && session.activeSubagents.length > 0 && (
+                  <div className="space-y-0.5 mt-0.5">
+                    {session.activeSubagents.map(sub => (
+                      <div key={sub.id} className="ml-4 pl-2 border-l border-rpg-border text-xs flex items-center gap-2">
+                        <span className="text-rpg-accent truncate flex-1">{sub.description}</span>
+                        <span className="text-rpg-text-dim">{formatElapsed(sub.startedAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
