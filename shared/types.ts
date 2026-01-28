@@ -525,6 +525,7 @@ export type ServerMessage =
   | { type: 'quest_xp'; payload: { questId: string; phaseId: string; xp: number; reason: string } }
   | { type: 'achievement_unlocked'; payload: { companionId: string; companionName: string; achievementId: string; achievementName: string; achievementIcon: string; rarity: AchievementRarity } }
   | { type: 'system_stats'; payload: SystemStats }
+  | { type: 'workers_init'; payload: ClaudeSessionInfo[] }
 
 export type ClientMessage =
   | { type: 'subscribe' }

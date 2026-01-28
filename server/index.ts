@@ -2332,6 +2332,14 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // List workers (Claude sessions)
+  if (url.pathname === '/api/workers' && req.method === 'GET') {
+    const sessions = Array.from(getSessionCache().values()).sort((a, b) => b.lastActivity - a.lastActivity)
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, data: sessions }))
+    return
+  }
+
   // Send prompt to companion (#85) — routes to their active Claude pane
   const companionPromptMatch = url.pathname.match(/^\/api\/companions\/([^/]+)\/prompt$/)
   if (companionPromptMatch && req.method === 'POST') {
@@ -2543,6 +2551,8 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) } satisfies ServerMessage))
     ws.send(JSON.stringify({ type: 'quests_init', payload: quests } satisfies ServerMessage))
   }
+  const sessions = Array.from(getSessionCache().values()).sort((a, b) => b.lastActivity - a.lastActivity)
+  ws.send(JSON.stringify({ type: 'workers_init', payload: sessions } satisfies ServerMessage))
   ws.send(JSON.stringify({ type: 'history', payload: events.slice(-100) } satisfies ServerMessage))
 
   // Send current terminal content for all panes
