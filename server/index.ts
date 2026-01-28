@@ -136,6 +136,51 @@ function loadPanesCache(): void {
   }
 }
 
+/**
+ * Re-fetch missing avatars after cache restore
+ * (#90: Issue 1 - Avatars missing after server restart)
+ */
+async function refetchMissingAvatars(): Promise<void> {
+  const cache = getSessionCache()
+  const sessionsToRefetch: Array<{ paneId: string; session: ClaudeSessionInfo }> = []
+
+  // Identify sessions missing avatars
+  for (const [paneId, session] of cache) {
+    if (!session.avatarSvg) {
+      sessionsToRefetch.push({ paneId, session })
+    }
+  }
+
+  if (sessionsToRefetch.length === 0) {
+    return
+  }
+
+  console.log(`[claude-rpg] Re-fetching ${sessionsToRefetch.length} missing avatar(s)...`)
+
+  // Fetch avatars concurrently
+  const results = await Promise.allSettled(
+    sessionsToRefetch.map(async ({ paneId, session }) => {
+      const svg = await fetchBitcoinFace(session.id)
+      if (svg) {
+        session.avatarSvg = svg
+        updateClaudeSession(paneId, { avatarSvg: svg })
+        console.log(`[claude-rpg] Restored avatar for ${session.name} (${session.id.slice(0, 8)})`)
+      } else {
+        console.error(`[claude-rpg] Failed to fetch avatar for ${session.name} (${session.id.slice(0, 8)})`)
+      }
+    })
+  )
+
+  // Count failures
+  const failures = results.filter(r => r.status === 'rejected').length
+  if (failures > 0) {
+    console.error(`[claude-rpg] ${failures} avatar fetch(es) failed`)
+  }
+
+  // Save updated cache
+  savePanesCache()
+}
+
 function savePanesCache(): void {
   const tmpFile = PANES_CACHE_FILE + '.tmp'
   try {
@@ -2572,6 +2617,9 @@ function initControlMode(): void {
 // ═══════════════════════════════════════════════════════════════════════════
 
 loadPanesCache()
+// Re-fetch missing avatars after cache restore (#90)
+refetchMissingAvatars().catch(e => console.error('[claude-rpg] Avatar refetch error:', e))
+
 if (rpgEnabled) {
   loadEventsFromFile()
   watchEventsFile()
