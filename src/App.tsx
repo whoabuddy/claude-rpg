@@ -16,7 +16,7 @@ import { ToastContainer } from './components/ToastContainer'
 type ViewTab = 'dashboard' | 'quests' | 'workers' | 'competitions' | 'project'
 
 export default function App() {
-  const { connected } = useWebSocket()
+  const { connected, reconnectAttempt, forceReconnect } = useWebSocket()
   const { windows, attentionPanes } = useWindows()
   const [notificationsDismissed, setNotificationsDismissed] = useState(false)
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
@@ -141,6 +141,8 @@ export default function App() {
           ) : activeTab === 'competitions' && rpgEnabled ? (
             <CompetitionsPage
               connected={connected}
+              reconnectAttempt={reconnectAttempt}
+              onRetry={forceReconnect}
               onNavigateBack={handleNavigateToDashboard}
               onNavigateToProject={handleNavigateToProject}
             />
@@ -152,6 +154,8 @@ export default function App() {
           ) : activeTab === 'workers' && rpgEnabled ? (
             <WorkersPage
               connected={connected}
+              reconnectAttempt={reconnectAttempt}
+              onRetry={forceReconnect}
               onNavigateBack={handleNavigateToDashboard}
             />
           ) : (
@@ -159,6 +163,8 @@ export default function App() {
               windows={windows}
               attentionCount={attentionPanes.length}
               connected={connected}
+              reconnectAttempt={reconnectAttempt}
+              onRetry={forceReconnect}
               onNewPane={createPaneInWindow}
               onCreateWindow={handleCreateWindow}
               onRenameWindow={renameWindow}

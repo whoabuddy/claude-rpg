@@ -224,5 +224,18 @@ export function useWebSocket() {
     }
   }, [connect])
 
-  return { connected, reconnectAttempt }
+  // Force immediate reconnection (for manual retry button)
+  const forceReconnect = useCallback(() => {
+    console.log('[claude-rpg] Manual reconnect requested')
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = undefined
+    }
+    setReconnectAttempt(0)
+    cleanupWebSocket(wsRef.current)
+    wsRef.current = null
+    connect()
+  }, [connect])
+
+  return { connected, reconnectAttempt, forceReconnect }
 }

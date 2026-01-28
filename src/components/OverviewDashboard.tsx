@@ -15,6 +15,8 @@ interface OverviewDashboardProps {
   windows: TmuxWindow[]
   attentionCount: number
   connected: boolean
+  reconnectAttempt?: number
+  onRetry?: () => void
   onNewPane: (windowId: string) => void
   onCreateWindow: (sessionName: string, windowName: string) => Promise<boolean>
   onRenameWindow: (windowId: string, windowName: string) => Promise<{ ok: boolean; error?: string }>
@@ -66,6 +68,8 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   windows,
   attentionCount,
   connected,
+  reconnectAttempt,
+  onRetry,
   onNewPane,
   onCreateWindow,
   onRenameWindow,
@@ -268,7 +272,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
       )}
 
       {/* Disconnected banner */}
-      <ConnectionBanner connected={connected} />
+      <ConnectionBanner connected={connected} reconnectAttempt={reconnectAttempt} onRetry={onRetry} />
 
       {/* Create Window Form */}
       {showCreateWindow && (
