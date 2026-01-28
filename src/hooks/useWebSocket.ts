@@ -183,7 +183,10 @@ export function useWebSocket() {
 
     // Listen for visibility changes - reconnect immediately when tab becomes visible
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && !wsRef.current || wsRef.current?.readyState !== WebSocket.OPEN) {
+      if (
+        document.visibilityState === 'visible' &&
+        (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+      ) {
         console.log('[claude-rpg] Tab visible, reconnecting...')
         clearReconnect()
         connect()

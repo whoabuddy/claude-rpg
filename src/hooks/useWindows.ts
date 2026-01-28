@@ -120,9 +120,10 @@ async function apiPost<T extends { ok: boolean }>(
   const timeout = 10000 // 10 seconds
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), timeout)
+      timeoutId = setTimeout(() => controller.abort(), timeout)
 
       const res = await fetch(`${API_URL}${path}`, {
         method: 'POST',
@@ -135,11 +136,35 @@ async function apiPost<T extends { ok: boolean }>(
 
       // HTTP errors (4xx, 5xx) should not be retried
       if (!res.ok) {
-        return { ok: false, error: `Server error (${res.status})` } as unknown as T
+        // Try to extract error message from response body
+        let errorMessage = ''
+        try {
+          const contentType = res.headers.get('content-type') || ''
+          if (contentType.includes('application/json')) {
+            const errorBody = await res.json()
+            if (errorBody && typeof errorBody === 'object') {
+              if (typeof errorBody.error === 'string' && errorBody.error.trim()) {
+                errorMessage = errorBody.error
+              } else if (typeof errorBody.message === 'string' && errorBody.message.trim()) {
+                errorMessage = errorBody.message
+              }
+            }
+          }
+        } catch {
+          // Ignore parsing errors
+        }
+        if (!errorMessage) {
+          const prefix = res.status >= 500 ? 'Server error' : 'Request failed'
+          errorMessage = `${prefix} (${res.status})`
+        }
+        return { ok: false, error: errorMessage } as unknown as T
       }
 
       return await res.json()
     } catch (error) {
+      // Always clear timeout to prevent leaks
+      if (timeoutId) clearTimeout(timeoutId)
+
       // Handle timeout specifically
       if (error instanceof Error && error.name === 'AbortError') {
         if (attempt < maxAttempts) {
