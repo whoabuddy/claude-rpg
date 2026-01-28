@@ -1,6 +1,6 @@
 {
   "name": "claude-rpg",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Mobile-first companion for Claude Code with RPG progression",
   "type": "module",
   "bin": {
