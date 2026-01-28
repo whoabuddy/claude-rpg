@@ -213,6 +213,7 @@ function awardXP(companion: Companion, amount: number, type: string, description
 
   return {
     companionId: companion.id,
+    companionName: companion.name,
     amount,
     type,
     description,
