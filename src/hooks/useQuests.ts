@@ -56,11 +56,40 @@ export function useQuests() {
       setQuests(e.detail)
     }
 
+    const handleQuestXP = (e: CustomEvent<{ questId: string; phaseId: string; xp: number; reason: string }>) => {
+      const { questId, phaseId, xp } = e.detail
+      setQuests(prev => {
+        const idx = prev.findIndex(q => q.id === questId)
+        if (idx < 0) return prev
+
+        const next = [...prev]
+        const quest = { ...next[idx] }
+
+        // Update phase XP
+        const phaseIdx = quest.phases.findIndex(p => p.id === phaseId)
+        if (phaseIdx >= 0) {
+          quest.phases = [...quest.phases]
+          quest.phases[phaseIdx] = {
+            ...quest.phases[phaseIdx],
+            xpEarned: (quest.phases[phaseIdx].xpEarned || 0) + xp,
+          }
+        }
+
+        // Update quest total XP
+        quest.xpEarned = (quest.xpEarned || 0) + xp
+
+        next[idx] = quest
+        return next
+      })
+    }
+
     window.addEventListener('quest_update', handleQuestUpdate as EventListener)
     window.addEventListener('quests_init', handleQuestsInit as EventListener)
+    window.addEventListener('quest_xp', handleQuestXP as EventListener)
     return () => {
       window.removeEventListener('quest_update', handleQuestUpdate as EventListener)
       window.removeEventListener('quests_init', handleQuestsInit as EventListener)
+      window.removeEventListener('quest_xp', handleQuestXP as EventListener)
     }
   }, [])
 

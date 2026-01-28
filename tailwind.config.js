@@ -57,6 +57,7 @@ export default {
         'xp-gain': 'xpGain 0.6s ease-out',
         'level-up': 'levelUp 1s ease-out',
         'glow-pulse': 'glowPulse 2s ease-in-out infinite',
+        'glow': 'glow 2s ease-in-out infinite',
       },
       keyframes: {
         xpGain: {
@@ -71,6 +72,10 @@ export default {
         glowPulse: {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.6' },
+        },
+        glow: {
+          '0%, 100%': { boxShadow: '0 0 5px rgba(74, 222, 128, 0.5), 0 0 10px rgba(74, 222, 128, 0.3)' },
+          '50%': { boxShadow: '0 0 10px rgba(74, 222, 128, 0.7), 0 0 20px rgba(74, 222, 128, 0.5)' },
         },
       },
     },

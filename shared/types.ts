@@ -413,6 +413,8 @@ export interface QuestPhase {
   gaps?: string[]              // From verifier diagnosis
   startedAt?: number
   completedAt?: number
+  xpEarned?: number            // XP earned in this phase
+  achievements?: string[]      // Achievement IDs unlocked
 }
 
 export interface Quest {
@@ -424,6 +426,11 @@ export interface Quest {
   status: QuestStatus
   createdAt: number
   completedAt?: number
+  // Summary stats (aggregated from phase execution)
+  xpEarned?: number            // Total XP earned across all phases
+  commits?: number             // Total commits made
+  testsRun?: number            // Total test runs
+  toolsUsed?: Record<string, number>  // Tool name -> count
 }
 
 export type QuestEventType =
