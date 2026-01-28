@@ -274,6 +274,10 @@ function handlePhaseVerified(quests: Quest[], event: PhaseVerifiedPayload): Ques
   if (allCompleted) {
     quest.status = 'completed'
     quest.completedAt = Date.now()
+
+    // Finalize and persist summary
+    computeQuestSummary(quest)
+    finalizeQuestSummary(quest.id)
   }
 
   return quest
@@ -297,7 +301,80 @@ function handleQuestCompleted(quests: Quest[], event: QuestCompletedPayload): Qu
 
   quest.status = 'completed'
   quest.completedAt = Date.now()
+
+  // Finalize and persist summary
+  computeQuestSummary(quest)
+  finalizeQuestSummary(quest.id)
+
   return quest
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Quest Summary Computation
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface QuestSummary {
+  xpEarned: number
+  commits: number
+  testsRun: number
+  toolsUsed: Record<string, number>
+}
+
+// In-memory accumulator for quest summaries (not persisted until completion)
+const questSummaries = new Map<string, QuestSummary>()
+
+function initQuestSummary(questId: string): QuestSummary {
+  const summary: QuestSummary = {
+    xpEarned: 0,
+    commits: 0,
+    testsRun: 0,
+    toolsUsed: {},
+  }
+  questSummaries.set(questId, summary)
+  return summary
+}
+
+export function getQuestSummary(questId: string): QuestSummary {
+  return questSummaries.get(questId) || initQuestSummary(questId)
+}
+
+export function updateQuestSummary(questId: string, updates: Partial<QuestSummary>): QuestSummary {
+  const summary = getQuestSummary(questId)
+
+  if (updates.xpEarned !== undefined) {
+    summary.xpEarned += updates.xpEarned
+  }
+  if (updates.commits !== undefined) {
+    summary.commits += updates.commits
+  }
+  if (updates.testsRun !== undefined) {
+    summary.testsRun += updates.testsRun
+  }
+  if (updates.toolsUsed) {
+    for (const [tool, count] of Object.entries(updates.toolsUsed)) {
+      summary.toolsUsed[tool] = (summary.toolsUsed[tool] || 0) + count
+    }
+  }
+
+  questSummaries.set(questId, summary)
+  return summary
+}
+
+export function computeQuestSummary(quest: Quest): Quest {
+  const summary = getQuestSummary(quest.id)
+
+  // Attach summary to quest object
+  quest.xpEarned = summary.xpEarned
+  quest.commits = summary.commits
+  quest.testsRun = summary.testsRun
+  quest.toolsUsed = { ...summary.toolsUsed }
+
+  return quest
+}
+
+export function finalizeQuestSummary(questId: string): void {
+  // Remove from in-memory tracker after quest completes (summary persisted to quest object)
+  questSummaries.delete(questId)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

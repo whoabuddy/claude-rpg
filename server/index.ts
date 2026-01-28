@@ -29,7 +29,7 @@ import { processEvent, detectCommandXP, processQuestXP } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName, sanitizeSvgPaths } from './companions.js'
 import { getAllCompetitions, updateStreak } from './competitions.js'
 import { checkAchievements, getAchievementDef } from './achievements.js'
-import { loadQuests, saveQuests, processQuestEvent, isQuestEvent, type QuestEventPayload } from './quests.js'
+import { loadQuests, saveQuests, processQuestEvent, isQuestEvent, type QuestEventPayload, getQuestForRepo, updateQuestSummary, computeQuestSummary } from './quests.js'
 import {
   pollTmuxState,
   updateClaudeSession,
@@ -520,12 +520,6 @@ function handleQuestEvent(event: QuestEventPayload) {
     return
   }
 
-  // Save quests to disk
-  saveQuests(DATA_DIR, quests)
-
-  // Broadcast quest update to all clients
-  broadcast({ type: 'quest_update', payload: updatedQuest } as ServerMessage)
-
   // Award quest XP to companions for repos involved in this quest
   if (updatedQuest.repos.length > 0) {
     for (const repoName of updatedQuest.repos) {
@@ -538,6 +532,9 @@ function handleQuestEvent(event: QuestEventPayload) {
 
         const xpGain = processQuestXP(companion, event)
         if (xpGain) {
+          // Track XP in quest summary
+          updateQuestSummary(updatedQuest.id, { xpEarned: xpGain.amount })
+
           saveCompanions(DATA_DIR, companions)
           broadcast({ type: 'companion_update', payload: companion } as ServerMessage)
           broadcast({ type: 'xp_gain', payload: xpGain } as ServerMessage)
@@ -554,6 +551,15 @@ function handleQuestEvent(event: QuestEventPayload) {
       }
     }
   }
+
+  // Compute and attach summary before broadcasting
+  computeQuestSummary(updatedQuest)
+
+  // Save quests to disk
+  saveQuests(DATA_DIR, quests)
+
+  // Broadcast quest update to all clients with computed summary
+  broadcast({ type: 'quest_update', payload: updatedQuest } as ServerMessage)
 
   console.log(`[claude-rpg] Quest event: ${event.type} for quest "${updatedQuest.name}"`)
 }
@@ -957,6 +963,37 @@ async function handleEvent(rawEvent: RawHookEvent) {
           broadcast({ type: 'xp_gain', payload: xpGain })
           // Update competitions leaderboard when XP changes (use full event history)
           broadcast({ type: 'competitions', payload: getAllCompetitions(companions, getAllEventsFromFile()) })
+        }
+
+        // Track quest activity for active quests involving this companion's repo
+        const activeQuest = getQuestForRepo(quests, companion.repo.name)
+        if (activeQuest && activeQuest.status === 'active') {
+          // Track tool usage
+          if (event.type === 'post_tool_use') {
+            const postEvent = event as import('../shared/types.js').PostToolUseEvent
+            if (postEvent.tool && postEvent.success) {
+              updateQuestSummary(activeQuest.id, {
+                toolsUsed: { [postEvent.tool]: 1 },
+              })
+            }
+          }
+
+          // Track git commits
+          if (xpGain.type.startsWith('git.commit')) {
+            updateQuestSummary(activeQuest.id, { commits: 1 })
+          }
+
+          // Track test runs
+          if (xpGain.type === 'commands.test' || xpGain.type === 'blockchain.test') {
+            updateQuestSummary(activeQuest.id, { testsRun: 1 })
+          }
+
+          // Compute and broadcast updated quest summary
+          if (!isLoadingHistoricalEvents) {
+            computeQuestSummary(activeQuest)
+            saveQuests(DATA_DIR, quests)
+            broadcast({ type: 'quest_update', payload: activeQuest } as ServerMessage)
+          }
         }
 
         // Also update session stats if we have an active session
