@@ -26,7 +26,7 @@ import type {
 import { parseTerminalForPrompt, hasPromptChanged, parseTokenCount } from './terminal-parser.js'
 import { reconcileSessionState } from './state-reconciler.js'
 import { processEvent, detectCommandXP, processQuestXP } from './xp.js'
-import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName } from './companions.js'
+import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName, sanitizeSvgPaths } from './companions.js'
 import { getAllCompetitions, updateStreak } from './competitions.js'
 import { checkAchievements, getAchievementDef } from './achievements.js'
 import { loadQuests, saveQuests, processQuestEvent, isQuestEvent, type QuestEventPayload } from './quests.js'
@@ -127,7 +127,12 @@ function loadPanesCache(): void {
     if (data.sessions && typeof data.sessions === 'object') {
       const cache = new Map<string, ClaudeSessionInfo>()
       for (const [paneId, session] of Object.entries(data.sessions)) {
-        cache.set(paneId, session as ClaudeSessionInfo)
+        const sessionInfo = session as ClaudeSessionInfo
+        // Sanitize any existing cached avatar SVGs to remove malformed path commands
+        if (sessionInfo.avatarSvg) {
+          sessionInfo.avatarSvg = sanitizeSvgPaths(sessionInfo.avatarSvg)
+        }
+        cache.set(paneId, sessionInfo)
       }
       setSessionCache(cache)
     }
