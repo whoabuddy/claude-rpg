@@ -42,6 +42,19 @@ export interface EventsState {
   recentXPGains: XPGain[]
 }
 
+// Toast types for notification system
+export interface Toast {
+  id: string
+  type: 'error' | 'xp' | 'quest_xp' | 'achievement' | 'info'
+  title: string
+  body?: string
+  timestamp: number
+}
+
+export interface ToastsState {
+  toasts: Toast[]
+}
+
 export interface ConnectionState {
   status: 'connecting' | 'connected' | 'disconnected'
   lastConnected: number | null
@@ -63,6 +76,7 @@ export interface AppState extends
   CompetitionsState,
   WorkersState,
   EventsState,
+  ToastsState,
   ConnectionState,
   UIState {
   // Actions - Panes
@@ -89,6 +103,11 @@ export interface AppState extends
   addEvent: (event: ClaudeEvent) => void
   addXPGain: (xpGain: XPGain) => void
   setEventHistory: (events: ClaudeEvent[]) => void
+
+  // Actions - Toasts
+  addToast: (toast: Omit<Toast, 'id' | 'timestamp'>) => void
+  removeToast: (id: string) => void
+  clearExpiredToasts: () => void
 
   // Actions - Connection
   setConnectionStatus: (status: ConnectionState['status']) => void
@@ -131,6 +150,9 @@ export const useStore = create<AppState>()(
       // Initial state - Events
       recentEvents: [],
       recentXPGains: [],
+
+      // Initial state - Toasts
+      toasts: [],
 
       // Initial state - Connection
       status: 'disconnected',
@@ -240,6 +262,26 @@ export const useStore = create<AppState>()(
       setEventHistory: (events) => set({
         recentEvents: events.slice(0, MAX_EVENTS)
       }, false, 'setEventHistory'),
+
+      // ═════════════════════════════════════════════════════════════════════
+      // TOAST ACTIONS
+      // ═════════════════════════════════════════════════════════════════════
+
+      addToast: (toast) => set((state) => {
+        const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        const newToast = { ...toast, id, timestamp: Date.now() }
+        return { toasts: [...state.toasts, newToast].slice(-5) } // Max 5 toasts
+      }, false, 'addToast'),
+
+      removeToast: (id) => set((state) => ({
+        toasts: state.toasts.filter(t => t.id !== id)
+      }), false, 'removeToast'),
+
+      clearExpiredToasts: () => set((state) => {
+        const now = Date.now()
+        const TOAST_DURATION = 4000
+        return { toasts: state.toasts.filter(t => now - t.timestamp < TOAST_DURATION) }
+      }, false, 'clearExpiredToasts'),
 
       // ═════════════════════════════════════════════════════════════════════
       // CONNECTION ACTIONS

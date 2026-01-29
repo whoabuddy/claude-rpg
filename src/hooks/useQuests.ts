@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from 'react'
 import { useStore } from '../store'
+import { fetchInitialData } from '../lib/api'
 import type { Quest, QuestStatus } from '@shared/types'
 
 const API_URL = ''  // Same origin, proxied by Vite in dev
@@ -46,16 +47,7 @@ export function useQuests() {
 
   // Fetch quests on mount (initial load before WebSocket connects)
   useEffect(() => {
-    fetch(`${API_URL}/api/quests`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.ok && data.data) {
-          setQuests(data.data)
-        }
-      })
-      .catch(e => {
-        console.error('[claude-rpg] Error fetching quests:', e)
-      })
+    fetchInitialData<Quest[]>('quests', setQuests)
   }, [setQuests])
 
   // Active quests

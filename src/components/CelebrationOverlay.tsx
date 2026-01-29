@@ -11,7 +11,11 @@ interface Celebration {
 const CELEBRATION_DURATION = 3000
 
 /**
- * Full-screen celebration overlay for major events
+ * Full-screen celebration overlay for major events.
+ *
+ * NOTE: This component is prepared for future events (level_up, streak_milestone)
+ * that will be dispatched when companion progression is fully implemented.
+ * Currently, achievements go through the toast system instead.
  */
 export const CelebrationOverlay = memo(function CelebrationOverlay() {
   const [celebration, setCelebration] = useState<Celebration | null>(null)
@@ -25,58 +29,21 @@ export const CelebrationOverlay = memo(function CelebrationOverlay() {
     }, 300)
   }, [])
 
-  // Listen for level_up events
-  useEffect(() => {
-    const handleLevelUp = (e: CustomEvent<{
-      companionId: string
-      companionName: string
-      newLevel: number
-      totalXP: number
-    }>) => {
-      setCelebration({
-        id: `levelup-${e.detail.companionId}-${e.detail.newLevel}`,
-        type: 'level_up',
-        title: `Level ${e.detail.newLevel}!`,
-        subtitle: e.detail.companionName,
-        icon: '⚔',
-      })
-    }
-
-    window.addEventListener('level_up', handleLevelUp as EventListener)
-    return () => window.removeEventListener('level_up', handleLevelUp as EventListener)
-  }, [])
-
-  // Listen for streak milestone events
-  useEffect(() => {
-    const handleStreak = (e: CustomEvent<{
-      companionId: string
-      companionName: string
-      streakDays: number
-    }>) => {
-      // Only celebrate milestones: 3, 7, 14, 30, etc
-      const days = e.detail.streakDays
-      const isMilestone = days === 3 || days === 7 || days === 14 || days === 30 || days % 30 === 0
-      if (isMilestone) {
-        setCelebration({
-          id: `streak-${e.detail.companionId}-${days}`,
-          type: 'streak',
-          title: `${days} Day Streak!`,
-          subtitle: e.detail.companionName,
-          icon: '🔥',
-        })
-      }
-    }
-
-    window.addEventListener('streak_milestone', handleStreak as EventListener)
-    return () => window.removeEventListener('streak_milestone', handleStreak as EventListener)
-  }, [])
-
   // Auto-dismiss after duration
   useEffect(() => {
     if (!celebration) return
     const timer = setTimeout(dismiss, CELEBRATION_DURATION)
     return () => clearTimeout(timer)
   }, [celebration, dismiss])
+
+  // Expose trigger for future use (can be called from store subscription)
+  useEffect(() => {
+    const showCelebration = (e: CustomEvent<Celebration>) => {
+      setCelebration(e.detail)
+    }
+    window.addEventListener('show_celebration', showCelebration as EventListener)
+    return () => window.removeEventListener('show_celebration', showCelebration as EventListener)
+  }, [])
 
   if (!celebration) return null
 
@@ -169,51 +136,6 @@ function StreakParticles() {
 }
 
 /**
- * Floating XP number that appears when XP is gained
+ * Floating XP indicator component - removed as XP notifications now go through toasts.
+ * The FloatingXP component was listening for xp_float events that were never dispatched.
  */
-export const FloatingXP = memo(function FloatingXP() {
-  const [xpGains, setXpGains] = useState<Array<{ id: number; amount: number; x: number; y: number }>>([])
-  const counterRef = { current: 0 }
-
-  useEffect(() => {
-    const handleXP = (e: CustomEvent<{ amount: number; x?: number; y?: number }>) => {
-      const id = ++counterRef.current
-      setXpGains(prev => [
-        ...prev.slice(-5), // Keep max 5
-        {
-          id,
-          amount: e.detail.amount,
-          x: e.detail.x ?? 50 + Math.random() * 20 - 10,
-          y: e.detail.y ?? 50,
-        },
-      ])
-
-      // Auto-remove after animation
-      setTimeout(() => {
-        setXpGains(prev => prev.filter(xp => xp.id !== id))
-      }, 1000)
-    }
-
-    window.addEventListener('xp_float', handleXP as EventListener)
-    return () => window.removeEventListener('xp_float', handleXP as EventListener)
-  }, [])
-
-  if (xpGains.length === 0) return null
-
-  return (
-    <div className="fixed inset-0 pointer-events-none z-40">
-      {xpGains.map(xp => (
-        <div
-          key={xp.id}
-          className="absolute animate-xp-gain text-rpg-xp font-bold text-xl drop-shadow-lg"
-          style={{
-            left: `${xp.x}%`,
-            top: `${xp.y}%`,
-          }}
-        >
-          +{xp.amount}
-        </div>
-      ))}
-    </div>
-  )
-})

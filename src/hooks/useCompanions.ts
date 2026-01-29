@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store'
+import { fetchInitialData } from '../lib/api'
 import type { Companion } from '@shared/types'
-
-const API_URL = ''  // Same origin, proxied by Vite in dev
 
 /**
  * Hook to access companions from the Zustand store.
@@ -15,18 +14,13 @@ export function useCompanions() {
 
   // Fetch companions on mount (initial load before WebSocket connects)
   useEffect(() => {
-    fetch(`${API_URL}/api/companions`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.ok && data.data) {
-          setCompanions(data.data)
-          // Select first companion if none selected
-          if (data.data.length > 0 && !selectedId) {
-            setSelectedId(data.data[0].id)
-          }
-        }
-      })
-      .catch(e => console.error('[claude-rpg] Error fetching companions:', e))
+    fetchInitialData<Companion[]>('companions', (data) => {
+      setCompanions(data)
+      // Select first companion if none selected
+      if (data.length > 0 && !selectedId) {
+        setSelectedId(data[0].id)
+      }
+    })
   }, [setCompanions])
 
   return { companions, selectedId, setSelectedId }

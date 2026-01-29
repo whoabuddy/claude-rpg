@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo, memo } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../store'
 import { levelFromTotalXP } from '../../shared/types'
@@ -13,18 +13,21 @@ export default function ProjectsPage() {
   const companions = useStore((state) => state.companions)
   const [sortBy, setSortBy] = useState<SortBy>('activity')
 
-  // Sort companions
-  const sortedCompanions = [...companions].sort((a, b) => {
-    switch (sortBy) {
-      case 'level':
-        return b.totalExperience - a.totalExperience
-      case 'name':
-        return a.name.localeCompare(b.name)
-      case 'activity':
-      default:
-        return b.lastActivity - a.lastActivity
-    }
-  })
+  // Sort companions with memoization
+  const sortedCompanions = useMemo(() =>
+    [...companions].sort((a, b) => {
+      switch (sortBy) {
+        case 'level':
+          return b.totalExperience - a.totalExperience
+        case 'name':
+          return a.name.localeCompare(b.name)
+        case 'activity':
+        default:
+          return b.lastActivity - a.lastActivity
+      }
+    }),
+    [companions, sortBy]
+  )
 
   return (
     <div className="p-4 space-y-6">
@@ -70,7 +73,7 @@ interface ProjectCardProps {
   companion: Companion
 }
 
-function ProjectCard({ companion }: ProjectCardProps) {
+const ProjectCard = memo(function ProjectCard({ companion }: ProjectCardProps) {
   const { level, currentXP, nextLevelXP } = levelFromTotalXP(companion.totalExperience)
   const xpProgress = (currentXP / nextLevelXP) * 100
 
@@ -116,4 +119,4 @@ function ProjectCard({ companion }: ProjectCardProps) {
       </p>
     </Link>
   )
-}
+})

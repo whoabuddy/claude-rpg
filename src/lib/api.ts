@@ -6,6 +6,26 @@
 const API_URL = '' // Same origin, proxied by Vite in dev
 
 /**
+ * Fetch initial data and populate Zustand store.
+ * Shared pattern used by hooks on mount before WebSocket connects.
+ */
+export function fetchInitialData<T>(
+  endpoint: string,
+  setter: (data: T) => void,
+): void {
+  fetch(`${API_URL}/api/${endpoint}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.ok && data.data) {
+        setter(data.data)
+      }
+    })
+    .catch(e => {
+      console.error(`[claude-rpg] Error fetching ${endpoint}:`, e)
+    })
+}
+
+/**
  * Generic POST helper with retry logic and better error messages
  */
 export async function apiPost<T extends { ok: boolean }>(

@@ -7,6 +7,7 @@ import { usePaneActions } from '../contexts/PaneActionsContext'
 import { ActionButton } from './ActionButton'
 import { closeWindow } from '../lib/api'
 import { useConfirmAction } from '../hooks/useConfirmAction'
+import { STATUS_LABELS, getStatusDotClass } from '../constants/status'
 
 // Maximum panes per window (must match server constant)
 const MAX_PANES_PER_WINDOW = 4
@@ -439,21 +440,6 @@ interface WorkersSummaryProps {
   onExpandPane: (paneId: string) => void
 }
 
-const STATUS_DOT: Record<string, string> = {
-  idle: 'bg-rpg-idle',
-  typing: 'bg-rpg-accent',
-  working: 'bg-yellow-400 animate-pulse',
-  waiting: 'bg-rpg-waiting animate-pulse',
-  error: 'bg-rpg-error',
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  idle: 'Ready',
-  typing: 'Active',
-  working: 'Working',
-  waiting: 'Waiting',
-  error: 'Error',
-}
 
 function WorkersSummary({ windows, onExpandPane }: WorkersSummaryProps) {
   const [collapsed, setCollapsed] = useState(false)
@@ -525,7 +511,7 @@ function WorkersSummary({ windows, onExpandPane }: WorkersSummaryProps) {
                   className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-rpg-card-hover transition-colors text-left"
                 >
                   {/* Status dot */}
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[status] || 'bg-rpg-text-dim'}`} />
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDotClass(status)}`} />
                   {/* Name */}
                   <span className="text-sm text-rpg-text font-medium truncate w-16 flex-shrink-0">
                     {session.name}
@@ -536,7 +522,7 @@ function WorkersSummary({ windows, onExpandPane }: WorkersSummaryProps) {
                   </span>
                   {/* Activity */}
                   <span className="text-xs text-rpg-text-dim truncate flex-1 min-w-0">
-                    {activity || STATUS_LABEL[status] || 'Ready'}
+                    {activity || STATUS_LABELS[status] || 'Ready'}
                   </span>
                   {/* Subagent badge */}
                   {(session.activeSubagents?.length || 0) > 0 && (

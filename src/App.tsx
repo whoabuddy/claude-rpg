@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, type LazyExoticComponent, type ComponentType } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useConnection } from './hooks/useConnection'
 import { Layout } from './components/Layout'
@@ -22,6 +22,15 @@ function PageLoader() {
   )
 }
 
+// Helper to reduce Suspense boilerplate
+function LazyRoute({ component: Component }: { component: LazyExoticComponent<ComponentType<unknown>> }) {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Component />
+    </Suspense>
+  )
+}
+
 export default function App() {
   // Initialize WebSocket connection at app root
   useConnection()
@@ -30,70 +39,14 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route
-            index
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <DashboardPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="personas"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <PersonasPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="projects"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <ProjectsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="projects/:id"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <ProjectDetailPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="quests"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <QuestsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="leaderboard"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <LeaderboardPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="settings"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <SettingsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="*"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <NotFoundPage />
-              </Suspense>
-            }
-          />
+          <Route index element={<LazyRoute component={DashboardPage} />} />
+          <Route path="personas" element={<LazyRoute component={PersonasPage} />} />
+          <Route path="projects" element={<LazyRoute component={ProjectsPage} />} />
+          <Route path="projects/:id" element={<LazyRoute component={ProjectDetailPage} />} />
+          <Route path="quests" element={<LazyRoute component={QuestsPage} />} />
+          <Route path="leaderboard" element={<LazyRoute component={LeaderboardPage} />} />
+          <Route path="settings" element={<LazyRoute component={SettingsPage} />} />
+          <Route path="*" element={<LazyRoute component={NotFoundPage} />} />
         </Route>
       </Routes>
     </BrowserRouter>

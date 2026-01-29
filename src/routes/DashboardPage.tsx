@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { useConnection } from '../hooks/useConnection'
+import { useConnectionStatus } from '../hooks/useConnection'
 import { initTerminalCache } from '../hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from '../hooks/useNotifications'
 import { PaneActionsProvider, type PaneActionsContextValue } from '../contexts/PaneActionsContext'
@@ -20,7 +20,7 @@ import {
 
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const { connected, reconnectAttempt, forceReconnect } = useConnection()
+  const { connected, reconnectAttempt, forceReconnect } = useConnectionStatus()
 
   const windows = useStore((state) => state.windows)
   const attentionPanes = useStore((state) =>

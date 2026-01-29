@@ -123,20 +123,38 @@ function handleMessage(event: MessageEvent): void {
         store.setEventHistory(message.payload)
         break
 
-      // Achievement unlocked - dispatch as event for toast notifications
-      case 'achievement_unlocked':
-        window.dispatchEvent(new CustomEvent('achievement_unlocked', { detail: message.payload }))
+      // Achievement unlocked - add toast
+      case 'achievement_unlocked': {
+        const ach = message.payload as { achievementName: string; achievementIcon: string; companionName: string }
+        store.addToast({
+          type: 'achievement',
+          title: `${ach.achievementIcon} ${ach.achievementName}`,
+          body: `Unlocked for ${ach.companionName}`,
+        })
         break
+      }
 
-      // Pane error - dispatch for toast
-      case 'pane_error':
-        window.dispatchEvent(new CustomEvent('pane_error', { detail: message.payload }))
+      // Pane error - add toast
+      case 'pane_error': {
+        const err = message.payload as { message: string }
+        store.addToast({
+          type: 'error',
+          title: 'Pane Error',
+          body: err.message,
+        })
         break
+      }
 
-      // Quest XP - dispatch for toast
-      case 'quest_xp':
-        window.dispatchEvent(new CustomEvent('quest_xp', { detail: message.payload }))
+      // Quest XP - add toast
+      case 'quest_xp': {
+        const qxp = message.payload as { xp: number; reason: string; phaseId: string }
+        store.addToast({
+          type: 'quest_xp',
+          title: `+${qxp.xp} Quest XP`,
+          body: qxp.reason || qxp.phaseId,
+        })
         break
+      }
     }
   } catch (e) {
     console.error('[claude-rpg] Error parsing message:', e)

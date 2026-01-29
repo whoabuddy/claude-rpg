@@ -1,8 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useStore } from '../store'
+import { fetchInitialData } from '../lib/api'
 import type { Competition, TimePeriod } from '@shared/types'
-
-const API_URL = ''  // Same origin, proxied by Vite in dev
 
 /**
  * Hook to access competitions from the Zustand store.
@@ -14,16 +13,7 @@ export function useCompetitions(period: TimePeriod = 'all') {
 
   // Fetch competitions on mount (initial load before WebSocket connects)
   useEffect(() => {
-    fetch(`${API_URL}/api/competitions`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.ok && data.data) {
-          setCompetitions(data.data)
-        }
-      })
-      .catch(e => {
-        console.error('[claude-rpg] Error fetching competitions:', e)
-      })
+    fetchInitialData<Competition[]>('competitions', setCompetitions)
   }, [setCompetitions])
 
   // Filter competitions by period
