@@ -103,14 +103,31 @@ export function NoteCard({ note, onStatusChange, onDelete, onCreateIssue }: Note
       {/* Tags */}
       {note.tags.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">
-          {note.tags.map((tag) => (
-            <span
-              key={tag}
-              className="px-2 py-0.5 text-xs bg-rpg-accent/20 text-rpg-accent rounded"
-            >
-              {tag}
-            </span>
-          ))}
+          {note.tags.map((tag) => {
+            // Render issue URLs as clickable links
+            if (tag.startsWith('issue:')) {
+              const url = tag.slice(6)
+              return (
+                <a
+                  key={tag}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-0.5 text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 rounded underline"
+                >
+                  GitHub Issue
+                </a>
+              )
+            }
+            return (
+              <span
+                key={tag}
+                className="px-2 py-0.5 text-xs bg-rpg-accent/20 text-rpg-accent rounded"
+              >
+                {tag}
+              </span>
+            )
+          })}
         </div>
       )}
 
