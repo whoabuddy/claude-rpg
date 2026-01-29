@@ -58,8 +58,14 @@ claude-rpg/
 │   └── utils.ts          # Shared utilities (stripAnsi, findWindowById)
 ├── src/                  # React frontend
 │   ├── App.tsx           # Root component, page routing
+│   ├── store/            # Zustand state management
+│   │   └── index.ts      # Centralized store with slices and selectors
+│   ├── lib/              # Core modules
+│   │   ├── websocket.ts  # WebSocket client, direct store updates
+│   │   └── api.ts        # HTTP API client (pane/window actions)
 │   ├── components/       # UI components (PaneCard, Dashboard, BackendSelector, etc.)
-│   ├── hooks/            # React hooks (useWebSocket, useWindows, useNotifications)
+│   ├── hooks/            # React hooks (useConnection, useCompanions, useNotifications)
+│   ├── contexts/         # React contexts (PaneActionsContext)
 │   └── styles/           # Tailwind CSS
 ├── shared/
 │   └── types.ts          # All TypeScript interfaces (shared between server + client)
@@ -85,7 +91,34 @@ claude-rpg/
 8. State reconciler cross-checks hook-reported status against terminal state
 9. Server calculates XP and updates companion stats
 10. WebSocket broadcasts updates with backpressure (priority-based message dropping)
-11. React UI renders panes grouped by window, with disconnection banner when offline
+11. Client WebSocket module (`src/lib/websocket.ts`) updates Zustand store directly
+12. React components use store selectors for reactive updates
+
+## Client State Management
+
+The client uses **Zustand** for centralized state management:
+
+```
+WebSocket Message → src/lib/websocket.ts → Zustand Store → React Components
+                    handleMessage()        store.setWindows()    useStore()
+```
+
+**Store slices** (`src/store/index.ts`):
+- `windows` - Tmux windows and panes (from WebSocket)
+- `companions` - Projects with XP/stats (from WebSocket)
+- `quests` - Active and completed quests
+- `competitions` - Leaderboards by category/period
+- `workers` - Claude session metadata
+- `recentEvents` / `recentXPGains` - Event history
+- `status` / `reconnectAttempt` - Connection state
+- UI state: `selectedPaneId`, `fullScreenPaneId`, `activePage`
+
+**Selector hooks** (memoized, prevent unnecessary re-renders):
+- `useClaudePanes()` - All Claude panes across windows
+- `useAttentionPanes()` - Panes needing user input (waiting/error)
+- `useCompanion(id)` - Single companion by ID
+- `useActiveQuests()` - Quests with status='active'
+- `useTerminalContent(paneId)` - Cached terminal output
 
 ## Claude Code Integration
 

@@ -5,7 +5,7 @@ import { ConnectionBanner } from './ConnectionStatus'
 import { StatusPill } from './StatusPill'
 import { usePaneActions } from '../contexts/PaneActionsContext'
 import { ActionButton } from './ActionButton'
-import { closeWindow } from '../hooks/useWindows'
+import { closeWindow } from '../lib/api'
 import { useConfirmAction } from '../hooks/useConfirmAction'
 
 // Maximum panes per window (must match server constant)

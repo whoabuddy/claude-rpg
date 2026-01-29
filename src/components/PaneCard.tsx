@@ -1,6 +1,6 @@
 import { useState, useRef, memo, useCallback } from 'react'
 import type { TmuxPane, TmuxWindow } from '@shared/types'
-import { sendPromptToPane, sendArrowKey } from '../hooks/useWindows'
+import { sendPromptToPane, sendArrowKey } from '../lib/api'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { useConfirmAction } from '../hooks/useConfirmAction'
 import { useQuests } from '../hooks/useQuests'
