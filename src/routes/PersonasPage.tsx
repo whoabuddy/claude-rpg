@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useClaudePanes } from '../store'
+import { useState, useMemo } from 'react'
+import { useStore } from '../store'
 import { PaneAvatar } from '../components/PaneAvatar'
 import { StatusPill } from '../components/StatusPill'
 import type { TmuxPane } from '../../shared/types'
@@ -10,7 +10,12 @@ type Filter = 'all' | 'active' | 'idle'
  * Personas page - shows all Claude sessions as characters
  */
 export default function PersonasPage() {
-  const claudePanes = useClaudePanes()
+  const windows = useStore((state) => state.windows)
+  // Derive claudePanes using useMemo to avoid infinite loop
+  const claudePanes = useMemo(() =>
+    windows.flatMap(w => w.panes.filter(p => p.process.type === 'claude')),
+    [windows]
+  )
   const [filter, setFilter] = useState<Filter>('all')
 
   // Filter panes

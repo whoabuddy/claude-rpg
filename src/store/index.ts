@@ -313,13 +313,28 @@ export const useStore = create<AppState>()(
 // ═══════════════════════════════════════════════════════════════════════════
 // SELECTOR HOOKS
 // ═══════════════════════════════════════════════════════════════════════════
+//
+// WARNING: Selectors that return new arrays/objects cause infinite loops with
+// React 18's useSyncExternalStore. Instead of using these deprecated selectors,
+// get `windows` from the store and derive values with useMemo in your component:
+//
+//   const windows = useStore((state) => state.windows)
+//   const claudePanes = useMemo(() =>
+//     windows.flatMap(w => w.panes.filter(p => p.process.type === 'claude')),
+//     [windows]
+//   )
+//
 
-// Get all Claude panes across all windows
+/**
+ * @deprecated Creates new array on each render - use useMemo pattern instead
+ */
 export const useClaudePanes = () => useStore((state) =>
   state.windows.flatMap(w => w.panes.filter(p => p.process.type === 'claude'))
 )
 
-// Get panes that need attention (waiting status)
+/**
+ * @deprecated Creates new array on each render - use useMemo pattern instead
+ */
 export const useAttentionPanes = () => useStore((state) =>
   state.windows.flatMap(w => w.panes.filter(p =>
     p.process.type === 'claude' &&
@@ -327,18 +342,20 @@ export const useAttentionPanes = () => useStore((state) =>
   ))
 )
 
-// Get companion by ID
+// Get companion by ID (safe - returns same reference if found)
 export const useCompanion = (id: string) => useStore((state) =>
   state.companions.find(c => c.id === id)
 )
 
-// Get companion for a pane (by repo path)
+// Get companion for a pane (safe - returns same reference if found)
 export const useCompanionForPane = (pane: TmuxPane | undefined) => useStore((state) => {
   if (!pane?.repo) return undefined
   return state.companions.find(c => c.repo.path === pane.repo?.path)
 })
 
-// Get active quests
+/**
+ * @deprecated Creates new array on each render - use useMemo pattern instead
+ */
 export const useActiveQuests = () => useStore((state) =>
   state.quests.filter(q => q.status === 'active')
 )

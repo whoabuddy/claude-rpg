@@ -23,11 +23,14 @@ export default function DashboardPage() {
   const { connected, reconnectAttempt, forceReconnect } = useConnectionStatus()
 
   const windows = useStore((state) => state.windows)
-  const attentionPanes = useStore((state) =>
-    state.windows.flatMap(w => w.panes).filter(p =>
+  // Derive attentionPanes from windows using useMemo to avoid infinite loop
+  // (selectors that return new arrays cause React 18's useSyncExternalStore to loop)
+  const attentionPanes = useMemo(() =>
+    windows.flatMap(w => w.panes).filter(p =>
       p.process.type === 'claude' &&
       (p.process.claudeSession?.status === 'waiting' || p.process.claudeSession?.status === 'error')
-    )
+    ),
+    [windows]
   )
 
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)

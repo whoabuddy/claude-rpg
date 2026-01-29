@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useStore } from '../store'
 import { useConnectionStatus } from '../hooks/useConnection'
@@ -9,11 +10,14 @@ import { CelebrationOverlay } from './CelebrationOverlay'
  */
 export function Layout() {
   const { connected, reconnectAttempt, forceReconnect } = useConnectionStatus()
-  const attentionCount = useStore((state) =>
-    state.windows.flatMap(w => w.panes).filter(p =>
+  const windows = useStore((state) => state.windows)
+  // Derive attentionCount using useMemo to avoid infinite loop
+  const attentionCount = useMemo(() =>
+    windows.flatMap(w => w.panes).filter(p =>
       p.process.type === 'claude' &&
       (p.process.claudeSession?.status === 'waiting' || p.process.claudeSession?.status === 'error')
-    ).length
+    ).length,
+    [windows]
   )
   const location = useLocation()
 
