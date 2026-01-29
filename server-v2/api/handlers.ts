@@ -357,3 +357,40 @@ export function xpTimeline(query: URLSearchParams): ApiResponse<unknown> {
   const timeline = getXpTimeline(entityType, entityId, days)
   return { success: true, data: { timeline } }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADMIN ENDPOINTS (Stubs for v2 - no dev proxy mode)
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { getConfig } from '../lib/config'
+
+/**
+ * Get backend status (v2 stub - only production mode)
+ * Note: Returns raw format (not ApiResponse) for v1 client compatibility
+ */
+export function adminBackends(): ApiResponse<{ ok: boolean; production: { ok: boolean; port: number }; dev: { ok: boolean; port: number }; activeBackend: string }> {
+  const config = getConfig()
+  return {
+    success: true,
+    data: {
+      ok: true,
+      production: { ok: true, port: config.port },
+      dev: { ok: false, port: 0 },
+      activeBackend: 'production',
+    },
+  }
+}
+
+/**
+ * Switch backend (v2 stub - no-op, always production)
+ */
+export function adminSwitchBackend(): ApiResponse<{ ok: boolean; mode: string; message: string }> {
+  return {
+    success: true,
+    data: {
+      ok: true,
+      mode: 'production',
+      message: 'Dev proxy mode not available in v2',
+    },
+  }
+}

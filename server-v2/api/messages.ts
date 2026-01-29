@@ -2,7 +2,7 @@
  * WebSocket message types and priorities
  */
 
-import type { TmuxState } from '../tmux/types'
+import type { TmuxWindow } from '../tmux/types'
 import type { ClaudeSession } from '../sessions/types'
 import type { Persona } from '../personas/types'
 import type { Project } from '../projects/types'
@@ -21,7 +21,7 @@ export interface ConnectedMessage {
 
 export interface WindowsMessage {
   type: 'windows'
-  state: TmuxState
+  payload: TmuxWindow[]
 }
 
 export interface PaneUpdateMessage {

@@ -45,6 +45,10 @@ export const ROUTES: Route[] = [
   // XP
   { method: 'GET', pattern: '/api/xp/summary', handler: 'xpSummary' },
   { method: 'GET', pattern: '/api/xp/timeline', handler: 'xpTimeline' },
+
+  // Admin (stubs for v2 - no dev proxy mode)
+  { method: 'GET', pattern: '/api/admin/backends', handler: 'adminBackends' },
+  { method: 'POST', pattern: '/api/admin/backend', handler: 'adminSwitchBackend' },
 ]
 
 export interface MatchedRoute {

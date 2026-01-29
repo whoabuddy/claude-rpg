@@ -46,10 +46,10 @@ async function main() {
 
   // Start tmux poller
   startPolling(async (state) => {
-    // Broadcast windows state
+    // Broadcast windows state (client expects TmuxWindow[] in payload)
     broadcast({
       type: 'windows',
-      state,
+      payload: state.windows,
     })
 
     // Emit pane events
