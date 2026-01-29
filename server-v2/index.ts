@@ -9,7 +9,7 @@ import { getConfig } from './lib/config'
 import { logger, createLogger } from './lib/logger'
 import { initShutdown, onShutdown } from './lib/shutdown'
 import { initDatabase } from './db'
-import { eventBus } from './events'
+import { eventBus, initEventHandlers } from './events'
 import { startPolling, stopPolling } from './tmux'
 import { handleRequest, handleCors, isWebSocketUpgrade, wsHandlers, broadcast } from './api'
 import { hasClientBuild, serveStatic, serveSpaFallback } from './api/static'
@@ -32,6 +32,10 @@ async function main() {
   // Initialize database
   const db = initDatabase()
   log.info('Database ready')
+
+  // Initialize event handlers (persona XP, etc.)
+  initEventHandlers()
+  log.info('Event handlers ready')
 
   // Subscribe to events for broadcasts
   eventBus.on('*', async (event) => {
