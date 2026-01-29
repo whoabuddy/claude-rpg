@@ -11,20 +11,23 @@ export const CREATE_TABLES = `
 -- Schema version tracking
 CREATE TABLE IF NOT EXISTS schema_version (
   version INTEGER PRIMARY KEY,
-  applied_at INTEGER NOT NULL
+  applied_at TEXT NOT NULL
 );
 
 -- Personas: Claude sessions with identity
 CREATE TABLE IF NOT EXISTS personas (
   id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
-  avatar_svg TEXT,
+  avatar_url TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
   total_xp INTEGER DEFAULT 0,
   level INTEGER DEFAULT 1,
-  created_at INTEGER NOT NULL,
-  last_seen_at INTEGER NOT NULL
+  created_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_personas_session_id ON personas(session_id);
 CREATE INDEX IF NOT EXISTS idx_personas_name ON personas(name);
 CREATE INDEX IF NOT EXISTS idx_personas_last_seen ON personas(last_seen_at);
 
@@ -34,10 +37,11 @@ CREATE TABLE IF NOT EXISTS projects (
   path TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   github_url TEXT,
+  project_class TEXT NOT NULL DEFAULT 'unknown',
   total_xp INTEGER DEFAULT 0,
   level INTEGER DEFAULT 1,
-  created_at INTEGER NOT NULL,
-  last_activity_at INTEGER NOT NULL
+  created_at TEXT NOT NULL,
+  last_activity_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_projects_path ON projects(path);
@@ -51,7 +55,7 @@ CREATE TABLE IF NOT EXISTS xp_events (
   event_type TEXT NOT NULL,
   xp_amount INTEGER NOT NULL,
   metadata TEXT,
-  created_at INTEGER NOT NULL
+  created_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_xp_events_persona ON xp_events(persona_id);
@@ -80,9 +84,9 @@ CREATE TABLE IF NOT EXISTS quests (
   status TEXT NOT NULL,
   phases TEXT NOT NULL,
   xp_awarded INTEGER DEFAULT 0,
-  created_at INTEGER NOT NULL,
-  started_at INTEGER,
-  completed_at INTEGER
+  created_at TEXT NOT NULL,
+  started_at TEXT,
+  completed_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_quests_project ON quests(project_id);
@@ -94,7 +98,7 @@ CREATE TABLE IF NOT EXISTS achievements (
   entity_type TEXT NOT NULL,
   entity_id TEXT NOT NULL,
   achievement_id TEXT NOT NULL,
-  unlocked_at INTEGER NOT NULL,
+  unlocked_at TEXT NOT NULL,
   UNIQUE(entity_type, entity_id, achievement_id)
 );
 
@@ -110,7 +114,7 @@ CREATE TABLE IF NOT EXISTS events (
   event_type TEXT NOT NULL,
   tool_name TEXT,
   payload TEXT,
-  created_at INTEGER NOT NULL
+  created_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_pane ON events(pane_id);

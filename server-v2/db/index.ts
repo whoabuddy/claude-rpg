@@ -2,7 +2,7 @@
  * Database initialization and connection
  */
 
-import { Database } from 'bun:sqlite'
+import { Database, Statement } from 'bun:sqlite'
 import { existsSync, mkdirSync } from 'fs'
 import { dirname, join } from 'path'
 import { getConfig } from '../lib/config'
@@ -13,6 +13,64 @@ import { runMigrations } from './migrations'
 const log = createLogger('database')
 
 let _db: Database | null = null
+
+/**
+ * Prepared statements for all queries
+ */
+export interface Queries {
+  // Personas
+  insertPersona: Statement
+  getPersonaById: Statement
+  getPersonaBySessionId: Statement
+  getAllPersonas: Statement
+  getActivePersonas: Statement
+  updatePersonaLastSeen: Statement
+  updatePersonaStatus: Statement
+  addPersonaXp: Statement
+  updatePersonaLevel: Statement
+
+  // Projects
+  insertProject: Statement
+  getProjectById: Statement
+  getProjectByPath: Statement
+  getAllProjects: Statement
+  getActiveProjects: Statement
+  updateProjectLastActivity: Statement
+  addProjectXp: Statement
+  updateProjectLevel: Statement
+
+  // XP Events
+  insertXpEvent: Statement
+  getXpEventsByPersona: Statement
+  getXpEventsByProject: Statement
+
+  // Stats
+  upsertStat: Statement
+  getStat: Statement
+  getStatsByEntity: Statement
+
+  // Quests
+  insertQuest: Statement
+  getQuestById: Statement
+  getQuestsByStatus: Statement
+  getQuestsByProject: Statement
+  updateQuestStatus: Statement
+  updateQuestPhases: Statement
+  completeQuest: Statement
+
+  // Achievements
+  insertAchievement: Statement
+  getAchievementsByEntity: Statement
+  achievementExists: Statement
+  getRecentAchievements: Statement
+
+  // Events
+  insertEvent: Statement
+  getRecentEvents: Statement
+  deleteOldEvents: Statement
+}
+
+let _queries: Queries | null = null
 
 /**
  * Get database file path
@@ -51,6 +109,9 @@ export function initDatabase(): Database {
 
   // Run migrations
   runMigrations(_db)
+
+  // Initialize prepared statements
+  _queries = initQueries(_db)
 
   // Register shutdown handler
   onShutdown('database', () => {
@@ -95,6 +156,105 @@ export function createTestDatabase(): Database {
   runMigrations(db)
   return db
 }
+
+/**
+ * Initialize prepared statements
+ */
+function initQueries(db: Database): Queries {
+  return {
+    // Personas
+    insertPersona: db.prepare(`
+      INSERT INTO personas (id, session_id, name, avatar_url, status, total_xp, level, created_at, last_seen_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `),
+    getPersonaById: db.prepare('SELECT * FROM personas WHERE id = ?'),
+    getPersonaBySessionId: db.prepare('SELECT * FROM personas WHERE session_id = ?'),
+    getAllPersonas: db.prepare('SELECT * FROM personas ORDER BY last_seen_at DESC'),
+    getActivePersonas: db.prepare('SELECT * FROM personas WHERE last_seen_at > ? ORDER BY last_seen_at DESC'),
+    updatePersonaLastSeen: db.prepare('UPDATE personas SET last_seen_at = ? WHERE id = ?'),
+    updatePersonaStatus: db.prepare('UPDATE personas SET status = ? WHERE id = ?'),
+    addPersonaXp: db.prepare('UPDATE personas SET total_xp = total_xp + ? WHERE id = ?'),
+    updatePersonaLevel: db.prepare('UPDATE personas SET level = ? WHERE id = ?'),
+
+    // Projects
+    insertProject: db.prepare(`
+      INSERT INTO projects (id, path, name, github_url, project_class, total_xp, level, created_at, last_activity_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `),
+    getProjectById: db.prepare('SELECT * FROM projects WHERE id = ?'),
+    getProjectByPath: db.prepare('SELECT * FROM projects WHERE path = ?'),
+    getAllProjects: db.prepare('SELECT * FROM projects ORDER BY last_activity_at DESC'),
+    getActiveProjects: db.prepare('SELECT * FROM projects WHERE last_activity_at > ? ORDER BY last_activity_at DESC'),
+    updateProjectLastActivity: db.prepare('UPDATE projects SET last_activity_at = ? WHERE id = ?'),
+    addProjectXp: db.prepare('UPDATE projects SET total_xp = total_xp + ? WHERE id = ?'),
+    updateProjectLevel: db.prepare('UPDATE projects SET level = ? WHERE id = ?'),
+
+    // XP Events
+    insertXpEvent: db.prepare(`
+      INSERT INTO xp_events (persona_id, project_id, event_type, xp_amount, metadata, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `),
+    getXpEventsByPersona: db.prepare('SELECT * FROM xp_events WHERE persona_id = ? ORDER BY created_at DESC'),
+    getXpEventsByProject: db.prepare('SELECT * FROM xp_events WHERE project_id = ? ORDER BY created_at DESC'),
+
+    // Stats
+    upsertStat: db.prepare(`
+      INSERT INTO stats (entity_type, entity_id, stat_path, value)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(entity_type, entity_id, stat_path) DO UPDATE SET value = value + excluded.value
+    `),
+    getStat: db.prepare('SELECT * FROM stats WHERE entity_type = ? AND entity_id = ? AND stat_path = ?'),
+    getStatsByEntity: db.prepare('SELECT * FROM stats WHERE entity_type = ? AND entity_id = ?'),
+
+    // Quests
+    insertQuest: db.prepare(`
+      INSERT INTO quests (id, project_id, title, description, status, phases, xp_awarded, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+    `),
+    getQuestById: db.prepare('SELECT * FROM quests WHERE id = ?'),
+    getQuestsByStatus: db.prepare('SELECT * FROM quests WHERE status = ? ORDER BY created_at DESC'),
+    getQuestsByProject: db.prepare('SELECT * FROM quests WHERE project_id = ? ORDER BY created_at DESC'),
+    updateQuestStatus: db.prepare('UPDATE quests SET status = ? WHERE id = ?'),
+    updateQuestPhases: db.prepare('UPDATE quests SET phases = ? WHERE id = ?'),
+    completeQuest: db.prepare('UPDATE quests SET status = "completed", completed_at = ?, xp_awarded = ? WHERE id = ?'),
+
+    // Achievements
+    insertAchievement: db.prepare(`
+      INSERT OR IGNORE INTO achievements (entity_type, entity_id, achievement_id, unlocked_at)
+      VALUES (?, ?, ?, ?)
+    `),
+    getAchievementsByEntity: db.prepare('SELECT * FROM achievements WHERE entity_type = ? AND entity_id = ? ORDER BY unlocked_at DESC'),
+    achievementExists: db.prepare('SELECT COUNT(*) as count FROM achievements WHERE entity_type = ? AND entity_id = ? AND achievement_id = ?'),
+    getRecentAchievements: db.prepare('SELECT * FROM achievements ORDER BY unlocked_at DESC LIMIT ?'),
+
+    // Events
+    insertEvent: db.prepare(`
+      INSERT OR IGNORE INTO events (event_id, pane_id, persona_id, project_id, event_type, tool_name, payload, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `),
+    getRecentEvents: db.prepare('SELECT * FROM events ORDER BY created_at DESC LIMIT ?'),
+    deleteOldEvents: db.prepare('DELETE FROM events WHERE created_at < ?'),
+  }
+}
+
+/**
+ * Get prepared statements (must be initialized first)
+ */
+export function getQueries(): Queries {
+  if (!_queries) {
+    throw new Error('Queries not initialized. Call initDatabase() first.')
+  }
+  return _queries
+}
+
+/**
+ * Exported queries object (lazy initialized)
+ */
+export const queries = new Proxy({} as Queries, {
+  get(_target, prop) {
+    return getQueries()[prop as keyof Queries]
+  },
+})
 
 // Re-export query helpers
 export * from './queries'

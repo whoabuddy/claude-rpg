@@ -51,7 +51,7 @@ function getCurrentVersion(db: Database): number {
 function recordMigration(db: Database, version: number): void {
   db.run(
     'INSERT INTO schema_version (version, applied_at) VALUES (?, ?)',
-    [version, Date.now()]
+    [version, new Date().toISOString()]
   )
 }
 
