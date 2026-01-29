@@ -25,7 +25,8 @@ data/
 
 # Quest planning and state (LLM coordination, not source code)
 .planning/
-quests/
+/quests/
+!server-v2/quests/
 
 # Operation logs (temporary)
 V2_OPERATION_LOG.md
