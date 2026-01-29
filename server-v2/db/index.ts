@@ -28,6 +28,7 @@ export interface Queries {
   updatePersonaStatus: Statement
   addPersonaXp: Statement
   updatePersonaLevel: Statement
+  updatePersonaBadges: Statement
 
   // Projects
   insertProject: Statement
@@ -183,6 +184,7 @@ function initQueries(db: Database): Queries {
     updatePersonaStatus: db.prepare('UPDATE personas SET status = ? WHERE id = ?'),
     addPersonaXp: db.prepare('UPDATE personas SET total_xp = total_xp + ? WHERE id = ?'),
     updatePersonaLevel: db.prepare('UPDATE personas SET level = ? WHERE id = ?'),
+    updatePersonaBadges: db.prepare('UPDATE personas SET badges = ? WHERE id = ?'),
 
     // Projects
     insertProject: db.prepare(`

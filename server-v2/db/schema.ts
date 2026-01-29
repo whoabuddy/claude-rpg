@@ -2,7 +2,7 @@
  * SQLite schema definitions
  */
 
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 /**
  * SQL statements to create all tables
@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS personas (
   status TEXT NOT NULL DEFAULT 'active',
   total_xp INTEGER DEFAULT 0,
   level INTEGER DEFAULT 1,
+  badges TEXT DEFAULT '[]',
   created_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL
 );

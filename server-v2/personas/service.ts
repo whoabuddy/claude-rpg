@@ -6,6 +6,9 @@ import { createLogger } from '../lib/logger'
 import { queries } from '../db'
 import { fetchBitcoinFace, getFallbackAvatarUrl } from './avatar'
 import { generateNameFromSessionId, generateUniqueName } from './names'
+import { getTierForLevel } from './tiers'
+import { checkBadges } from './badges'
+import { generatePersonality } from './personality'
 import type { Persona, PersonaStatus } from './types'
 
 const log = createLogger('persona-service')
@@ -55,6 +58,8 @@ export async function getOrCreatePersona(sessionId: string): Promise<Persona> {
 
   log.info('Created new persona', { id, sessionId, name })
 
+  const tier = getTierForLevel(1)
+
   return {
     id,
     sessionId,
@@ -63,6 +68,9 @@ export async function getOrCreatePersona(sessionId: string): Promise<Persona> {
     status: 'active',
     totalXp: 0,
     level: 1,
+    tier: tier.name,
+    badges: [],
+    personality: { backstory: null, quirk: null },
     createdAt: now,
     lastSeenAt: now,
   }
@@ -124,6 +132,19 @@ export function addXp(personaId: string, amount: number): void {
       queries.updatePersonaLevel.run(newLevel, personaId)
       log.info('Persona leveled up', { personaId, oldLevel: persona.level, newLevel })
     }
+
+    // Check for new badges
+    const stats = getPersonaStats(personaId)
+    const earnedBadges = checkBadges(stats)
+
+    // Update badges if changed
+    const currentBadges = new Set(persona.badges)
+    const newBadges = earnedBadges.filter((badge) => !currentBadges.has(badge))
+
+    if (newBadges.length > 0) {
+      updateBadges(personaId, earnedBadges)
+      log.info('Persona earned new badges', { personaId, newBadges })
+    }
   }
 }
 
@@ -147,17 +168,60 @@ function calculateLevel(xp: number): number {
 }
 
 /**
+ * Get persona stats from database
+ */
+function getPersonaStats(personaId: string): Record<string, number> {
+  const stats = queries.getStatsByEntity.all('persona', personaId) as Array<Record<string, unknown>>
+  const result: Record<string, number> = {}
+
+  for (const stat of stats) {
+    const path = stat.stat_path as string
+    const value = stat.value as number
+    result[path] = value
+  }
+
+  return result
+}
+
+/**
+ * Update badges for a persona
+ */
+export function updateBadges(personaId: string, badges: string[]): void {
+  const badgesJson = JSON.stringify(badges)
+  queries.updatePersonaBadges.run(badgesJson, personaId)
+  log.debug('Updated persona badges', { personaId, badges })
+}
+
+/**
  * Map database row to Persona type
  */
 function mapDbToPersona(row: Record<string, unknown>): Persona {
+  const level = row.level as number
+  const name = row.name as string
+  const personaId = row.id as string
+
+  // Get tier from level
+  const tier = getTierForLevel(level)
+
+  // Parse badges from JSON
+  const badgesJson = row.badges as string
+  const badges = badgesJson ? JSON.parse(badgesJson) : []
+
+  // Get stats and generate personality
+  const stats = getPersonaStats(personaId)
+  const personality = generatePersonality(name, level, stats)
+
   return {
-    id: row.id as string,
+    id: personaId,
     sessionId: row.session_id as string,
-    name: row.name as string,
+    name,
     avatarUrl: row.avatar_url as string | null,
     status: row.status as PersonaStatus,
     totalXp: row.total_xp as number,
-    level: row.level as number,
+    level,
+    tier: tier.name,
+    badges,
+    personality,
     createdAt: row.created_at as string,
     lastSeenAt: row.last_seen_at as string,
   }

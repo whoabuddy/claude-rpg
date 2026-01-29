@@ -40,6 +40,11 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_notes_created ON notes(created_at);
     `,
   },
+  {
+    version: 3,
+    name: 'add_persona_badges',
+    sql: `ALTER TABLE personas ADD COLUMN badges TEXT DEFAULT '[]';`,
+  },
 ]
 
 /**
