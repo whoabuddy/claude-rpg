@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { devtools, subscribeWithSelector } from 'zustand/middleware'
+import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   TmuxWindow,
   TmuxPane,
@@ -129,11 +129,10 @@ const MAX_EVENTS = 100
 const MAX_XP_GAINS = 50
 
 export const useStore = create<AppState>()(
-  devtools(
-    subscribeWithSelector((set, get) => ({
-      // Initial state - Panes
-      windows: [],
-      terminalCache: new Map(),
+  subscribeWithSelector((set, get) => ({
+    // Initial state - Panes
+    windows: [],
+    terminalCache: new Map(),
 
       // Initial state - Companions
       companions: [],
@@ -170,7 +169,7 @@ export const useStore = create<AppState>()(
       // PANE ACTIONS
       // ═════════════════════════════════════════════════════════════════════
 
-      setWindows: (windows) => set({ windows }, false, 'setWindows'),
+      setWindows: (windows) => set({ windows }),
 
       updatePane: (pane) => set((state) => {
         const windows = state.windows.map(window => ({
@@ -180,7 +179,7 @@ export const useStore = create<AppState>()(
           )
         }))
         return { windows }
-      }, false, 'updatePane'),
+      }),
 
       removePane: (paneId) => set((state) => {
         const windows = state.windows.map(window => ({
@@ -197,19 +196,19 @@ export const useStore = create<AppState>()(
         const fullScreenPaneId = state.fullScreenPaneId === paneId ? null : state.fullScreenPaneId
 
         return { windows, terminalCache, selectedPaneId, fullScreenPaneId }
-      }, false, 'removePane'),
+      }),
 
       setTerminalContent: (paneId, content) => set((state) => {
         const terminalCache = new Map(state.terminalCache)
         terminalCache.set(paneId, content)
         return { terminalCache }
-      }, false, 'setTerminalContent'),
+      }),
 
       // ═════════════════════════════════════════════════════════════════════
       // COMPANION ACTIONS
       // ═════════════════════════════════════════════════════════════════════
 
-      setCompanions: (companions) => set({ companions }, false, 'setCompanions'),
+      setCompanions: (companions) => set({ companions }),
 
       updateCompanion: (companion) => set((state) => {
         const exists = state.companions.some(c => c.id === companion.id)
@@ -217,13 +216,13 @@ export const useStore = create<AppState>()(
           ? state.companions.map(c => c.id === companion.id ? companion : c)
           : [...state.companions, companion]
         return { companions }
-      }, false, 'updateCompanion'),
+      }),
 
       // ═════════════════════════════════════════════════════════════════════
       // QUEST ACTIONS
       // ═════════════════════════════════════════════════════════════════════
 
-      setQuests: (quests) => set({ quests }, false, 'setQuests'),
+      setQuests: (quests) => set({ quests }),
 
       updateQuest: (quest) => set((state) => {
         const exists = state.quests.some(q => q.id === quest.id)
@@ -231,19 +230,19 @@ export const useStore = create<AppState>()(
           ? state.quests.map(q => q.id === quest.id ? quest : q)
           : [...state.quests, quest]
         return { quests }
-      }, false, 'updateQuest'),
+      }),
 
       // ═════════════════════════════════════════════════════════════════════
       // COMPETITION ACTIONS
       // ═════════════════════════════════════════════════════════════════════
 
-      setCompetitions: (competitions) => set({ competitions }, false, 'setCompetitions'),
+      setCompetitions: (competitions) => set({ competitions }),
 
       // ═════════════════════════════════════════════════════════════════════
       // WORKER ACTIONS
       // ═════════════════════════════════════════════════════════════════════
 
-      setWorkers: (workers) => set({ workers }, false, 'setWorkers'),
+      setWorkers: (workers) => set({ workers }),
 
       // ═════════════════════════════════════════════════════════════════════
       // EVENT ACTIONS
@@ -252,16 +251,16 @@ export const useStore = create<AppState>()(
       addEvent: (event) => set((state) => {
         const recentEvents = [event, ...state.recentEvents].slice(0, MAX_EVENTS)
         return { recentEvents }
-      }, false, 'addEvent'),
+      }),
 
       addXPGain: (xpGain) => set((state) => {
         const recentXPGains = [xpGain, ...state.recentXPGains].slice(0, MAX_XP_GAINS)
         return { recentXPGains }
-      }, false, 'addXPGain'),
+      }),
 
       setEventHistory: (events) => set({
         recentEvents: events.slice(0, MAX_EVENTS)
-      }, false, 'setEventHistory'),
+      }),
 
       // ═════════════════════════════════════════════════════════════════════
       // TOAST ACTIONS
@@ -271,17 +270,17 @@ export const useStore = create<AppState>()(
         const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
         const newToast = { ...toast, id, timestamp: Date.now() }
         return { toasts: [...state.toasts, newToast].slice(-5) } // Max 5 toasts
-      }, false, 'addToast'),
+      }),
 
       removeToast: (id) => set((state) => ({
         toasts: state.toasts.filter(t => t.id !== id)
-      }), false, 'removeToast'),
+      })),
 
       clearExpiredToasts: () => set((state) => {
         const now = Date.now()
         const TOAST_DURATION = 4000
         return { toasts: state.toasts.filter(t => now - t.timestamp < TOAST_DURATION) }
-      }, false, 'clearExpiredToasts'),
+      }),
 
       // ═════════════════════════════════════════════════════════════════════
       // CONNECTION ACTIONS
@@ -291,26 +290,24 @@ export const useStore = create<AppState>()(
         status,
         lastConnected: status === 'connected' ? Date.now() : state.lastConnected,
         reconnectAttempt: status === 'connected' ? 0 : state.reconnectAttempt
-      }), false, 'setConnectionStatus'),
+      })),
 
-      setReconnectAttempt: (attempt) => set({ reconnectAttempt: attempt }, false, 'setReconnectAttempt'),
+      setReconnectAttempt: (attempt) => set({ reconnectAttempt: attempt }),
 
       // ═════════════════════════════════════════════════════════════════════
       // UI ACTIONS
       // ═════════════════════════════════════════════════════════════════════
 
-      setSelectedPane: (paneId) => set({ selectedPaneId: paneId }, false, 'setSelectedPane'),
+      setSelectedPane: (paneId) => set({ selectedPaneId: paneId }),
 
-      setFullScreenPane: (paneId) => set({ fullScreenPaneId: paneId }, false, 'setFullScreenPane'),
+      setFullScreenPane: (paneId) => set({ fullScreenPaneId: paneId }),
 
-      setActivePage: (page) => set({ activePage: page }, false, 'setActivePage'),
+      setActivePage: (page) => set({ activePage: page }),
 
-      setSelectedProject: (projectId) => set({ selectedProjectId: projectId }, false, 'setSelectedProject'),
+      setSelectedProject: (projectId) => set({ selectedProjectId: projectId }),
 
-      toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen }), false, 'toggleSidebar'),
-    })),
-    { name: 'claude-rpg' }
-  )
+    toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+  }))
 )
 
 // ═══════════════════════════════════════════════════════════════════════════
