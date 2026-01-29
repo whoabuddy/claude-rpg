@@ -15,12 +15,13 @@ interface NoteCardProps {
   note: Note
   onStatusChange: (id: string, status: NoteStatus) => void
   onDelete: (id: string) => void
+  onCreateIssue?: (note: Note) => void
 }
 
 /**
  * NoteCard displays a single note with status-based actions
  */
-export function NoteCard({ note, onStatusChange, onDelete }: NoteCardProps) {
+export function NoteCard({ note, onStatusChange, onDelete, onCreateIssue }: NoteCardProps) {
   const [isUpdating, setIsUpdating] = useState(false)
 
   const formatDate = (isoDate: string) => {
@@ -133,7 +134,7 @@ export function NoteCard({ note, onStatusChange, onDelete }: NoteCardProps) {
                 Mark Triaged
               </button>
               <button
-                onClick={() => handleStatusChange('converted')}
+                onClick={() => onCreateIssue?.(note)}
                 disabled={isUpdating}
                 className="px-3 py-1.5 text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 rounded transition-colors disabled:opacity-50"
               >
@@ -152,7 +153,7 @@ export function NoteCard({ note, onStatusChange, onDelete }: NoteCardProps) {
                 Archive
               </button>
               <button
-                onClick={() => handleStatusChange('converted')}
+                onClick={() => onCreateIssue?.(note)}
                 disabled={isUpdating}
                 className="px-3 py-1.5 text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 rounded transition-colors disabled:opacity-50"
               >

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { VoiceButton } from '../components/VoiceButton'
 import { NoteCard } from '../components/NoteCard'
+import { CreateIssueModal } from '../components/CreateIssueModal'
 
 type NoteStatus = 'inbox' | 'triaged' | 'archived' | 'converted'
 
@@ -24,6 +25,7 @@ export default function ScratchpadPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [isCreating, setIsCreating] = useState(false)
+  const [selectedNoteForIssue, setSelectedNoteForIssue] = useState<Note | null>(null)
 
   // Fetch notes from the server
   const fetchNotes = useCallback(async () => {
@@ -159,6 +161,17 @@ export default function ScratchpadPage() {
     return notes.filter(n => n.status === status).length
   }
 
+  // Handle creating a GitHub issue from a note
+  const handleCreateIssue = (note: Note) => {
+    setSelectedNoteForIssue(note)
+  }
+
+  // Handle issue creation success
+  const handleIssueCreated = async (noteId: string, issueUrl: string) => {
+    // Refetch notes to show updated status
+    await fetchNotes()
+  }
+
   return (
     <div className="p-4 space-y-6">
       {/* Header */}
@@ -286,6 +299,7 @@ export default function ScratchpadPage() {
               note={note}
               onStatusChange={handleStatusChange}
               onDelete={handleDeleteNote}
+              onCreateIssue={handleCreateIssue}
             />
           ))}
         </div>
@@ -297,6 +311,13 @@ export default function ScratchpadPage() {
           </p>
         </div>
       )}
+
+      {/* Create Issue Modal */}
+      <CreateIssueModal
+        note={selectedNoteForIssue}
+        onClose={() => setSelectedNoteForIssue(null)}
+        onCreated={handleIssueCreated}
+      />
     </div>
   )
 }

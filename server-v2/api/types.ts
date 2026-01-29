@@ -81,3 +81,9 @@ export interface UpdateNoteRequest {
   tags?: string[]
   status?: string
 }
+
+export interface CreateIssueFromNoteRequest {
+  repo: string
+  title?: string
+  labels?: string[]
+}

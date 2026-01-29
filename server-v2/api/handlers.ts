@@ -13,6 +13,7 @@ import { getXpByCategory, getXpTimeline } from '../xp'
 import { isWhisperAvailable, transcribeAudio as whisperTranscribe } from '../lib/whisper'
 import { cloneRepo } from '../projects/clone'
 import { createNote, getNoteById, getAllNotes, updateNote, deleteNote } from '../notes'
+import { createGitHubIssue } from '../notes/github'
 import { getAllChallenges, getChallengeDefinition } from '../personas/challenges'
 import type { Note, NoteStatus } from '../notes'
 import type {
@@ -27,6 +28,7 @@ import type {
   CloneRequest,
   CreateNoteRequest,
   UpdateNoteRequest,
+  CreateIssueFromNoteRequest,
 } from './types'
 import type { QuestStatus } from '../quests/types'
 import type { CloneResult } from '../projects/clone'
@@ -652,6 +654,70 @@ export function deleteNoteHandler(params: Record<string, string>): ApiResponse<{
     return {
       success: false,
       error: { code: 'DELETE_FAILED', message: 'Failed to delete note' },
+    }
+  }
+}
+
+/**
+ * Create a GitHub issue from a note
+ */
+export async function createIssueFromNote(
+  params: Record<string, string>,
+  body: CreateIssueFromNoteRequest
+): Promise<ApiResponse<{ issueUrl: string }>> {
+  // Validate repo is provided
+  if (!body.repo || typeof body.repo !== 'string' || body.repo.trim() === '') {
+    return {
+      success: false,
+      error: { code: 'MISSING_REPO', message: 'Repository is required' },
+    }
+  }
+
+  try {
+    // Get the note
+    const note = getNoteById(params.id)
+    if (!note) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Note not found' },
+      }
+    }
+
+    // Extract title (first line of content) or use provided title
+    const title = body.title || note.content.split('\n')[0].trim()
+
+    // Create the issue
+    const result = await createGitHubIssue({
+      title,
+      body: note.content,
+      repo: body.repo.trim(),
+      labels: body.labels,
+    })
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: { code: 'CREATE_FAILED', message: result.error || 'Failed to create issue' },
+      }
+    }
+
+    // Update note status to converted and store issue URL in tags
+    const issueUrl = result.issueUrl!
+    const updatedTags = [...note.tags, `issue:${issueUrl}`]
+    updateNote(params.id, { status: 'converted', tags: updatedTags })
+
+    return {
+      success: true,
+      data: { issueUrl },
+    }
+  } catch (error) {
+    log.error('Failed to create issue from note', {
+      id: params.id,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'CREATE_FAILED', message: 'Failed to create GitHub issue' },
     }
   }
 }

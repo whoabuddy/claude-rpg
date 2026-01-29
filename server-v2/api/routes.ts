@@ -50,6 +50,7 @@ export const ROUTES: Route[] = [
   { method: 'GET', pattern: '/api/notes/:id', handler: 'getNote' },
   { method: 'PATCH', pattern: '/api/notes/:id', handler: 'updateNoteHandler' },
   { method: 'DELETE', pattern: '/api/notes/:id', handler: 'deleteNoteHandler' },
+  { method: 'POST', pattern: '/api/notes/:id/create-issue', handler: 'createIssueFromNote' },
 
   // XP
   { method: 'GET', pattern: '/api/xp/summary', handler: 'xpSummary' },
