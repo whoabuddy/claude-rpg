@@ -2,19 +2,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { VoiceButton } from '../components/VoiceButton'
 import { NoteCard } from '../components/NoteCard'
 import { CreateIssueModal } from '../components/CreateIssueModal'
+import type { Note, NoteStatus } from '../../shared/types'
 
-type NoteStatus = 'inbox' | 'triaged' | 'archived' | 'converted'
-
-interface Note {
-  id: string
-  content: string
-  tags: string[]
-  status: NoteStatus
-  createdAt: string
-  updatedAt: string
-}
-
-type FilterType = 'all' | 'inbox' | 'triaged' | 'archived' | 'converted'
+type FilterType = 'all' | NoteStatus
 
 /**
  * Scratchpad page - quick note capture for thoughts, ideas, and TODOs
@@ -60,7 +50,7 @@ export default function ScratchpadPage() {
   }, [fetchNotes])
 
   // Create a new note
-  const handleCreateNote = async (e: React.FormEvent) => {
+  const handleCreateNote = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!newNoteContent.trim()) {
@@ -94,10 +84,10 @@ export default function ScratchpadPage() {
     } finally {
       setIsCreating(false)
     }
-  }
+  }, [newNoteContent, fetchNotes])
 
   // Update note status
-  const handleStatusChange = async (id: string, status: NoteStatus) => {
+  const handleStatusChange = useCallback(async (id: string, status: NoteStatus) => {
     try {
       const response = await fetch(`/api/notes/${id}`, {
         method: 'PATCH',
@@ -120,10 +110,10 @@ export default function ScratchpadPage() {
     } catch (error) {
       console.error('Error updating note:', error)
     }
-  }
+  }, [fetchNotes])
 
   // Delete a note
-  const handleDeleteNote = async (id: string) => {
+  const handleDeleteNote = useCallback(async (id: string) => {
     try {
       const response = await fetch(`/api/notes/${id}`, {
         method: 'DELETE',
@@ -142,10 +132,10 @@ export default function ScratchpadPage() {
     } catch (error) {
       console.error('Error deleting note:', error)
     }
-  }
+  }, [fetchNotes])
 
   // Handle voice transcription
-  const handleVoiceTranscription = (text: string) => {
+  const handleVoiceTranscription = useCallback((text: string) => {
     setNewNoteContent(prev => {
       // If there's existing content, add a newline before appending
       if (prev.trim()) {
@@ -153,24 +143,18 @@ export default function ScratchpadPage() {
       }
       return text
     })
-  }
-
-  // Count notes by status for badges
-  const getStatusCount = (status: FilterType): number => {
-    if (status === 'all') return notes.length
-    return notes.filter(n => n.status === status).length
-  }
+  }, [])
 
   // Handle creating a GitHub issue from a note
-  const handleCreateIssue = (note: Note) => {
+  const handleCreateIssue = useCallback((note: Note) => {
     setSelectedNoteForIssue(note)
-  }
+  }, [])
 
   // Handle issue creation success
-  const handleIssueCreated = async (noteId: string, issueUrl: string) => {
+  const handleIssueCreated = useCallback(async () => {
     // Refetch notes to show updated status
     await fetchNotes()
-  }
+  }, [fetchNotes])
 
   return (
     <div className="p-4 space-y-6">

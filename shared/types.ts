@@ -590,3 +590,18 @@ export interface PersonaChallenge {
   xpReward: number      // XP awarded on completion
   expiresAt: string     // ISO 8601 timestamp
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NOTES / SCRATCHPAD
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type NoteStatus = 'inbox' | 'triaged' | 'archived' | 'converted'
+
+export interface Note {
+  id: string
+  content: string
+  tags: string[]
+  status: NoteStatus
+  createdAt: string
+  updatedAt: string
+}

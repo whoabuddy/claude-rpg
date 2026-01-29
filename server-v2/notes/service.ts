@@ -4,19 +4,12 @@
 
 import { createLogger } from '../lib/logger'
 import { queries } from '../db'
+import type { Note, NoteStatus } from '../../shared/types'
 
 const log = createLogger('notes')
 
-export type NoteStatus = 'inbox' | 'triaged' | 'archived' | 'converted'
-
-export interface Note {
-  id: string
-  content: string
-  tags: string[]
-  status: NoteStatus
-  createdAt: string
-  updatedAt: string
-}
+// Re-export types for convenience
+export type { Note, NoteStatus }
 
 interface NoteRow {
   id: string

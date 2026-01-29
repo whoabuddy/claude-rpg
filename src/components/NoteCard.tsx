@@ -1,15 +1,5 @@
 import { useState } from 'react'
-
-type NoteStatus = 'inbox' | 'triaged' | 'archived' | 'converted'
-
-interface Note {
-  id: string
-  content: string
-  tags: string[]
-  status: NoteStatus
-  createdAt: string
-  updatedAt: string
-}
+import type { Note, NoteStatus } from '../../shared/types'
 
 interface NoteCardProps {
   note: Note
@@ -18,31 +8,40 @@ interface NoteCardProps {
   onCreateIssue?: (note: Note) => void
 }
 
+// Status badge styling - defined at module level to avoid recreation
+const STATUS_STYLES: Record<NoteStatus, { bg: string; text: string; label: string }> = {
+  inbox: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Inbox' },
+  triaged: { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'Triaged' },
+  archived: { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'Archived' },
+  converted: { bg: 'bg-green-500/20', text: 'text-green-400', label: 'Converted to Issue' },
+}
+
+// Format relative date - pure function at module level
+function formatDate(isoDate: string): string {
+  const date = new Date(isoDate)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+  })
+}
+
 /**
  * NoteCard displays a single note with status-based actions
  */
 export function NoteCard({ note, onStatusChange, onDelete, onCreateIssue }: NoteCardProps) {
   const [isUpdating, setIsUpdating] = useState(false)
-
-  const formatDate = (isoDate: string) => {
-    const date = new Date(isoDate)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
-
-    if (diffMins < 1) return 'just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    if (diffDays < 7) return `${diffDays}d ago`
-
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-    })
-  }
 
   const handleStatusChange = async (newStatus: NoteStatus) => {
     setIsUpdating(true)
@@ -62,15 +61,7 @@ export function NoteCard({ note, onStatusChange, onDelete, onCreateIssue }: Note
     }
   }
 
-  // Status badge styling
-  const statusStyles: Record<NoteStatus, { bg: string; text: string; label: string }> = {
-    inbox: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Inbox' },
-    triaged: { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'Triaged' },
-    archived: { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'Archived' },
-    converted: { bg: 'bg-green-500/20', text: 'text-green-400', label: 'Converted to Issue' },
-  }
-
-  const currentStatus = statusStyles[note.status]
+  const currentStatus = STATUS_STYLES[note.status]
 
   return (
     <div className="p-4 rounded-lg border border-rpg-border bg-rpg-card hover:border-rpg-accent/50 transition-colors">

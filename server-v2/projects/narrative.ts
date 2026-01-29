@@ -3,7 +3,7 @@
  * Transforms project stats into story-like summaries
  */
 
-import type { TeamStats, PersonaContribution } from './aggregation'
+import type { TeamStats } from './aggregation'
 
 export interface NarrativeSummary {
   title: string           // "claude-rpg: A Story of Code"

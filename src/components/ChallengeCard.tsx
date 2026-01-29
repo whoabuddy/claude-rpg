@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import type { PersonaChallenge } from '../../shared/types'
 
 interface ChallengeCardProps {
@@ -9,8 +10,8 @@ export function ChallengeCard({ challenge, compact = false }: ChallengeCardProps
   const progress = Math.max(0, Math.min(100, (challenge.progress / challenge.target) * 100))
   const isCompleted = challenge.status === 'completed'
 
-  // Calculate time remaining
-  const timeRemaining = () => {
+  // Memoize time remaining calculation
+  const timeRemaining = useMemo(() => {
     const now = new Date()
     const expires = new Date(challenge.expiresAt)
     const diff = expires.getTime() - now.getTime()
@@ -22,7 +23,7 @@ export function ChallengeCard({ challenge, compact = false }: ChallengeCardProps
 
     const days = Math.floor(hours / 24)
     return `${days}d remaining`
-  }
+  }, [challenge.expiresAt])
 
   return (
     <div className={`rounded-lg border border-rpg-border bg-rpg-card ${compact ? 'p-3' : 'p-4'} ${
@@ -71,7 +72,7 @@ export function ChallengeCard({ challenge, compact = false }: ChallengeCardProps
       <div className="flex items-center justify-between text-xs">
         <span className="text-rpg-accent font-medium">+{challenge.xpReward} XP</span>
         {!isCompleted && challenge.status !== 'expired' && (
-          <span className="text-rpg-text-dim">{timeRemaining()}</span>
+          <span className="text-rpg-text-dim">{timeRemaining}</span>
         )}
         {challenge.status === 'expired' && (
           <span className="text-rpg-error">Expired</span>

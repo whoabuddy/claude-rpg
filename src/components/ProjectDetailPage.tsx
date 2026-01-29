@@ -6,6 +6,7 @@ import { RadarChart, calculateStatsRadar } from './RadarChart'
 import { TeamStats } from './TeamStats'
 import { NarrativeSummary } from './NarrativeSummary'
 import { getProjectNarrative } from '../lib/api'
+import { formatNumber } from '../lib/format'
 import type { TeamStats as TeamStatsType, NarrativeSummary as NarrativeSummaryType } from '../types/project'
 
 interface ProjectDetailPageProps {
@@ -29,17 +30,6 @@ function FireIcon() {
       />
     </svg>
   )
-}
-
-// Format number with K/M suffixes
-function formatNumber(value: number): string {
-  if (value >= 1000000) {
-    return (value / 1000000).toFixed(1) + 'M'
-  }
-  if (value >= 1000) {
-    return (value / 1000).toFixed(1) + 'K'
-  }
-  return value.toLocaleString()
 }
 
 // Achievement rarity badge colors

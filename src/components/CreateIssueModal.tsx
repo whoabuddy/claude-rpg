@@ -1,13 +1,5 @@
 import { useState, useEffect } from 'react'
-
-interface Note {
-  id: string
-  content: string
-  tags: string[]
-  status: string
-  createdAt: string
-  updatedAt: string
-}
+import type { Note } from '../../shared/types'
 
 interface CreateIssueModalProps {
   note: Note | null

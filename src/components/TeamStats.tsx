@@ -1,20 +1,11 @@
+import { useMemo } from 'react'
 import type { TeamStats, PersonaContribution } from '../types/project'
 import { levelFromTotalXP } from '@shared/types'
+import { formatNumber } from '../lib/format'
 
 interface TeamStatsProps {
   teamStats: TeamStats | null
   loading: boolean
-}
-
-// Format number with K/M suffixes
-function formatNumber(value: number): string {
-  if (value >= 1000000) {
-    return (value / 1000000).toFixed(1) + 'M'
-  }
-  if (value >= 1000) {
-    return (value / 1000).toFixed(1) + 'K'
-  }
-  return value.toLocaleString()
 }
 
 // Get intensity class for activity heatmap (0-100 scale)
@@ -51,14 +42,22 @@ export function TeamStats({ teamStats, loading }: TeamStatsProps) {
 
   const { level } = levelFromTotalXP(teamStats.totalXp)
 
-  // Get top tools sorted by usage
-  const topTools = Object.entries(teamStats.topTools)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
+  // Memoize top tools sorted by usage
+  const topTools = useMemo(
+    () => Object.entries(teamStats.topTools)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5),
+    [teamStats.topTools]
+  )
 
-  // Get day names in order (Sunday - Saturday)
+  // Day names for activity heatmap
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-  const maxActivity = Math.max(...dayNames.map(day => teamStats.activityByDay[day] || 0), 1)
+
+  // Memoize max activity value
+  const maxActivity = useMemo(
+    () => Math.max(...dayNames.map(day => teamStats.activityByDay[day] || 0), 1),
+    [teamStats.activityByDay]
+  )
 
   return (
     <div className="rounded-lg border border-rpg-border bg-rpg-bg-elevated p-4 space-y-4">

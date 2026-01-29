@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useStore } from '../store'
 import { PaneAvatar } from '../components/PaneAvatar'
 import { StatusPill } from '../components/StatusPill'
@@ -21,6 +21,43 @@ export default function PersonasPage() {
     [windows]
   )
   const [filter, setFilter] = useState<Filter>('all')
+
+  // Batch fetch all challenges to avoid N+1 problem
+  const [challengesByPersona, setChallengesByPersona] = useState<Record<string, PersonaChallenge[]>>({})
+
+  // Get session IDs that need challenges fetched
+  const sessionIds = useMemo(
+    () => claudePanes.map(p => p.process.claudeSession?.id).filter(Boolean) as string[],
+    [claudePanes]
+  )
+
+  // Fetch challenges for all personas in parallel
+  const fetchAllChallenges = useCallback(async () => {
+    if (sessionIds.length === 0) return
+
+    const results = await Promise.allSettled(
+      sessionIds.map(async (id) => {
+        const res = await fetch(`/api/personas/${id}/challenges`)
+        const data = await res.json()
+        return { id, challenges: data.success ? data.data?.challenges || [] : [] }
+      })
+    )
+
+    const newChallenges: Record<string, PersonaChallenge[]> = {}
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        const { id, challenges } = result.value
+        // Filter to only show active challenges
+        newChallenges[id] = challenges.filter((c: PersonaChallenge) => c.status === 'active')
+      }
+    }
+    setChallengesByPersona(newChallenges)
+  }, [sessionIds])
+
+  // Fetch challenges when session IDs change
+  useEffect(() => {
+    fetchAllChallenges()
+  }, [fetchAllChallenges])
 
   // Filter panes
   const filteredPanes = claudePanes.filter(p => {
@@ -77,7 +114,11 @@ export default function PersonasPage() {
           <h2 className="text-sm font-medium text-rpg-text-muted mb-3">Working</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {activePanes.map(pane => (
-              <PersonaCard key={pane.id} pane={pane} />
+              <PersonaCard
+                key={pane.id}
+                pane={pane}
+                challenges={challengesByPersona[pane.process.claudeSession?.id || ''] || []}
+              />
             ))}
           </div>
         </section>
@@ -89,7 +130,11 @@ export default function PersonasPage() {
           <h2 className="text-sm font-medium text-rpg-text-muted mb-3">Ready</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {idlePanes.map(pane => (
-              <PersonaCard key={pane.id} pane={pane} />
+              <PersonaCard
+                key={pane.id}
+                pane={pane}
+                challenges={challengesByPersona[pane.process.claudeSession?.id || ''] || []}
+              />
             ))}
           </div>
         </section>
@@ -110,26 +155,11 @@ export default function PersonasPage() {
 
 interface PersonaCardProps {
   pane: TmuxPane
+  challenges: PersonaChallenge[]
 }
 
-function PersonaCard({ pane }: PersonaCardProps) {
+function PersonaCard({ pane, challenges }: PersonaCardProps) {
   const session = pane.process.claudeSession
-  const [challenges, setChallenges] = useState<PersonaChallenge[]>([])
-
-  // Fetch challenges when session ID is available
-  useEffect(() => {
-    if (session?.id) {
-      fetch(`/api/personas/${session.id}/challenges`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.success && data.data?.challenges) {
-            // Filter to only show active challenges
-            setChallenges(data.data.challenges.filter((c: PersonaChallenge) => c.status === 'active'))
-          }
-        })
-        .catch((err) => console.error('Failed to fetch challenges:', err))
-    }
-  }, [session?.id])
 
   if (!session) return null
 
