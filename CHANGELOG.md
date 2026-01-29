@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/whoabuddy/claude-rpg/compare/v1.10.0...v1.11.0) (2026-01-29)
+
+
+### Features
+
+* add personas, scratchpad, and projects features ([#158](https://github.com/whoabuddy/claude-rpg/issues/158)) ([a75e32b](https://github.com/whoabuddy/claude-rpg/commit/a75e32bb05c719764da40d31ea271227f8c23c25))
+
 ## [1.10.0](https://github.com/whoabuddy/claude-rpg/compare/v1.9.0...v1.10.0) (2026-01-29)
 
 
