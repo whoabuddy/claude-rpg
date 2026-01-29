@@ -45,6 +45,15 @@ const MIGRATIONS: Migration[] = [
     name: 'add_persona_badges',
     sql: `ALTER TABLE personas ADD COLUMN badges TEXT DEFAULT '[]';`,
   },
+  {
+    version: 4,
+    name: 'add_persona_health',
+    sql: `
+      ALTER TABLE personas ADD COLUMN energy INTEGER DEFAULT 100;
+      ALTER TABLE personas ADD COLUMN morale INTEGER DEFAULT 100;
+      ALTER TABLE personas ADD COLUMN health_updated_at TEXT;
+    `,
+  },
 ]
 
 /**

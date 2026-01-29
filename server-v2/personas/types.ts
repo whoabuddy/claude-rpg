@@ -11,6 +11,12 @@ export interface PersonaPersonality {
   quirk: string | null
 }
 
+export interface PersonaHealth {
+  energy: number      // 0-100, drains on idle, fills on activity
+  morale: number      // 0-100, boosts on success, drops on errors
+  lastUpdated: string // ISO timestamp
+}
+
 export interface Persona {
   id: string
   sessionId: string
@@ -22,6 +28,7 @@ export interface Persona {
   tier: PersonaTier
   badges: string[]
   personality: PersonaPersonality
+  health: PersonaHealth
   createdAt: string
   lastSeenAt: string
 }

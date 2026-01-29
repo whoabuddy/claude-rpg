@@ -9,7 +9,13 @@ import { generateNameFromSessionId, generateUniqueName } from './names'
 import { getTierForLevel } from './tiers'
 import { checkBadges } from './badges'
 import { generatePersonality } from './personality'
-import type { Persona, PersonaStatus } from './types'
+import {
+  createInitialHealth,
+  calculateEnergyDecay,
+  applyEnergyGain,
+  applyMoraleDelta,
+} from './health'
+import type { Persona, PersonaStatus, PersonaHealth } from './types'
 
 const log = createLogger('persona-service')
 
@@ -193,6 +199,83 @@ export function updateBadges(personaId: string, badges: string[]): void {
 }
 
 /**
+ * Update persona health (energy and morale)
+ */
+export function updateHealth(personaId: string, energyDelta: number, moraleDelta: number): PersonaHealth {
+  const current = getHealth(personaId)
+
+  // Apply decay first
+  const decayAmount = calculateEnergyDecay(current.lastUpdated)
+  let newEnergy = Math.max(0, current.energy - decayAmount)
+
+  // Apply deltas
+  newEnergy = applyEnergyGain(newEnergy, energyDelta)
+  const newMorale = applyMoraleDelta(current.morale, moraleDelta)
+
+  const now = new Date().toISOString()
+  queries.updatePersonaHealth.run(newEnergy, newMorale, now, personaId)
+
+  log.debug('Updated persona health', {
+    personaId,
+    energyDelta,
+    moraleDelta,
+    newEnergy,
+    newMorale,
+  })
+
+  return {
+    energy: newEnergy,
+    morale: newMorale,
+    lastUpdated: now,
+  }
+}
+
+/**
+ * Get current health for a persona
+ */
+export function getHealth(personaId: string): PersonaHealth {
+  const result = queries.getPersonaHealth.get(personaId) as Record<string, unknown> | null
+
+  if (!result) {
+    // Persona doesn't have health yet (pre-migration), return default
+    const initial = createInitialHealth()
+    queries.updatePersonaHealth.run(initial.energy, initial.morale, initial.lastUpdated, personaId)
+    return initial
+  }
+
+  return {
+    energy: result.energy as number,
+    morale: result.morale as number,
+    lastUpdated: result.health_updated_at as string,
+  }
+}
+
+/**
+ * Decay health for idle persona (called periodically)
+ */
+export function decayHealth(personaId: string): PersonaHealth {
+  const current = getHealth(personaId)
+  const decayAmount = calculateEnergyDecay(current.lastUpdated)
+
+  if (decayAmount === 0) {
+    return current // No decay yet
+  }
+
+  const newEnergy = Math.max(0, current.energy - decayAmount)
+  const now = new Date().toISOString()
+
+  queries.updatePersonaHealth.run(newEnergy, current.morale, now, personaId)
+
+  log.debug('Decayed persona health', { personaId, decayAmount, newEnergy })
+
+  return {
+    energy: newEnergy,
+    morale: current.morale,
+    lastUpdated: now,
+  }
+}
+
+/**
  * Map database row to Persona type
  */
 function mapDbToPersona(row: Record<string, unknown>): Persona {
@@ -211,6 +294,9 @@ function mapDbToPersona(row: Record<string, unknown>): Persona {
   const stats = getPersonaStats(personaId)
   const personality = generatePersonality(name, level, stats)
 
+  // Get health
+  const health = getHealth(personaId)
+
   return {
     id: personaId,
     sessionId: row.session_id as string,
@@ -222,6 +308,7 @@ function mapDbToPersona(row: Record<string, unknown>): Persona {
     tier: tier.name,
     badges,
     personality,
+    health,
     createdAt: row.created_at as string,
     lastSeenAt: row.last_seen_at as string,
   }
