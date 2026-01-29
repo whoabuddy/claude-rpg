@@ -7,7 +7,7 @@ import { queries } from '../db'
 
 const log = createLogger('notes')
 
-export type NoteStatus = 'inbox' | 'triaged' | 'archived'
+export type NoteStatus = 'inbox' | 'triaged' | 'archived' | 'converted'
 
 export interface Note {
   id: string

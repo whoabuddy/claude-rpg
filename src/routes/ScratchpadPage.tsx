@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { VoiceButton } from '../components/VoiceButton'
+import { NoteCard } from '../components/NoteCard'
 
-type NoteStatus = 'inbox' | 'triaged' | 'archived'
+type NoteStatus = 'inbox' | 'triaged' | 'archived' | 'converted'
 
 interface Note {
   id: string
@@ -12,7 +13,7 @@ interface Note {
   updatedAt: string
 }
 
-type FilterType = 'all' | 'inbox' | 'archived'
+type FilterType = 'all' | 'inbox' | 'triaged' | 'archived' | 'converted'
 
 /**
  * Scratchpad page - quick note capture for thoughts, ideas, and TODOs
@@ -93,6 +94,32 @@ export default function ScratchpadPage() {
     }
   }
 
+  // Update note status
+  const handleStatusChange = async (id: string, status: NoteStatus) => {
+    try {
+      const response = await fetch(`/api/notes/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update note')
+      }
+
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to update note')
+      }
+
+      await fetchNotes()
+    } catch (error) {
+      console.error('Error updating note:', error)
+    }
+  }
+
   // Delete a note
   const handleDeleteNote = async (id: string) => {
     try {
@@ -126,25 +153,10 @@ export default function ScratchpadPage() {
     })
   }
 
-  // Format date nicely
-  const formatDate = (isoDate: string) => {
-    const date = new Date(isoDate)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
-
-    if (diffMins < 1) return 'just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    if (diffDays < 7) return `${diffDays}d ago`
-
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-    })
+  // Count notes by status for badges
+  const getStatusCount = (status: FilterType): number => {
+    if (status === 'all') return notes.length
+    return notes.filter(n => n.status === status).length
   }
 
   return (
@@ -158,36 +170,81 @@ export default function ScratchpadPage() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 overflow-x-auto pb-2">
         <button
           onClick={() => setActiveFilter('all')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
             activeFilter === 'all'
               ? 'bg-rpg-accent text-rpg-bg font-medium'
               : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
           }`}
         >
           All
+          {activeFilter === 'all' && notes.length > 0 && (
+            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
+              {notes.length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveFilter('inbox')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
             activeFilter === 'inbox'
               ? 'bg-rpg-accent text-rpg-bg font-medium'
               : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
           }`}
         >
           Inbox
+          {activeFilter === 'inbox' && notes.length > 0 && (
+            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
+              {notes.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveFilter('triaged')}
+          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
+            activeFilter === 'triaged'
+              ? 'bg-rpg-accent text-rpg-bg font-medium'
+              : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
+          }`}
+        >
+          Triaged
+          {activeFilter === 'triaged' && notes.length > 0 && (
+            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
+              {notes.length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveFilter('archived')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
             activeFilter === 'archived'
               ? 'bg-rpg-accent text-rpg-bg font-medium'
               : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
           }`}
         >
           Archived
+          {activeFilter === 'archived' && notes.length > 0 && (
+            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
+              {notes.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveFilter('converted')}
+          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
+            activeFilter === 'converted'
+              ? 'bg-rpg-accent text-rpg-bg font-medium'
+              : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
+          }`}
+        >
+          Converted
+          {activeFilter === 'converted' && notes.length > 0 && (
+            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
+              {notes.length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -224,42 +281,12 @@ export default function ScratchpadPage() {
       ) : notes.length > 0 ? (
         <div className="space-y-3">
           {notes.map((note) => (
-            <div
+            <NoteCard
               key={note.id}
-              className="p-4 rounded-lg border border-rpg-border bg-rpg-card hover:border-rpg-accent/50 transition-colors"
-            >
-              {/* Note header */}
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <span className="text-xs text-rpg-text-muted">
-                  {formatDate(note.createdAt)}
-                </span>
-                <button
-                  onClick={() => handleDeleteNote(note.id)}
-                  className="px-2 py-1 text-xs text-rpg-error hover:bg-rpg-error/10 rounded transition-colors"
-                >
-                  Delete
-                </button>
-              </div>
-
-              {/* Note content */}
-              <p className="text-sm text-rpg-text whitespace-pre-wrap break-words">
-                {note.content}
-              </p>
-
-              {/* Tags if present */}
-              {note.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {note.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-2 py-0.5 text-xs bg-rpg-accent/20 text-rpg-accent rounded"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
+              note={note}
+              onStatusChange={handleStatusChange}
+              onDelete={handleDeleteNote}
+            />
           ))}
         </div>
       ) : (

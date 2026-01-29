@@ -582,7 +582,7 @@ export function updateNoteHandler(
   }
 
   // Validate status if provided
-  if (body.status && !['inbox', 'triaged', 'archived'].includes(body.status)) {
+  if (body.status && !['inbox', 'triaged', 'archived', 'converted'].includes(body.status)) {
     return {
       success: false,
       error: { code: 'INVALID_STATUS', message: 'Invalid status value' },
