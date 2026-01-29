@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/whoabuddy/claude-rpg/compare/v1.9.0...v1.10.0) (2026-01-29)
+
+
+### Features
+
+* v2 - Modern server and client rewrite ([#155](https://github.com/whoabuddy/claude-rpg/issues/155)) ([244d45d](https://github.com/whoabuddy/claude-rpg/commit/244d45d94d8cfea6cdb0f6a15e545e3f7bd39116))
+
 ## [1.9.0](https://github.com/whoabuddy/claude-rpg/compare/v1.8.1...v1.9.0) (2026-01-29)
 
 
