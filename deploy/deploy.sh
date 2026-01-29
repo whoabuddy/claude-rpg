@@ -9,8 +9,8 @@ echo "=== Claude RPG Deploy ==="
 echo "  Repo: $REPO_DIR"
 echo ""
 
-echo "[1/3] Building..."
-npm run build
+echo "[1/3] Building client..."
+bun run build:client
 
 echo "[2/3] Restarting service..."
 systemctl --user restart claude-rpg
