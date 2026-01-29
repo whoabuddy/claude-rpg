@@ -8,6 +8,18 @@ import type { ChallengeDefinition, PersonaChallenge, ChallengePeriod, ChallengeS
 
 const log = createLogger('challenges')
 
+// Import addXp to award XP on challenge completion
+let addXp: ((personaId: string, amount: number) => void) | null = null
+
+/**
+ * Initialize challenge system with XP service
+ * Must be called after persona service is initialized to avoid circular deps
+ */
+export function initChallengeSystem(addXpFn: (personaId: string, amount: number) => void): void {
+  addXp = addXpFn
+  log.info('Challenge system initialized with XP service')
+}
+
 /**
  * Daily challenges (reset every day at midnight)
  */
@@ -286,7 +298,20 @@ export function updateChallengeProgress(
         challengeId: challenge.challengeId,
         progress: newProgress,
         target: challenge.target,
+        xpReward: challenge.xpReward,
       })
+
+      // Award XP for challenge completion
+      if (addXp) {
+        addXp(personaId, challenge.xpReward)
+        log.debug('Awarded XP for challenge completion', {
+          personaId,
+          challengeId: challenge.challengeId,
+          xpReward: challenge.xpReward,
+        })
+      } else {
+        log.warn('Challenge XP service not initialized, skipping XP award')
+      }
 
       // Return the completed challenge (refresh from DB to get updated status)
       const updated = queries.getChallengeById.get(challenge.id) as Record<string, unknown> | null
