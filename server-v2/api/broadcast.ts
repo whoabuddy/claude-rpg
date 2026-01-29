@@ -49,10 +49,22 @@ export function broadcast(message: ServerMessage): void {
   }
 
   const priority = getPriority(message)
-  const json = JSON.stringify(message)
+
+  // Safely stringify message - catch circular references
+  let json: string
+  try {
+    json = JSON.stringify(message)
+  } catch (error) {
+    log.error('Failed to stringify message', {
+      type: message.type,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return
+  }
 
   let sent = 0
   let skipped = 0
+  const failedClients: ServerWebSocket<unknown>[] = []
 
   for (const client of clients) {
     const shouldSend = shouldSendToClient(client, priority)
@@ -62,12 +74,23 @@ export function broadcast(message: ServerMessage): void {
         client.send(json)
         sent++
       } catch (error) {
-        log.warn('Failed to send to client', {
+        log.warn('Failed to send to client, removing', {
           error: error instanceof Error ? error.message : String(error),
         })
+        failedClients.push(client)
       }
     } else {
       skipped++
+    }
+  }
+
+  // Remove failed clients after iteration (can't modify Set during iteration)
+  for (const client of failedClients) {
+    removeClient(client)
+    try {
+      client.close()
+    } catch {
+      // Ignore close errors
     }
   }
 
@@ -85,7 +108,12 @@ export function broadcast(message: ServerMessage): void {
  * Check if a message should be sent to a client
  */
 function shouldSendToClient(client: ServerWebSocket<unknown>, priority: MessagePriority): boolean {
-  const buffered = client.readyState === 1 ? (client as unknown as { bufferedAmount: number }).bufferedAmount || 0 : 0
+  // Skip clients not in OPEN state (1 = OPEN, 0 = CONNECTING, 2 = CLOSING, 3 = CLOSED)
+  if (client.readyState !== 1) {
+    return false
+  }
+
+  const buffered = (client as unknown as { bufferedAmount?: number }).bufferedAmount ?? 0
 
   // Check if client is backlogged
   if (buffered > BUFFER_HIGH) {

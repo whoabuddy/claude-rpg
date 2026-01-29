@@ -129,7 +129,7 @@ export async function pollTmux(): Promise<TmuxState> {
         // Build ClaudeSessionInfo if this is a Claude process
         let claudeSession
         if (processType === 'claude') {
-          claudeSession = await buildClaudeSessionInfo(p.paneId)
+          claudeSession = await buildClaudeSessionInfo(p.paneId, undefined, cwd)
         }
 
         return {

@@ -62,24 +62,25 @@ export async function handleRequest(request: Request): Promise<Response> {
       }, 500)
     }
 
-    // Call handler with appropriate args
+    // Call handler with appropriate args based on handler name and available data
     let result: ApiResponse<unknown>
+    const hasParams = Object.keys(params).length > 0
 
-    if (Object.keys(params).length === 0 && !body) {
+    // Handlers that need query params (check first, before generic cases)
+    if (route.handler.includes('xp') || route.handler === 'listNotes') {
+      result = await handler(url.searchParams)
+    } else if (route.handler === 'getProjectNarrative') {
+      // Handler needs both params and query
+      result = await handler(params, url.searchParams)
+    } else if (!hasParams && !body) {
       // No params, no body (e.g., GET /health)
       result = await handler()
-    } else if (Object.keys(params).length === 0 && body) {
+    } else if (!hasParams && body) {
       // Body only (e.g., POST /event)
       result = await handler(body)
     } else if (body) {
       // Params and body (e.g., POST /api/panes/:id/prompt)
       result = await handler(params, body)
-    } else if (route.handler.includes('xp') || route.handler === 'listNotes') {
-      // XP handlers and listNotes need query params only
-      result = await handler(url.searchParams)
-    } else if (route.handler === 'getProjectNarrative') {
-      // Handler needs both params and query
-      result = await handler(params, url.searchParams)
     } else {
       // Params only (e.g., GET /api/personas/:id)
       result = await handler(params)

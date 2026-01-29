@@ -40,6 +40,10 @@ export const ROUTES: Route[] = [
   { method: 'GET', pattern: '/api/projects/:id/narrative', handler: 'getProjectNarrative' },
   { method: 'POST', pattern: '/api/clone', handler: 'cloneGitHubRepo' },
 
+  // Companions (Projects with full stats)
+  { method: 'GET', pattern: '/api/companions', handler: 'listCompanions' },
+  { method: 'GET', pattern: '/api/companions/:id', handler: 'getCompanion' },
+
   // Quests
   { method: 'GET', pattern: '/api/quests', handler: 'listQuests' },
   { method: 'GET', pattern: '/api/quests/:id', handler: 'getQuest' },

@@ -2,7 +2,7 @@
  * SQLite schema definitions
  */
 
-export const SCHEMA_VERSION = 5
+export const SCHEMA_VERSION = 6
 
 /**
  * SQL statements to create all tables

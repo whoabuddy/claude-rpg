@@ -75,6 +75,15 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_challenges_status ON persona_challenges(status);
     `,
   },
+  {
+    version: 6,
+    name: 'add_project_streaks',
+    sql: `
+      ALTER TABLE projects ADD COLUMN current_streak INTEGER DEFAULT 0;
+      ALTER TABLE projects ADD COLUMN longest_streak INTEGER DEFAULT 0;
+      ALTER TABLE projects ADD COLUMN last_streak_date TEXT;
+    `,
+  },
 ]
 
 /**

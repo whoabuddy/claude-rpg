@@ -8,6 +8,7 @@ import type { Persona } from '../personas/types'
 import type { Project } from '../projects/types'
 import type { Quest } from '../quests/types'
 import type { XpGain } from '../xp/types'
+import type { Companion } from '../../shared/types'
 
 export type MessagePriority = 'high' | 'normal' | 'low'
 
@@ -65,6 +66,16 @@ export interface QuestUpdateMessage {
   quest: Quest
 }
 
+export interface CompanionsMessage {
+  type: 'companions'
+  payload: Companion[]
+}
+
+export interface CompanionUpdateMessage {
+  type: 'companion_update'
+  companion: Companion
+}
+
 export interface XpGainMessage {
   type: 'xp_gain'
   gain: XpGain
@@ -72,9 +83,11 @@ export interface XpGainMessage {
 
 export interface EventMessage {
   type: 'event'
-  eventType: string
-  paneId?: string
-  timestamp: string
+  payload: {
+    eventType: string
+    paneId?: string
+    timestamp: string
+  }
 }
 
 export interface TerminalOutputMessage {
@@ -100,6 +113,8 @@ export type ServerMessage =
   | ProjectUpdateMessage
   | QuestsMessage
   | QuestUpdateMessage
+  | CompanionsMessage
+  | CompanionUpdateMessage
   | XpGainMessage
   | EventMessage
   | TerminalOutputMessage
@@ -125,6 +140,8 @@ export function getPriority(message: ServerMessage): MessagePriority {
     case 'project_update':
     case 'quests':
     case 'quest_update':
+    case 'companions':
+    case 'companion_update':
     case 'xp_gain':
       return 'normal'
 

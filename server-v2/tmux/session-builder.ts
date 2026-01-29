@@ -5,6 +5,7 @@
 import { createLogger } from '../lib/logger'
 import { getOrCreatePersona, getPersonaById } from '../personas/service'
 import { getSession, getOrCreateSession } from '../sessions/manager'
+import { getOrCreateProject } from '../projects/service'
 import type { ClaudeSessionInfo } from './types'
 
 const log = createLogger('session-builder')
@@ -15,7 +16,8 @@ const log = createLogger('session-builder')
  */
 export async function buildClaudeSessionInfo(
   paneId: string,
-  sessionId?: string
+  sessionId?: string,
+  cwd?: string
 ): Promise<ClaudeSessionInfo | undefined> {
   try {
     // Get or create session for this pane
@@ -29,6 +31,24 @@ export async function buildClaudeSessionInfo(
     // Link persona to session if not already linked
     if (!session.personaId) {
       session.personaId = persona.id
+    }
+
+    // Link project to session based on cwd
+    if (cwd && !session.projectId) {
+      try {
+        const project = await getOrCreateProject(cwd)
+        if (project) {
+          session.projectId = project.id
+          log.debug('Linked session to project', { paneId, projectId: project.id, cwd })
+        }
+      } catch (error) {
+        // Non-fatal - session can work without a project
+        log.debug('Could not link project to session', {
+          paneId,
+          cwd,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
     }
 
     // Build session info with persona data

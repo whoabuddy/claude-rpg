@@ -20,7 +20,10 @@ import {
   autoAssignChallenges,
   initChallengeSystem,
 } from '../personas/challenges'
-import type { PostToolUseEvent, UserPromptEvent } from './types'
+import { incrementStat, updateStreak } from '../companions'
+import { getSession } from '../sessions/manager'
+import { getProjectById } from '../projects'
+import type { PostToolUseEvent, UserPromptEvent, StopEvent } from './types'
 
 const log = createLogger('event-handlers')
 
@@ -61,6 +64,11 @@ export function initEventHandlers(): void {
       // Get or create persona for this session
       const persona = await getOrCreatePersona(event.sessionId)
 
+      // Get project from pane session
+      const session = getSession(event.paneId)
+      const projectId = session?.projectId || null
+      const project = projectId ? getProjectById(projectId) : null
+
       // Calculate XP for tool use
       const eventType = `tool:${event.toolName}`
       const xpAmount = calculateXp(eventType)
@@ -68,7 +76,7 @@ export function initEventHandlers(): void {
       // Record XP event
       recordXpEvent({
         personaId: persona.id,
-        projectId: null, // TODO: Get project from pane context
+        projectId,
         eventType,
         amount: xpAmount,
         metadata: {
@@ -78,6 +86,25 @@ export function initEventHandlers(): void {
         },
       })
 
+      // Update companion stats if we have a project (isolated errors)
+      if (projectId) {
+        try {
+          // Track tool usage
+          incrementStat(projectId, `toolsUsed.${event.toolName}`, 1)
+          incrementStat(projectId, 'promptsReceived', 1)
+
+          // Update streak (daily activity tracking)
+          updateStreak(projectId)
+        } catch (error) {
+          log.error('Failed to update companion stats', {
+            projectId,
+            toolName: event.toolName,
+            error: error instanceof Error ? error.message : String(error),
+          })
+          // Continue - don't let stat failures break XP tracking
+        }
+      }
+
       // Update persona XP (this also checks for level ups and badges)
       addXp(persona.id, xpAmount)
 
@@ -85,16 +112,47 @@ export function initEventHandlers(): void {
       const energyDelta = ENERGY_GAIN_TOOL_USE
       let moraleDelta = event.success !== false ? MORALE_GAIN_SUCCESS : -MORALE_LOSS_ERROR
 
-      // Check for test/commit commands for bonus morale
+      // Check for test/commit commands for bonus morale and companion stats
       if (event.toolName === 'Bash' && event.output) {
         const output = typeof event.output === 'string' ? event.output : JSON.stringify(event.output)
         if (output.includes('test') || output.includes('jest') || output.includes('vitest')) {
           moraleDelta += MORALE_GAIN_TEST_PASS
           updateChallengeProgress(persona.id, 'commands.testsRun', 1)
+          if (projectId) {
+            try { incrementStat(projectId, 'commands.testsRun', 1) } catch {}
+          }
         }
         if (output.includes('git commit')) {
           moraleDelta += MORALE_GAIN_COMMIT
           updateChallengeProgress(persona.id, 'git.commits', 1)
+          if (projectId) {
+            try { incrementStat(projectId, 'git.commits', 1) } catch {}
+          }
+        }
+        if (output.includes('git push')) {
+          if (projectId) {
+            try { incrementStat(projectId, 'git.pushes', 1) } catch {}
+          }
+        }
+        if (output.includes('npm run build') || output.includes('bun run build')) {
+          if (projectId) {
+            try { incrementStat(projectId, 'commands.buildsRun', 1) } catch {}
+          }
+        }
+        if (output.includes('npm run lint') || output.includes('eslint')) {
+          if (projectId) {
+            try { incrementStat(projectId, 'commands.lintsRun', 1) } catch {}
+          }
+        }
+        if (output.includes('clarinet check')) {
+          if (projectId) {
+            try { incrementStat(projectId, 'blockchain.clarinetChecks', 1) } catch {}
+          }
+        }
+        if (output.includes('clarinet test')) {
+          if (projectId) {
+            try { incrementStat(projectId, 'blockchain.clarinetTests', 1) } catch {}
+          }
         }
       }
 
@@ -126,6 +184,30 @@ export function initEventHandlers(): void {
       log.error('Failed to update persona XP', {
         sessionId: event.sessionId,
         toolName: event.toolName,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  })
+
+  // Handle stop events (session completed)
+  eventBus.on<StopEvent>('hook:stop', async (event) => {
+    try {
+      const session = getSession(event.paneId)
+      const projectId = session?.projectId || null
+
+      if (projectId) {
+        // Track session completion
+        incrementStat(projectId, 'sessionsCompleted', 1)
+        updateStreak(projectId)
+
+        log.debug('Session completed, companion stats updated', {
+          paneId: event.paneId,
+          projectId,
+        })
+      }
+    } catch (error) {
+      log.error('Failed to update companion stats on stop', {
+        paneId: event.paneId,
         error: error instanceof Error ? error.message : String(error),
       })
     }
