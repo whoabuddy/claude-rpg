@@ -11,6 +11,7 @@ import ProjectDetailPage from './routes/ProjectDetailPage'
 import QuestsPage from './routes/QuestsPage'
 import LeaderboardPage from './routes/LeaderboardPage'
 import SettingsPage from './routes/SettingsPage'
+import TranscribePage from './routes/TranscribePage'
 import NotFoundPage from './routes/NotFoundPage'
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="quests" element={<QuestsPage />} />
           <Route path="leaderboard" element={<LeaderboardPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="transcribe" element={<TranscribePage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
