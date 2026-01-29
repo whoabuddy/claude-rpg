@@ -12,6 +12,8 @@ import { getActiveQuests, getQuestById, updateQuestStatus } from '../quests'
 import { getXpByCategory, getXpTimeline } from '../xp'
 import { isWhisperAvailable, transcribeAudio as whisperTranscribe } from '../lib/whisper'
 import { cloneRepo } from '../projects/clone'
+import { createNote, getNoteById, getAllNotes, updateNote, deleteNote } from '../notes'
+import type { Note, NoteStatus } from '../notes'
 import type {
   ApiResponse,
   CreateWindowRequest,
@@ -22,6 +24,8 @@ import type {
   UpdateQuestRequest,
   TranscribeResponse,
   CloneRequest,
+  CreateNoteRequest,
+  UpdateNoteRequest,
 } from './types'
 import type { QuestStatus } from '../quests/types'
 import type { CloneResult } from '../projects/clone'
@@ -472,6 +476,159 @@ export function adminSwitchBackend(): ApiResponse<{ ok: boolean; mode: string; m
       mode: 'production',
       message: 'Dev proxy mode not available in v2',
     },
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NOTES ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * List all notes, optionally filtered by status
+ */
+export function listNotes(query: URLSearchParams): ApiResponse<{ notes: Note[] }> {
+  const status = query.get('status') as NoteStatus | null
+
+  try {
+    const notes = status ? getAllNotes(status) : getAllNotes()
+    return { success: true, data: { notes } }
+  } catch (error) {
+    log.error('Failed to list notes', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'QUERY_FAILED', message: 'Failed to list notes' },
+    }
+  }
+}
+
+/**
+ * Create a new note
+ */
+export function createNoteHandler(body: CreateNoteRequest): ApiResponse<{ note: Note }> {
+  if (!body.content || typeof body.content !== 'string' || body.content.trim() === '') {
+    return {
+      success: false,
+      error: { code: 'INVALID_CONTENT', message: 'Content is required' },
+    }
+  }
+
+  try {
+    const note = createNote(body.content.trim(), body.tags || [])
+    return { success: true, data: { note } }
+  } catch (error) {
+    log.error('Failed to create note', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'CREATE_FAILED', message: 'Failed to create note' },
+    }
+  }
+}
+
+/**
+ * Get a note by ID
+ */
+export function getNote(params: Record<string, string>): ApiResponse<{ note: Note }> {
+  const note = getNoteById(params.id)
+  if (!note) {
+    return {
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Note not found' },
+    }
+  }
+  return { success: true, data: { note } }
+}
+
+/**
+ * Update a note
+ */
+export function updateNoteHandler(
+  params: Record<string, string>,
+  body: UpdateNoteRequest
+): ApiResponse<{ note: Note }> {
+  // Validate that at least one field is being updated
+  if (!body.content && !body.tags && !body.status) {
+    return {
+      success: false,
+      error: { code: 'NO_UPDATES', message: 'No updates provided' },
+    }
+  }
+
+  // Validate status if provided
+  if (body.status && !['inbox', 'triaged', 'archived'].includes(body.status)) {
+    return {
+      success: false,
+      error: { code: 'INVALID_STATUS', message: 'Invalid status value' },
+    }
+  }
+
+  try {
+    const updates: { content?: string; tags?: string[]; status?: NoteStatus } = {}
+
+    if (body.content !== undefined) {
+      if (typeof body.content !== 'string' || body.content.trim() === '') {
+        return {
+          success: false,
+          error: { code: 'INVALID_CONTENT', message: 'Content must be a non-empty string' },
+        }
+      }
+      updates.content = body.content.trim()
+    }
+
+    if (body.tags !== undefined) {
+      updates.tags = body.tags
+    }
+
+    if (body.status !== undefined) {
+      updates.status = body.status as NoteStatus
+    }
+
+    const note = updateNote(params.id, updates)
+    if (!note) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Note not found' },
+      }
+    }
+
+    return { success: true, data: { note } }
+  } catch (error) {
+    log.error('Failed to update note', {
+      id: params.id,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'UPDATE_FAILED', message: 'Failed to update note' },
+    }
+  }
+}
+
+/**
+ * Delete a note
+ */
+export function deleteNoteHandler(params: Record<string, string>): ApiResponse<{ deleted: boolean }> {
+  try {
+    const deleted = deleteNote(params.id)
+    if (!deleted) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Note not found' },
+      }
+    }
+    return { success: true, data: { deleted: true } }
+  } catch (error) {
+    log.error('Failed to delete note', {
+      id: params.id,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'DELETE_FAILED', message: 'Failed to delete note' },
+    }
   }
 }
 

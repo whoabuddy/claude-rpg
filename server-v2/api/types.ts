@@ -70,3 +70,14 @@ export interface TranscribeResponse {
 export interface CloneRequest {
   url: string
 }
+
+export interface CreateNoteRequest {
+  content: string
+  tags?: string[]
+}
+
+export interface UpdateNoteRequest {
+  content?: string
+  tags?: string[]
+  status?: string
+}
