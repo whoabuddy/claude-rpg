@@ -8,6 +8,7 @@ import { pollTmux } from '../tmux'
 import * as tmuxCommands from '../tmux/commands'
 import { getAllPersonas, getPersonaById } from '../personas'
 import { getAllProjects, getProjectById, getOrCreateProject } from '../projects'
+import { getAllCompanions, getCompanionById } from '../companions'
 import { getProjectTeamStats } from '../projects/aggregation'
 import { generateNarrative } from '../projects/narrative'
 import { getActiveQuests, getQuestById, updateQuestStatus } from '../quests'
@@ -434,6 +435,32 @@ export async function cloneGitHubRepo(body: CloneRequest): Promise<ApiResponse<C
       },
     }
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMPANIONS (Projects with full stats, streaks, achievements)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * List all companions
+ */
+export function listCompanions(): ApiResponse<unknown> {
+  const companions = getAllCompanions()
+  return { success: true, data: { companions } }
+}
+
+/**
+ * Get companion by ID
+ */
+export function getCompanion(params: Record<string, string>): ApiResponse<unknown> {
+  const companion = getCompanionById(params.id)
+  if (!companion) {
+    return {
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Companion not found' },
+    }
+  }
+  return { success: true, data: { companion } }
 }
 
 /**

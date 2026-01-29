@@ -13,6 +13,7 @@ import { eventBus, initEventHandlers } from './events'
 import { startPolling, stopPolling } from './tmux'
 import { handleRequest, handleCors, isWebSocketUpgrade, wsHandlers, broadcast } from './api'
 import { hasClientBuild, serveStatic, serveSpaFallback } from './api/static'
+import { getAllCompanions } from './companions'
 import type { WsData } from './api'
 import type { PaneDiscoveredEvent, PaneRemovedEvent } from './events/types'
 
@@ -54,6 +55,13 @@ async function main() {
     broadcast({
       type: 'windows',
       payload: state.windows,
+    })
+
+    // Broadcast companions (projects with stats)
+    const companions = getAllCompanions()
+    broadcast({
+      type: 'companions',
+      companions,
     })
 
     // Emit pane events

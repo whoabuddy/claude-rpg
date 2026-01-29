@@ -41,6 +41,7 @@ export interface Queries {
   updateProjectLastActivity: Statement
   addProjectXp: Statement
   updateProjectLevel: Statement
+  updateProjectStreak: Statement
 
   // XP Events
   insertXpEvent: Statement
@@ -212,6 +213,7 @@ function initQueries(db: Database): Queries {
     updateProjectLastActivity: db.prepare('UPDATE projects SET last_activity_at = ? WHERE id = ?'),
     addProjectXp: db.prepare('UPDATE projects SET total_xp = total_xp + ? WHERE id = ?'),
     updateProjectLevel: db.prepare('UPDATE projects SET level = ? WHERE id = ?'),
+    updateProjectStreak: db.prepare('UPDATE projects SET current_streak = ?, longest_streak = ?, last_streak_date = ? WHERE id = ?'),
 
     // XP Events
     insertXpEvent: db.prepare(`
