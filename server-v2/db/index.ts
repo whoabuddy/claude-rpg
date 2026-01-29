@@ -116,18 +116,44 @@ export function initDatabase(): Database {
   // Ensure data directory exists
   if (!existsSync(dbDir)) {
     log.info('Creating data directory', { path: dbDir })
-    mkdirSync(dbDir, { recursive: true })
+    try {
+      mkdirSync(dbDir, { recursive: true })
+    } catch (error) {
+      const msg = `Failed to create data directory: ${dbDir}`
+      log.error(msg, { error: error instanceof Error ? error.message : String(error) })
+      throw new Error(msg)
+    }
   }
 
   log.info('Opening database', { path: dbPath })
 
-  _db = new Database(dbPath, { create: true })
+  try {
+    _db = new Database(dbPath, { create: true })
+  } catch (error) {
+    const msg = `Failed to open database: ${dbPath}`
+    log.error(msg, { error: error instanceof Error ? error.message : String(error) })
+    throw new Error(`${msg}. Check file permissions and disk space.`)
+  }
 
   // Enable WAL mode for better performance
-  _db.exec('PRAGMA journal_mode = WAL')
+  try {
+    _db.exec('PRAGMA journal_mode = WAL')
+  } catch (error) {
+    log.warn('Failed to enable WAL mode, using default journal', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    // Non-fatal - continue with default journal mode
+  }
 
   // Enable foreign keys
-  _db.exec('PRAGMA foreign_keys = ON')
+  try {
+    _db.exec('PRAGMA foreign_keys = ON')
+  } catch (error) {
+    log.warn('Failed to enable foreign keys', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    // Non-fatal - continue without foreign key enforcement
+  }
 
   // Run migrations
   runMigrations(_db)

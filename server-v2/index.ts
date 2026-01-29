@@ -43,9 +43,11 @@ async function main() {
     // Broadcast all events to WebSocket clients
     broadcast({
       type: 'event',
-      eventType: event.type,
-      paneId: 'paneId' in event ? (event as { paneId: string }).paneId : undefined,
-      timestamp: new Date().toISOString(),
+      payload: {
+        eventType: event.type,
+        paneId: 'paneId' in event ? (event as { paneId: string }).paneId : undefined,
+        timestamp: new Date().toISOString(),
+      },
     })
   })
 
@@ -61,7 +63,7 @@ async function main() {
     const companions = getAllCompanions()
     broadcast({
       type: 'companions',
-      companions,
+      payload: companions,
     })
 
     // Emit pane events

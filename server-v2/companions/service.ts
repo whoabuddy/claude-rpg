@@ -5,6 +5,7 @@
 
 import { createLogger } from '../lib/logger'
 import { queries, getDatabase } from '../db'
+import { transaction } from '../db/queries'
 import { getAllProjects, getProjectById } from '../projects/service'
 import type { Companion, CompanionStats, StreakInfo, Achievement, RepoInfo } from '../../shared/types'
 
@@ -171,51 +172,54 @@ export function incrementStat(projectId: string, statPath: string, amount: numbe
 }
 
 /**
- * Update streak for a project
+ * Update streak for a project (atomic transaction to prevent race conditions)
  */
 export function updateStreak(projectId: string): void {
   const db = getDatabase()
-  const project = db.query('SELECT current_streak, longest_streak, last_streak_date FROM projects WHERE id = ?').get(projectId) as {
-    current_streak: number | null
-    longest_streak: number | null
-    last_streak_date: string | null
-  } | null
 
-  if (!project) return
+  transaction(db, () => {
+    const project = db.query('SELECT current_streak, longest_streak, last_streak_date FROM projects WHERE id = ?').get(projectId) as {
+      current_streak: number | null
+      longest_streak: number | null
+      last_streak_date: string | null
+    } | null
 
-  const today = new Date().toISOString().split('T')[0]
-  const lastDate = project.last_streak_date
+    if (!project) return
 
-  let newStreak = project.current_streak || 0
-  let longestStreak = project.longest_streak || 0
+    const today = new Date().toISOString().split('T')[0]
+    const lastDate = project.last_streak_date
 
-  if (!lastDate) {
-    // First activity
-    newStreak = 1
-  } else if (lastDate === today) {
-    // Already updated today, no change
-    return
-  } else {
-    const lastDateObj = new Date(lastDate)
-    const todayObj = new Date(today)
-    const diffDays = Math.floor((todayObj.getTime() - lastDateObj.getTime()) / (1000 * 60 * 60 * 24))
+    let newStreak = project.current_streak || 0
+    let longestStreak = project.longest_streak || 0
 
-    if (diffDays === 1) {
-      // Consecutive day - increment streak
-      newStreak += 1
-    } else {
-      // Streak broken - reset to 1
+    if (!lastDate) {
+      // First activity
       newStreak = 1
+    } else if (lastDate === today) {
+      // Already updated today, no change
+      return
+    } else {
+      const lastDateObj = new Date(lastDate)
+      const todayObj = new Date(today)
+      const diffDays = Math.floor((todayObj.getTime() - lastDateObj.getTime()) / (1000 * 60 * 60 * 24))
+
+      if (diffDays === 1) {
+        // Consecutive day - increment streak
+        newStreak += 1
+      } else {
+        // Streak broken - reset to 1
+        newStreak = 1
+      }
     }
-  }
 
-  // Update longest streak if current is higher
-  if (newStreak > longestStreak) {
-    longestStreak = newStreak
-  }
+    // Update longest streak if current is higher
+    if (newStreak > longestStreak) {
+      longestStreak = newStreak
+    }
 
-  queries.updateProjectStreak.run(newStreak, longestStreak, today, projectId)
-  log.debug('Updated streak', { projectId, newStreak, longestStreak })
+    queries.updateProjectStreak.run(newStreak, longestStreak, today, projectId)
+    log.debug('Updated streak', { projectId, newStreak, longestStreak })
+  })
 }
 
 /**

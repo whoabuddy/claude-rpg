@@ -68,7 +68,7 @@ export interface QuestUpdateMessage {
 
 export interface CompanionsMessage {
   type: 'companions'
-  companions: Companion[]
+  payload: Companion[]
 }
 
 export interface CompanionUpdateMessage {
@@ -83,9 +83,11 @@ export interface XpGainMessage {
 
 export interface EventMessage {
   type: 'event'
-  eventType: string
-  paneId?: string
-  timestamp: string
+  payload: {
+    eventType: string
+    paneId?: string
+    timestamp: string
+  }
 }
 
 export interface TerminalOutputMessage {

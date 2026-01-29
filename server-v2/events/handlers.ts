@@ -86,14 +86,23 @@ export function initEventHandlers(): void {
         },
       })
 
-      // Update companion stats if we have a project
+      // Update companion stats if we have a project (isolated errors)
       if (projectId) {
-        // Track tool usage
-        incrementStat(projectId, `toolsUsed.${event.toolName}`, 1)
-        incrementStat(projectId, 'promptsReceived', 1)
+        try {
+          // Track tool usage
+          incrementStat(projectId, `toolsUsed.${event.toolName}`, 1)
+          incrementStat(projectId, 'promptsReceived', 1)
 
-        // Update streak (daily activity tracking)
-        updateStreak(projectId)
+          // Update streak (daily activity tracking)
+          updateStreak(projectId)
+        } catch (error) {
+          log.error('Failed to update companion stats', {
+            projectId,
+            toolName: event.toolName,
+            error: error instanceof Error ? error.message : String(error),
+          })
+          // Continue - don't let stat failures break XP tracking
+        }
       }
 
       // Update persona XP (this also checks for level ups and badges)
@@ -110,39 +119,39 @@ export function initEventHandlers(): void {
           moraleDelta += MORALE_GAIN_TEST_PASS
           updateChallengeProgress(persona.id, 'commands.testsRun', 1)
           if (projectId) {
-            incrementStat(projectId, 'commands.testsRun', 1)
+            try { incrementStat(projectId, 'commands.testsRun', 1) } catch {}
           }
         }
         if (output.includes('git commit')) {
           moraleDelta += MORALE_GAIN_COMMIT
           updateChallengeProgress(persona.id, 'git.commits', 1)
           if (projectId) {
-            incrementStat(projectId, 'git.commits', 1)
+            try { incrementStat(projectId, 'git.commits', 1) } catch {}
           }
         }
         if (output.includes('git push')) {
           if (projectId) {
-            incrementStat(projectId, 'git.pushes', 1)
+            try { incrementStat(projectId, 'git.pushes', 1) } catch {}
           }
         }
         if (output.includes('npm run build') || output.includes('bun run build')) {
           if (projectId) {
-            incrementStat(projectId, 'commands.buildsRun', 1)
+            try { incrementStat(projectId, 'commands.buildsRun', 1) } catch {}
           }
         }
         if (output.includes('npm run lint') || output.includes('eslint')) {
           if (projectId) {
-            incrementStat(projectId, 'commands.lintsRun', 1)
+            try { incrementStat(projectId, 'commands.lintsRun', 1) } catch {}
           }
         }
         if (output.includes('clarinet check')) {
           if (projectId) {
-            incrementStat(projectId, 'blockchain.clarinetChecks', 1)
+            try { incrementStat(projectId, 'blockchain.clarinetChecks', 1) } catch {}
           }
         }
         if (output.includes('clarinet test')) {
           if (projectId) {
-            incrementStat(projectId, 'blockchain.clarinetTests', 1)
+            try { incrementStat(projectId, 'blockchain.clarinetTests', 1) } catch {}
           }
         }
       }
