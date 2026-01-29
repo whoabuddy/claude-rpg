@@ -46,6 +46,7 @@ export interface Queries {
   insertXpEvent: Statement
   getXpEventsByPersona: Statement
   getXpEventsByProject: Statement
+  getXpSumByPersonaForProject: Statement
 
   // Stats
   upsertStat: Statement
@@ -219,6 +220,7 @@ function initQueries(db: Database): Queries {
     `),
     getXpEventsByPersona: db.prepare('SELECT * FROM xp_events WHERE persona_id = ? ORDER BY created_at DESC'),
     getXpEventsByProject: db.prepare('SELECT * FROM xp_events WHERE project_id = ? ORDER BY created_at DESC'),
+    getXpSumByPersonaForProject: db.prepare('SELECT persona_id, SUM(xp_amount) as total_xp FROM xp_events WHERE project_id = ? GROUP BY persona_id'),
 
     // Stats
     upsertStat: db.prepare(`
