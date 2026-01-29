@@ -19,7 +19,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "deploy": "./deploy/deploy.sh"
+    "deploy": "./deploy/deploy.sh",
+    "dev:v2": "bun run --watch server-v2/index.ts",
+    "start:v2": "bun run server-v2/index.ts",
+    "test:v2": "bun test server-v2",
+    "typecheck:v2": "tsc --noEmit -p server-v2/tsconfig.json"
   },
   "dependencies": {
     "ansi_up": "^6.0.6",
