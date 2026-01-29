@@ -42,3 +42,30 @@ export interface PersonaWithStats extends Persona {
     linesChanged: number
   }
 }
+
+export type ChallengePeriod = 'daily' | 'weekly'
+export type ChallengeStatus = 'active' | 'completed' | 'expired'
+
+export interface ChallengeDefinition {
+  id: string
+  name: string
+  description: string
+  period: ChallengePeriod
+  target: number
+  stat: string
+  xpReward: number
+}
+
+export interface PersonaChallenge {
+  id: string
+  personaId: string
+  challengeId: string
+  period: ChallengePeriod
+  status: ChallengeStatus
+  progress: number
+  target: number
+  xpReward: number
+  assignedAt: string
+  expiresAt: string
+  completedAt?: string
+}

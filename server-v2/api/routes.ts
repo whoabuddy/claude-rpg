@@ -32,6 +32,7 @@ export const ROUTES: Route[] = [
   // Personas
   { method: 'GET', pattern: '/api/personas', handler: 'listPersonas' },
   { method: 'GET', pattern: '/api/personas/:id', handler: 'getPersona' },
+  { method: 'GET', pattern: '/api/personas/:id/challenges', handler: 'getPersonaChallenges' },
 
   // Projects
   { method: 'GET', pattern: '/api/projects', handler: 'listProjects' },

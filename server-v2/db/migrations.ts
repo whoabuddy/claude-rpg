@@ -54,6 +54,27 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE personas ADD COLUMN health_updated_at TEXT;
     `,
   },
+  {
+    version: 5,
+    name: 'add_persona_challenges',
+    sql: `
+      CREATE TABLE IF NOT EXISTS persona_challenges (
+        id TEXT PRIMARY KEY,
+        persona_id TEXT NOT NULL REFERENCES personas(id),
+        challenge_id TEXT NOT NULL,
+        period TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        progress INTEGER DEFAULT 0,
+        target INTEGER NOT NULL,
+        xp_reward INTEGER NOT NULL,
+        assigned_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_challenges_persona ON persona_challenges(persona_id);
+      CREATE INDEX IF NOT EXISTS idx_challenges_status ON persona_challenges(status);
+    `,
+  },
 ]
 
 /**
