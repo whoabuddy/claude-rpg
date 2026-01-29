@@ -545,3 +545,22 @@ export interface ApiResponse<T = unknown> {
   data?: T
   error?: string
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PERSONAS (Worker identity with tier/badge progression)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type PersonaTier = 'novice' | 'apprentice' | 'journeyman' | 'expert' | 'master'
+
+export interface PersonaPersonality {
+  backstory: string | null
+  quirk: string | null
+}
+
+export interface BadgeDefinition {
+  id: string
+  name: string
+  description: string
+  icon: string
+  requirement: (stats: Record<string, number>) => boolean
+}

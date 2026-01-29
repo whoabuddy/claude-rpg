@@ -2,7 +2,14 @@
  * Persona types
  */
 
+import type { PersonaTier } from './tiers'
+
 export type PersonaStatus = 'active' | 'idle' | 'offline'
+
+export interface PersonaPersonality {
+  backstory: string | null
+  quirk: string | null
+}
 
 export interface Persona {
   id: string
@@ -12,6 +19,9 @@ export interface Persona {
   status: PersonaStatus
   totalXp: number
   level: number
+  tier: PersonaTier
+  badges: string[]
+  personality: PersonaPersonality
   createdAt: string
   lastSeenAt: string
 }
