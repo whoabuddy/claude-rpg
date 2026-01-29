@@ -3,14 +3,14 @@ interface PersonaBadgesProps {
   max?: number  // Max to show before "+N more"
 }
 
-// Badge definitions (duplicate from server for display)
+// Badge definitions (synced with server-v2/personas/badges.ts)
 const BADGE_INFO: Record<string, { icon: string; name: string }> = {
   code_architect: { icon: '🏗️', name: 'Code Architect' },
   test_champion: { icon: '🧪', name: 'Test Champion' },
-  git_master: { icon: '🔀', name: 'Git Master' },
-  shell_sage: { icon: '🐚', name: 'Shell Sage' },
+  git_master: { icon: '📝', name: 'Git Master' },
+  shell_sage: { icon: '💻', name: 'Shell Sage' },
   wordsmith: { icon: '✍️', name: 'Wordsmith' },
-  clarity_coder: { icon: '📜', name: 'Clarity Coder' },
+  clarity_coder: { icon: '⚡', name: 'Clarity Coder' },
 }
 
 export function PersonaBadges({ badges, max = 3 }: PersonaBadgesProps) {
