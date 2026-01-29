@@ -46,6 +46,9 @@ export const ROUTES: Route[] = [
   { method: 'GET', pattern: '/api/xp/summary', handler: 'xpSummary' },
   { method: 'GET', pattern: '/api/xp/timeline', handler: 'xpTimeline' },
 
+  // Transcription
+  { method: 'POST', pattern: '/api/transcribe', handler: 'transcribeAudio' },
+
   // Admin (stubs for v2 - no dev proxy mode)
   { method: 'GET', pattern: '/api/admin/backends', handler: 'adminBackends' },
   { method: 'POST', pattern: '/api/admin/backend', handler: 'adminSwitchBackend' },

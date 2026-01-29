@@ -36,10 +36,19 @@ export async function handleRequest(request: Request): Promise<Response> {
     // Parse body if present
     let body: unknown = undefined
     if (request.body && (method === 'POST' || method === 'PATCH')) {
-      try {
-        body = await request.json()
-      } catch {
-        body = {}
+      // Check Content-Type for binary audio data
+      const contentType = request.headers.get('Content-Type') || ''
+      if (contentType.startsWith('audio/')) {
+        // Read as ArrayBuffer and convert to Buffer for audio endpoints
+        const arrayBuffer = await request.arrayBuffer()
+        body = Buffer.from(arrayBuffer)
+      } else {
+        // Parse as JSON for all other endpoints
+        try {
+          body = await request.json()
+        } catch {
+          body = {}
+        }
       }
     }
 

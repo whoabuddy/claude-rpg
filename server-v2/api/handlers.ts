@@ -10,6 +10,7 @@ import { getAllPersonas, getPersonaById } from '../personas'
 import { getAllProjects, getProjectById } from '../projects'
 import { getActiveQuests, getQuestById, updateQuestStatus } from '../quests'
 import { getXpByCategory, getXpTimeline } from '../xp'
+import { isWhisperAvailable, transcribeAudio as whisperTranscribe } from '../lib/whisper'
 import type {
   ApiResponse,
   CreateWindowRequest,
@@ -18,6 +19,7 @@ import type {
   SendSignalRequest,
   HookEventRequest,
   UpdateQuestRequest,
+  TranscribeResponse,
 } from './types'
 import type { QuestStatus } from '../quests/types'
 
@@ -392,5 +394,52 @@ export function adminSwitchBackend(): ApiResponse<{ ok: boolean; mode: string; m
       mode: 'production',
       message: 'Dev proxy mode not available in v2',
     },
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRANSCRIPTION ENDPOINT
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Transcribe audio to text using whisper.cpp
+ * Returns backward-compatible format: { ok: boolean, text?: string, error?: string }
+ * wrapped in ApiResponse for consistency with other endpoints
+ */
+export async function transcribeAudio(audioData: Buffer): Promise<ApiResponse<TranscribeResponse>> {
+  try {
+    if (!isWhisperAvailable()) {
+      // Return error in backward-compatible format
+      return {
+        success: true, // HTTP 200 with ok: false for client compatibility
+        data: {
+          ok: false,
+          error: 'Whisper model not found. Please install whisper.cpp and download the model.',
+        },
+      }
+    }
+
+    const text = await whisperTranscribe(audioData)
+
+    return {
+      success: true,
+      data: {
+        ok: true,
+        text,
+      },
+    }
+  } catch (error) {
+    log.error('Transcription failed', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+
+    // Return error in backward-compatible format
+    return {
+      success: true, // HTTP 200 with ok: false for client compatibility
+      data: {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Transcription failed',
+      },
+    }
   }
 }

@@ -60,3 +60,9 @@ export interface HookEventRequest {
 export interface UpdateQuestRequest {
   status: string
 }
+
+export interface TranscribeResponse {
+  ok: boolean
+  text?: string
+  error?: string
+}
