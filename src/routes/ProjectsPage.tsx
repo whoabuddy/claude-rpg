@@ -1,27 +1,50 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../store'
-import { useConnectionStatus } from '../hooks/useConnection'
 import { levelFromTotalXP } from '../../shared/types'
 import type { Companion } from '../../shared/types'
+
+type SortBy = 'activity' | 'level' | 'name'
 
 /**
  * Projects page - shows all git repositories with RPG stats
  */
 export default function ProjectsPage() {
-  const { connected } = useConnectionStatus()
   const companions = useStore((state) => state.companions)
+  const [sortBy, setSortBy] = useState<SortBy>('activity')
 
-  // Sort by last activity
-  const sortedCompanions = [...companions].sort((a, b) => b.lastActivity - a.lastActivity)
+  // Sort companions
+  const sortedCompanions = [...companions].sort((a, b) => {
+    switch (sortBy) {
+      case 'level':
+        return b.totalExperience - a.totalExperience
+      case 'name':
+        return a.name.localeCompare(b.name)
+      case 'activity':
+      default:
+        return b.lastActivity - a.lastActivity
+    }
+  })
 
   return (
     <div className="p-4 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-rpg-text">Projects</h1>
-        <span className="text-sm text-rpg-text-muted">
-          {companions.length} tracked
-        </span>
+        <div className="flex items-center gap-3">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            className="text-xs bg-rpg-card border border-rpg-border rounded px-2 py-1 text-rpg-text-muted focus:outline-none focus:border-rpg-accent"
+          >
+            <option value="activity">Recent</option>
+            <option value="level">Level</option>
+            <option value="name">Name</option>
+          </select>
+          <span className="text-sm text-rpg-text-muted">
+            {companions.length} tracked
+          </span>
+        </div>
       </div>
 
       {/* Projects grid */}

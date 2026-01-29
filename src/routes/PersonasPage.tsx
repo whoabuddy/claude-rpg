@@ -1,22 +1,36 @@
-import { useStore, useClaudePanes } from '../store'
-import { useConnectionStatus } from '../hooks/useConnection'
+import { useState } from 'react'
+import { useClaudePanes } from '../store'
 import { PaneAvatar } from '../components/PaneAvatar'
 import { StatusPill } from '../components/StatusPill'
-import type { TmuxPane, SessionStatus } from '../../shared/types'
+import type { TmuxPane } from '../../shared/types'
+
+type Filter = 'all' | 'active' | 'idle'
 
 /**
  * Personas page - shows all Claude sessions as characters
  */
 export default function PersonasPage() {
-  const { connected } = useConnectionStatus()
   const claudePanes = useClaudePanes()
+  const [filter, setFilter] = useState<Filter>('all')
 
-  // Group by status
-  const activePanes = claudePanes.filter(p =>
+  // Filter panes
+  const filteredPanes = claudePanes.filter(p => {
+    const status = p.process.claudeSession?.status
+    if (filter === 'active') {
+      return status === 'working' || status === 'waiting'
+    }
+    if (filter === 'idle') {
+      return status === 'idle' || status === 'typing'
+    }
+    return true
+  })
+
+  // Group by status for display
+  const activePanes = filteredPanes.filter(p =>
     p.process.claudeSession?.status === 'working' ||
     p.process.claudeSession?.status === 'waiting'
   )
-  const idlePanes = claudePanes.filter(p =>
+  const idlePanes = filteredPanes.filter(p =>
     p.process.claudeSession?.status === 'idle' ||
     p.process.claudeSession?.status === 'typing'
   )
@@ -26,9 +40,26 @@ export default function PersonasPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-rpg-text">Personas</h1>
-        <span className="text-sm text-rpg-text-muted">
-          {claudePanes.length} active
-        </span>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1 bg-rpg-card border border-rpg-border rounded-lg p-0.5">
+            {(['all', 'active', 'idle'] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  filter === f
+                    ? 'bg-rpg-accent text-rpg-bg'
+                    : 'text-rpg-text-muted hover:text-rpg-text'
+                }`}
+              >
+                {f === 'all' ? 'All' : f === 'active' ? 'Working' : 'Ready'}
+              </button>
+            ))}
+          </div>
+          <span className="text-sm text-rpg-text-muted">
+            {claudePanes.length} total
+          </span>
+        </div>
       </div>
 
       {/* Active personas */}
