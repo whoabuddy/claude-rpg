@@ -18,8 +18,10 @@ export function StatusPill({ connected }: StatusPillProps) {
   const fetchStatus = useCallback(() => {
     fetch('/api/admin/backends')
       .then(res => res.json())
-      .then(data => {
-        if (data.ok) {
+      .then(response => {
+        // Handle both v1 (raw) and v2 (wrapped) response formats
+        const data = response.success ? response.data : response
+        if (data?.ok) {
           setStatus(prev => {
             if (prev &&
               prev.production.ok === data.production.ok &&
@@ -56,8 +58,10 @@ export function StatusPill({ connected }: StatusPillProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: target }),
       })
-      const data = await res.json()
-      if (data.ok) {
+      const response = await res.json()
+      // Handle both v1 (raw) and v2 (wrapped) response formats
+      const data = response.success ? response.data : response
+      if (data?.ok) {
         window.dispatchEvent(new CustomEvent('backend_switch', { detail: { mode: target } }))
         fetchStatus()
       }

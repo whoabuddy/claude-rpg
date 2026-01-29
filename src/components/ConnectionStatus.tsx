@@ -72,14 +72,3 @@ export function ConnectionDot({ connected }: ConnectionStatusProps) {
   )
 }
 
-/** @deprecated Use ConnectionBanner + ConnectionDot instead */
-export function ConnectionStatus({ connected }: ConnectionStatusProps) {
-  return (
-    <div className="flex items-center gap-2">
-      <ConnectionDot connected={connected} />
-      <span className="text-xs text-rpg-idle">
-        {connected ? 'Connected' : 'Reconnecting...'}
-      </span>
-    </div>
-  )
-}

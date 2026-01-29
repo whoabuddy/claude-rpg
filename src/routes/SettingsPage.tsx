@@ -1,0 +1,104 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useNotifications } from '../hooks/useNotifications'
+
+/**
+ * Settings page - configure notifications, theme, etc.
+ */
+export default function SettingsPage() {
+  const navigate = useNavigate()
+  const { permission, requestPermission } = useNotifications()
+  const [soundEnabled, setSoundEnabled] = useState(false)
+
+  return (
+    <div className="p-4 max-w-xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          className="p-2 -ml-2 text-rpg-text-muted hover:text-rpg-text transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <h1 className="text-xl font-bold text-rpg-text">Settings</h1>
+      </div>
+
+      {/* Notifications */}
+      <section className="rounded-lg border border-rpg-border bg-rpg-card p-4">
+        <h2 className="text-sm font-medium text-rpg-text mb-4">Notifications</h2>
+
+        <div className="space-y-4">
+          {/* Browser notifications */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-rpg-text">Browser Notifications</p>
+              <p className="text-xs text-rpg-text-muted">
+                Get notified when Claude needs input
+              </p>
+            </div>
+            {permission === 'granted' ? (
+              <span className="px-2 py-1 text-xs bg-rpg-working/20 text-rpg-working rounded">
+                Enabled
+              </span>
+            ) : permission === 'denied' ? (
+              <span className="px-2 py-1 text-xs bg-rpg-error/20 text-rpg-error rounded">
+                Blocked
+              </span>
+            ) : (
+              <button
+                onClick={requestPermission}
+                className="px-3 py-1 text-sm bg-rpg-accent hover:bg-rpg-accent-dim text-rpg-bg rounded transition-colors"
+              >
+                Enable
+              </button>
+            )}
+          </div>
+
+          {/* Sound effects */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-rpg-text">Sound Effects</p>
+              <p className="text-xs text-rpg-text-muted">
+                Play sounds for level-ups and achievements
+              </p>
+            </div>
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                soundEnabled ? 'bg-rpg-accent' : 'bg-rpg-border'
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                  soundEnabled ? 'left-6' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* About */}
+      <section className="rounded-lg border border-rpg-border bg-rpg-card p-4">
+        <h2 className="text-sm font-medium text-rpg-text mb-4">About</h2>
+        <div className="space-y-2 text-sm text-rpg-text-muted">
+          <p>Claude RPG v2.0.0</p>
+          <p>Mobile-first companion for Claude Code with RPG progression.</p>
+          <a
+            href="https://github.com/whoabuddy/claude-rpg"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-rpg-accent hover:underline"
+          >
+            View on GitHub
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+      </section>
+    </div>
+  )
+}

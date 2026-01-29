@@ -1,15 +1,7 @@
-import { useState, useEffect, useCallback, useRef, memo } from 'react'
-
-interface Toast {
-  id: string
-  type: 'error' | 'xp' | 'quest_xp' | 'achievement' | 'info'
-  title: string
-  body?: string
-  timestamp: number
-}
+import { useEffect, useCallback, useRef, memo } from 'react'
+import { useStore, type Toast } from '../store'
 
 const TOAST_DURATION = 4000
-const MAX_TOASTS = 5
 const XP_AGGREGATION_WINDOW_MS = 2000
 
 interface XPAggregation {
@@ -19,78 +11,59 @@ interface XPAggregation {
   timer: ReturnType<typeof setTimeout>
 }
 
-// Create XP toast from aggregation data
-function formatXPToast(agg: XPAggregation): { type: 'xp'; title: string; body: string } {
-  const types = Array.from(agg.types).join(', ')
-  return {
-    type: 'xp',
-    title: `+${agg.total} XP`,
-    body: `${agg.companionName} (${types})`,
-  }
-}
-
 export const ToastContainer = memo(function ToastContainer() {
-  const [toasts, setToasts] = useState<Toast[]>([])
-  const counterRef = useRef(0)
+  const toasts = useStore((state) => state.toasts)
+  const addToast = useStore((state) => state.addToast)
+  const removeToast = useStore((state) => state.removeToast)
+  const clearExpiredToasts = useStore((state) => state.clearExpiredToasts)
+  const recentXPGains = useStore((state) => state.recentXPGains)
   const xpAggregationRef = useRef<Map<string, XPAggregation>>(new Map())
+  const lastXPLengthRef = useRef(0)
 
-  const addToast = useCallback((toast: Omit<Toast, 'id' | 'timestamp'>) => {
-    const id = `toast-${++counterRef.current}`
-    setToasts(prev => {
-      const next = [...prev, { ...toast, id, timestamp: Date.now() }]
-      return next.slice(-MAX_TOASTS)
-    })
-  }, [])
-
-  const removeToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id))
-  }, [])
-
-  // Auto-dismiss toasts
+  // Auto-dismiss expired toasts
   useEffect(() => {
     if (toasts.length === 0) return
-    const timer = setInterval(() => {
-      const now = Date.now()
-      setToasts(prev => prev.filter(t => now - t.timestamp < TOAST_DURATION))
-    }, 500)
+    const timer = setInterval(clearExpiredToasts, 500)
     return () => clearInterval(timer)
-  }, [toasts.length])
+  }, [toasts.length, clearExpiredToasts])
 
-  // Listen for pane_error events (#84)
+  // Process XP gains from store with aggregation
   useEffect(() => {
-    const handleError = (e: CustomEvent<{ paneId: string; message: string }>) => {
-      addToast({
-        type: 'error',
-        title: 'Pane Error',
-        body: e.detail.message,
-      })
+    // Only process new XP gains
+    if (recentXPGains.length <= lastXPLengthRef.current) {
+      lastXPLengthRef.current = recentXPGains.length
+      return
     }
-    window.addEventListener('pane_error', handleError as EventListener)
-    return () => window.removeEventListener('pane_error', handleError as EventListener)
-  }, [addToast])
 
-  // Listen for xp_gain events with aggregation (#83, #85)
-  useEffect(() => {
-    const handleXP = (e: CustomEvent<{ companionId: string; companionName?: string; amount: number; type?: string; description?: string }>) => {
-      const d = e.detail
-      const companionId = d.companionId
-      const companionName = d.companionName || companionId
-      const type = d.type || 'XP'
+    // Get new XP gains since last check
+    const newGains = recentXPGains.slice(0, recentXPGains.length - lastXPLengthRef.current)
+    lastXPLengthRef.current = recentXPGains.length
+
+    // Helper to flush aggregation and show toast
+    const flushAggregation = (companionId: string) => {
+      const agg = xpAggregationRef.current.get(companionId)
+      if (agg) {
+        const types = Array.from(agg.types).join(', ')
+        addToast({
+          type: 'xp',
+          title: `+${agg.total} XP`,
+          body: `${agg.companionName} (${types})`,
+        })
+        xpAggregationRef.current.delete(companionId)
+      }
+    }
+
+    // Process each new XP gain
+    for (const xpGain of newGains) {
+      const companionId = xpGain.companionId
+      const companionName = xpGain.companionName || companionId
+      const type = xpGain.type || 'XP'
 
       const existing = xpAggregationRef.current.get(companionId)
 
-      // Helper to flush aggregation and show toast
-      const flushAggregation = (id: string) => {
-        const agg = xpAggregationRef.current.get(id)
-        if (agg) {
-          addToast(formatXPToast(agg))
-          xpAggregationRef.current.delete(id)
-        }
-      }
-
       if (existing) {
         // Add to existing aggregation
-        existing.total += d.amount
+        existing.total += xpGain.amount
         existing.types.add(type)
         // Reset timer
         clearTimeout(existing.timer)
@@ -98,9 +71,8 @@ export const ToastContainer = memo(function ToastContainer() {
       } else {
         // Start new aggregation
         const timer = setTimeout(() => flushAggregation(companionId), XP_AGGREGATION_WINDOW_MS)
-
         xpAggregationRef.current.set(companionId, {
-          total: d.amount,
+          total: xpGain.amount,
           companionName,
           types: new Set([type]),
           timer,
@@ -108,42 +80,11 @@ export const ToastContainer = memo(function ToastContainer() {
       }
     }
 
-    window.addEventListener('xp_gain', handleXP as EventListener)
+    // Cleanup on unmount
     return () => {
-      window.removeEventListener('xp_gain', handleXP as EventListener)
-      // Clean up any pending timers
       xpAggregationRef.current.forEach(agg => clearTimeout(agg.timer))
-      xpAggregationRef.current.clear()
     }
-  }, [addToast])
-
-  // Listen for quest_xp events (#83)
-  useEffect(() => {
-    const handleQuestXP = (e: CustomEvent<{ questId: string; phaseId: string; xp: number; reason: string }>) => {
-      const d = e.detail
-      addToast({
-        type: 'quest_xp',
-        title: `+${d.xp} Quest XP`,
-        body: d.reason || d.phaseId,
-      })
-    }
-    window.addEventListener('quest_xp', handleQuestXP as EventListener)
-    return () => window.removeEventListener('quest_xp', handleQuestXP as EventListener)
-  }, [addToast])
-
-  // Listen for achievement_unlocked events (#37)
-  useEffect(() => {
-    const handleAchievement = (e: CustomEvent<{ achievementName: string; achievementIcon: string; companionName: string; rarity: string }>) => {
-      const d = e.detail
-      addToast({
-        type: 'achievement',
-        title: `${d.achievementIcon} ${d.achievementName}`,
-        body: `Unlocked for ${d.companionName}`,
-      })
-    }
-    window.addEventListener('achievement_unlocked', handleAchievement as EventListener)
-    return () => window.removeEventListener('achievement_unlocked', handleAchievement as EventListener)
-  }, [addToast])
+  }, [recentXPGains, addToast])
 
   if (toasts.length === 0) return null
 
@@ -172,7 +113,7 @@ const TOAST_ICONS = {
   info: 'i',
 } as const
 
-function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string) => void }) {
+const ToastItem = memo(function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string) => void }) {
   const style = TOAST_STYLES[toast.type]
   const icon = TOAST_ICONS[toast.type]
 
@@ -199,4 +140,4 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
       </div>
     </div>
   )
-}
+})

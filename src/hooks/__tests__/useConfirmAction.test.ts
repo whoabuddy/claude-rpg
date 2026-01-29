@@ -1,24 +1,16 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
+import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { renderHook, act, waitFor } from '@testing-library/react'
 import { useConfirmAction } from '../useConfirmAction'
 
 describe('useConfirmAction', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
   it('starts not confirming', () => {
-    const onConfirm = vi.fn()
+    const onConfirm = mock(() => {})
     const { result } = renderHook(() => useConfirmAction(onConfirm))
     expect(result.current.confirming).toBe(false)
   })
 
   it('first click enters confirming state', () => {
-    const onConfirm = vi.fn()
+    const onConfirm = mock(() => {})
     const { result } = renderHook(() => useConfirmAction(onConfirm))
 
     act(() => {
@@ -30,7 +22,7 @@ describe('useConfirmAction', () => {
   })
 
   it('second click executes onConfirm', () => {
-    const onConfirm = vi.fn()
+    const onConfirm = mock(() => {})
     const { result } = renderHook(() => useConfirmAction(onConfirm))
 
     // First click
@@ -43,13 +35,13 @@ describe('useConfirmAction', () => {
       result.current.handleClick()
     })
 
-    expect(onConfirm).toHaveBeenCalledOnce()
+    expect(onConfirm).toHaveBeenCalledTimes(1)
     expect(result.current.confirming).toBe(false)
   })
 
-  it('auto-dismisses after 3 seconds', () => {
-    const onConfirm = vi.fn()
-    const { result } = renderHook(() => useConfirmAction(onConfirm))
+  it('auto-dismisses after timeout', async () => {
+    const onConfirm = mock(() => {})
+    const { result } = renderHook(() => useConfirmAction(onConfirm, 100)) // Use short timeout for test
 
     act(() => {
       result.current.handleClick()
@@ -57,16 +49,16 @@ describe('useConfirmAction', () => {
 
     expect(result.current.confirming).toBe(true)
 
-    act(() => {
-      vi.advanceTimersByTime(3000)
-    })
+    // Wait for auto-dismiss
+    await waitFor(() => {
+      expect(result.current.confirming).toBe(false)
+    }, { timeout: 200 })
 
-    expect(result.current.confirming).toBe(false)
     expect(onConfirm).not.toHaveBeenCalled()
   })
 
   it('handleCancel resets confirming state', () => {
-    const onConfirm = vi.fn()
+    const onConfirm = mock(() => {})
     const { result } = renderHook(() => useConfirmAction(onConfirm))
 
     act(() => {
@@ -83,9 +75,9 @@ describe('useConfirmAction', () => {
     expect(onConfirm).not.toHaveBeenCalled()
   })
 
-  it('clears auto-dismiss timer on cancel', () => {
-    const onConfirm = vi.fn()
-    const { result } = renderHook(() => useConfirmAction(onConfirm))
+  it('clears auto-dismiss timer on cancel', async () => {
+    const onConfirm = mock(() => {})
+    const { result } = renderHook(() => useConfirmAction(onConfirm, 100))
 
     act(() => {
       result.current.handleClick()
@@ -95,10 +87,8 @@ describe('useConfirmAction', () => {
       result.current.handleCancel()
     })
 
-    // Advance time past the 3 second mark - should not trigger anything
-    act(() => {
-      vi.advanceTimersByTime(5000)
-    })
+    // Wait past the timeout - should stay not confirming
+    await new Promise(resolve => setTimeout(resolve, 150))
 
     expect(result.current.confirming).toBe(false)
   })

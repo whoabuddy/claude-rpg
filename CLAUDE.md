@@ -43,35 +43,47 @@ Tmux Polling (250ms)    Claude Hooks (HTTP POST)
 
 ```
 claude-rpg/
-├── server/               # Node.js backend
-│   ├── index.ts          # Main server, HTTP/WS, event processing, static serving, dev proxy
-│   ├── tmux.ts           # Tmux polling, pane/window discovery, process detection
-│   ├── tmux-batch.ts     # Batched tmux commands (send-keys, buffer ops)
-│   ├── tmux-control.ts   # Tmux control mode client (pane events)
-│   ├── terminal-parser.ts # Parse terminal output for prompts (permission, question, plan)
-│   ├── state-reconciler.ts # Cross-check hook state vs terminal content
-│   ├── xp.ts             # XP calculation from tool usage, git ops, commands
-│   ├── companions.ts     # Companion CRUD, level progression, persistence
-│   ├── competitions.ts   # Leaderboard aggregation by category/period
-│   ├── whisper.ts        # Voice input transcription via whisper.cpp
-│   ├── cli.ts            # CLI setup command (hooks, directories)
-│   └── utils.ts          # Shared utilities (stripAnsi, findWindowById)
+├── server-v2/            # Bun server (v2)
+│   ├── index.ts          # Main server, HTTP/WS, event processing, static serving
+│   ├── api/              # HTTP API routes
+│   ├── modules/          # Core modules (tmux, companions, achievements, etc.)
+│   └── db/               # SQLite database and migrations
+├── server/               # Legacy Node.js server (v1, deprecated)
 ├── src/                  # React frontend
-│   ├── App.tsx           # Root component, page routing
-│   ├── components/       # UI components (PaneCard, Dashboard, BackendSelector, etc.)
-│   ├── hooks/            # React hooks (useWebSocket, useWindows, useNotifications)
+│   ├── App.tsx           # Root component with React Router
+│   ├── routes/           # Page components (DashboardPage, PersonasPage, etc.)
+│   ├── store/            # Zustand state management
+│   │   └── index.ts      # Centralized store with slices and selectors
+│   ├── lib/              # Core modules
+│   │   ├── websocket.ts  # WebSocket client, direct store updates
+│   │   └── api.ts        # HTTP API client (pane/window actions)
+│   ├── components/       # UI components (PaneCard, Layout, RadarChart, etc.)
+│   ├── hooks/            # React hooks (useConnection, useNotifications)
+│   ├── contexts/         # React contexts (PaneActionsContext)
+│   ├── __tests__/        # Bun tests with happy-dom
 │   └── styles/           # Tailwind CSS
 ├── shared/
 │   └── types.ts          # All TypeScript interfaces (shared between server + client)
+├── scripts/              # Build scripts
+│   └── build-client.ts   # Bun client build (replaces Vite)
 ├── deploy/               # Production deployment
-│   ├── claude-rpg.service # systemd user service
+│   ├── claude-rpg.service # systemd user service (runs Bun)
 │   ├── deploy.sh         # Build + restart service
 │   ├── install.sh        # First-time setup on Ubuntu Server
 │   ├── update.sh         # Pull latest + rebuild + restart
 │   └── README.md         # Deployment docs (tunnel, dev proxy, ports)
 └── hooks/
-    └── claude-rpg-hook.sh  # Claude Code hook script (installed to ~/.claude-rpg/hooks/)
+    └── claude-rpg-hook.sh  # Claude Code hook script
 ```
+
+## Build System
+
+- **Server**: Runs directly with Bun (no build step) - `bun run server-v2/index.ts`
+- **Client**: Built with Bun (`scripts/build-client.ts`) - outputs to `dist/client/`
+  - Code splitting with lazy-loaded routes
+  - Tailwind CSS minification
+  - Content-hashed assets for caching
+- **Tests**: `bun test` with happy-dom for DOM testing
 
 ## Data Flow
 
@@ -85,7 +97,34 @@ claude-rpg/
 8. State reconciler cross-checks hook-reported status against terminal state
 9. Server calculates XP and updates companion stats
 10. WebSocket broadcasts updates with backpressure (priority-based message dropping)
-11. React UI renders panes grouped by window, with disconnection banner when offline
+11. Client WebSocket module (`src/lib/websocket.ts`) updates Zustand store directly
+12. React components use store selectors for reactive updates
+
+## Client State Management
+
+The client uses **Zustand** for centralized state management:
+
+```
+WebSocket Message → src/lib/websocket.ts → Zustand Store → React Components
+                    handleMessage()        store.setWindows()    useStore()
+```
+
+**Store slices** (`src/store/index.ts`):
+- `windows` - Tmux windows and panes (from WebSocket)
+- `companions` - Projects with XP/stats (from WebSocket)
+- `quests` - Active and completed quests
+- `competitions` - Leaderboards by category/period
+- `workers` - Claude session metadata
+- `recentEvents` / `recentXPGains` - Event history
+- `status` / `reconnectAttempt` - Connection state
+- UI state: `selectedPaneId`, `fullScreenPaneId`, `activePage`
+
+**Selector hooks** (memoized, prevent unnecessary re-renders):
+- `useClaudePanes()` - All Claude panes across windows
+- `useAttentionPanes()` - Panes needing user input (waiting/error)
+- `useCompanion(id)` - Single companion by ID
+- `useActiveQuests()` - Quests with status='active'
+- `useTerminalContent(paneId)` - Cached terminal output
 
 ## Claude Code Integration
 

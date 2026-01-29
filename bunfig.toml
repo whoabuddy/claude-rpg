@@ -1,0 +1,14 @@
+# Bun configuration for claude-rpg
+
+[install]
+# Use lockfile
+lockfile = true
+
+[run]
+# Silence package.json script warnings
+silent = false
+
+[test]
+# Test configuration
+coverage = false
+preload = ["./src/__tests__/setup.ts"]
