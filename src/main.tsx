@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
-import './styles/index.css'
+// CSS is loaded via HTML <link> tag - Bun doesn't handle CSS imports correctly
 
 // Debug: log when script loads
 console.log('[claude-rpg] main.tsx loaded')
