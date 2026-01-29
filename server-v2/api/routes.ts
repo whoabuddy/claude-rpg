@@ -36,6 +36,7 @@ export const ROUTES: Route[] = [
   // Projects
   { method: 'GET', pattern: '/api/projects', handler: 'listProjects' },
   { method: 'GET', pattern: '/api/projects/:id', handler: 'getProject' },
+  { method: 'POST', pattern: '/api/clone', handler: 'cloneGitHubRepo' },
 
   // Quests
   { method: 'GET', pattern: '/api/quests', handler: 'listQuests' },

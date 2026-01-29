@@ -7,10 +7,11 @@ import { processHookEvent } from '../events/hooks'
 import { pollTmux } from '../tmux'
 import * as tmuxCommands from '../tmux/commands'
 import { getAllPersonas, getPersonaById } from '../personas'
-import { getAllProjects, getProjectById } from '../projects'
+import { getAllProjects, getProjectById, getOrCreateProject } from '../projects'
 import { getActiveQuests, getQuestById, updateQuestStatus } from '../quests'
 import { getXpByCategory, getXpTimeline } from '../xp'
 import { isWhisperAvailable, transcribeAudio as whisperTranscribe } from '../lib/whisper'
+import { cloneRepo } from '../projects/clone'
 import type {
   ApiResponse,
   CreateWindowRequest,
@@ -20,8 +21,10 @@ import type {
   HookEventRequest,
   UpdateQuestRequest,
   TranscribeResponse,
+  CloneRequest,
 } from './types'
 import type { QuestStatus } from '../quests/types'
+import type { CloneResult } from '../projects/clone'
 
 const log = createLogger('api-handlers')
 
@@ -278,6 +281,81 @@ export function getProject(params: Record<string, string>): ApiResponse<unknown>
     }
   }
   return { success: true, data: { project } }
+}
+
+/**
+ * Clone a GitHub repository
+ */
+export async function cloneGitHubRepo(body: CloneRequest): Promise<ApiResponse<CloneResult>> {
+  // Validate URL is provided
+  if (!body.url || typeof body.url !== 'string' || body.url.trim() === '') {
+    return {
+      success: false,
+      error: { code: 'MISSING_URL', message: 'URL is required' },
+    }
+  }
+
+  const url = body.url.trim()
+
+  // Validate URL format (basic GitHub URL check)
+  const isValidGitHubUrl =
+    url.includes('github.com') ||
+    url.match(/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9._-]+$/) ||
+    url.startsWith('git@github.com:')
+
+  if (!isValidGitHubUrl) {
+    return {
+      success: false,
+      error: { code: 'INVALID_URL', message: 'Invalid GitHub URL' },
+    }
+  }
+
+  try {
+    // Clone the repository
+    const result = await cloneRepo(url)
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: { code: 'CLONE_FAILED', message: result.error || 'Clone failed' },
+      }
+    }
+
+    // If successfully cloned (not already exists), try to register it as a project
+    if (result.path && !result.alreadyExists) {
+      try {
+        await getOrCreateProject(result.path)
+        log.info('Registered new project', { path: result.path })
+      } catch (error) {
+        // Non-fatal: repo was cloned successfully even if project registration failed
+        log.warn('Failed to register project', {
+          path: result.path,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        success: result.success,
+        path: result.path,
+        alreadyExists: result.alreadyExists,
+      },
+    }
+  } catch (error) {
+    log.error('Clone operation failed', {
+      url,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: {
+        code: 'CLONE_ERROR',
+        message: error instanceof Error ? error.message : 'Failed to clone repository',
+      },
+    }
+  }
 }
 
 /**

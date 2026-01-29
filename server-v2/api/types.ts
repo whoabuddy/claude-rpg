@@ -66,3 +66,7 @@ export interface TranscribeResponse {
   text?: string
   error?: string
 }
+
+export interface CloneRequest {
+  url: string
+}
