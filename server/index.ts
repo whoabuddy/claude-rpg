@@ -29,7 +29,7 @@ import { processEvent, detectCommandXP, processQuestXP } from './xp.js'
 import { findOrCreateCompanion, saveCompanions, loadCompanions, fetchBitcoinFace, getSessionName, sanitizeSvgPaths } from './companions.js'
 import { getAllCompetitions, updateStreak } from './competitions.js'
 import { checkAchievements, getAchievementDef } from './achievements.js'
-import { loadQuests, saveQuests, processQuestEvent, isQuestEvent, type QuestEventPayload, getQuestForRepo, updateQuestSummary, computeQuestSummary } from './quests.js'
+import { loadQuests, saveQuests, processQuestEvent, isQuestEvent, type QuestEventPayload, getQuestForRepo, updateQuestSummary, computeQuestSummary, archiveQuest } from './quests.js'
 import {
   pollTmuxState,
   updateClaudeSession,
@@ -2442,7 +2442,20 @@ const server = http.createServer(async (req, res) => {
     req.on('end', () => {
       try {
         const updates = JSON.parse(body)
-        if (updates.status && ['active', 'completed', 'paused'].includes(updates.status)) {
+
+        // Handle archive action
+        if (updates.action === 'archive') {
+          const allEvents = getAllEventsFromFile()
+          archiveQuest(quest, allEvents, companions)
+          saveQuests(DATA_DIR, quests)
+          broadcast({ type: 'quest_update', payload: quest } as ServerMessage)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: true, data: quest }))
+          return
+        }
+
+        // Handle status update
+        if (updates.status && ['active', 'completed', 'paused', 'archived'].includes(updates.status)) {
           quest.status = updates.status
           if (updates.status === 'completed') {
             quest.completedAt = Date.now()

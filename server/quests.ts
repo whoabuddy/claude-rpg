@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
-import type { Quest, QuestPhase, QuestPhaseStatus, QuestEventType } from '../shared/types.js'
+import type { Quest, QuestPhase, QuestPhaseStatus, QuestEventType, ClaudeEvent, PostToolUseEvent, Companion } from '../shared/types.js'
 
 const QUESTS_FILE = 'quests.json'
 
@@ -392,4 +392,104 @@ export function getQuestForRepo(quests: Quest[], repoName: string): Quest | unde
 export function getCurrentPhase(quest: Quest): QuestPhase | undefined {
   // Return the first non-completed phase
   return quest.phases.find(p => p.status !== 'completed')
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Quest Archive (retroactive stats from event history)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// XP rewards (duplicated from xp.ts to avoid circular dependency)
+const TOOL_XP: Record<string, number> = {
+  Read: 1,
+  Edit: 3,
+  Write: 5,
+  Bash: 2,
+  Grep: 1,
+  Glob: 1,
+  Task: 5,
+  WebFetch: 2,
+  WebSearch: 2,
+  TodoWrite: 1,
+  AskUserQuestion: 1,
+  default: 1,
+}
+
+function getToolXP(tool: string): number {
+  return TOOL_XP[tool] ?? TOOL_XP.default
+}
+
+/**
+ * Compute quest stats from event history (for manual completion without proper workflow).
+ * Filters events by quest time window and associated repos.
+ */
+function computeStatsFromEvents(events: ClaudeEvent[]): QuestSummary {
+  let commits = 0
+  let testsRun = 0
+  let xpEarned = 0
+  const toolsUsed: Record<string, number> = {}
+
+  for (const e of events) {
+    if (e.type === 'post_tool_use') {
+      const postEvent = e as PostToolUseEvent
+      const tool = postEvent.tool
+
+      toolsUsed[tool] = (toolsUsed[tool] || 0) + 1
+      xpEarned += getToolXP(tool)
+
+      // Check for git commit
+      const cmd = ((postEvent as PostToolUseEvent & { toolInput?: { command?: string } }).toolInput?.command || '').toLowerCase()
+      if (cmd.includes('git commit')) commits++
+      if (/\btest\b|vitest|pytest|jest|npm test|pnpm test/.test(cmd)) testsRun++
+    } else if (e.type === 'pre_tool_use') {
+      // Also count tool XP from pre_tool_use (matches xp.ts logic)
+      const preEvent = e as { tool: string }
+      xpEarned += getToolXP(preEvent.tool)
+    }
+  }
+
+  return { xpEarned, commits, testsRun, toolsUsed }
+}
+
+/**
+ * Archive a quest by computing stats from event history.
+ * Used when a quest is manually marked complete without going through proper workflow.
+ */
+export function archiveQuest(
+  quest: Quest,
+  events: ClaudeEvent[],
+  companions: Companion[]
+): Quest {
+  // 1. Filter events by quest time window and repos
+  const startTime = quest.createdAt
+  const endTime = quest.completedAt || Date.now()
+
+  const questEvents = events.filter(e => {
+    if (e.timestamp < startTime || e.timestamp > endTime) return false
+    // Match any repo in quest.repos by path
+    return quest.repos.some(repo => {
+      const companion = companions.find(c => c.repo.name === repo)
+      return companion && e.cwd?.startsWith(companion.repo.path)
+    })
+  })
+
+  // 2. Compute stats from filtered events
+  const stats = computeStatsFromEvents(questEvents)
+  quest.xpEarned = stats.xpEarned
+  quest.commits = stats.commits
+  quest.testsRun = stats.testsRun
+  quest.toolsUsed = stats.toolsUsed
+
+  // 3. Mark incomplete phases as 'skipped'
+  for (const phase of quest.phases) {
+    if (phase.status !== 'completed' && phase.status !== 'failed') {
+      phase.status = 'skipped'
+    }
+  }
+
+  // 4. Set archived status
+  quest.status = 'archived'
+  quest.archivedAt = Date.now()
+  quest.archiveSource = 'computed'
+
+  return quest
 }

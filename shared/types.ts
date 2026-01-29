@@ -392,7 +392,7 @@ export interface AchievementMeta {
 // QUESTS (Cross-repo goals with phased execution)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type QuestStatus = 'active' | 'completed' | 'paused'
+export type QuestStatus = 'active' | 'completed' | 'paused' | 'archived'
 
 export type QuestPhaseStatus =
   | 'pending'
@@ -401,6 +401,7 @@ export type QuestPhaseStatus =
   | 'retrying'
   | 'completed'
   | 'failed'
+  | 'skipped'
 
 export interface QuestPhase {
   id: string
@@ -432,6 +433,9 @@ export interface Quest {
   commits?: number             // Total commits made
   testsRun?: number            // Total test runs
   toolsUsed?: Record<string, number>  // Tool name -> count
+  // Archive metadata
+  archivedAt?: number          // When archive computation completed
+  archiveSource?: 'computed' | 'tracked'  // How stats were derived
 }
 
 export type QuestEventType =
