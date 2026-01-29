@@ -24,12 +24,22 @@ const MIGRATIONS: Migration[] = [
     name: 'initial_schema',
     sql: CREATE_TABLES,
   },
-  // Future migrations go here:
-  // {
-  //   version: 2,
-  //   name: 'add_some_column',
-  //   sql: 'ALTER TABLE ...',
-  // },
+  {
+    version: 2,
+    name: 'add_notes_table',
+    sql: `
+      CREATE TABLE IF NOT EXISTS notes (
+        id TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
+        tags TEXT,
+        status TEXT NOT NULL DEFAULT 'inbox',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_notes_status ON notes(status);
+      CREATE INDEX IF NOT EXISTS idx_notes_created ON notes(created_at);
+    `,
+  },
 ]
 
 /**

@@ -2,7 +2,7 @@
  * SQLite schema definitions
  */
 
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 /**
  * SQL statements to create all tables
@@ -119,6 +119,19 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE INDEX IF NOT EXISTS idx_events_pane ON events(pane_id);
 CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at);
+
+-- Notes: Scratchpad entries
+CREATE TABLE IF NOT EXISTS notes (
+  id TEXT PRIMARY KEY,
+  content TEXT NOT NULL,
+  tags TEXT,
+  status TEXT NOT NULL DEFAULT 'inbox',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_notes_status ON notes(status);
+CREATE INDEX IF NOT EXISTS idx_notes_created ON notes(created_at);
 `
 
 /**
@@ -133,6 +146,7 @@ export const TABLES = [
   'quests',
   'achievements',
   'events',
+  'notes',
 ] as const
 
 export type TableName = typeof TABLES[number]

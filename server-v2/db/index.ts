@@ -68,6 +68,14 @@ export interface Queries {
   insertEvent: Statement
   getRecentEvents: Statement
   deleteOldEvents: Statement
+
+  // Notes
+  insertNote: Statement
+  getNoteById: Statement
+  getAllNotes: Statement
+  getNotesByStatus: Statement
+  updateNote: Statement
+  deleteNote: Statement
 }
 
 let _queries: Queries | null = null
@@ -234,6 +242,17 @@ function initQueries(db: Database): Queries {
     `),
     getRecentEvents: db.prepare('SELECT * FROM events ORDER BY created_at DESC LIMIT ?'),
     deleteOldEvents: db.prepare('DELETE FROM events WHERE created_at < ?'),
+
+    // Notes
+    insertNote: db.prepare(`
+      INSERT INTO notes (id, content, tags, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `),
+    getNoteById: db.prepare('SELECT * FROM notes WHERE id = ?'),
+    getAllNotes: db.prepare('SELECT * FROM notes ORDER BY created_at DESC'),
+    getNotesByStatus: db.prepare('SELECT * FROM notes WHERE status = ? ORDER BY created_at DESC'),
+    updateNote: db.prepare('UPDATE notes SET content = ?, tags = ?, status = ?, updated_at = ? WHERE id = ?'),
+    deleteNote: db.prepare('DELETE FROM notes WHERE id = ?'),
   }
 }
 
