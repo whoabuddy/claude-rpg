@@ -4,30 +4,32 @@
 
 import { createLogger } from '../lib/logger'
 import { getOrCreatePersona, getPersonaById } from '../personas/service'
-import { getSession } from '../sessions/manager'
+import { getSession, getOrCreateSession } from '../sessions/manager'
 import type { ClaudeSessionInfo } from './types'
 
 const log = createLogger('session-builder')
 
 /**
  * Build ClaudeSessionInfo for a pane with a Claude process
+ * Creates a session on-demand if one doesn't exist yet
  */
 export async function buildClaudeSessionInfo(
   paneId: string,
   sessionId?: string
 ): Promise<ClaudeSessionInfo | undefined> {
-  // Get session from session manager
-  const session = getSession(paneId)
-
-  // If no session and no sessionId, can't build info
-  if (!session && !sessionId) {
-    return undefined
-  }
-
   try {
+    // Get or create session for this pane
+    // This ensures Claude panes always have a session, even if started before server
+    const session = getSession(paneId) || getOrCreateSession(paneId, null, null)
+    const sid = sessionId || session.id
+
     // Get or create persona
-    const sid = sessionId || session?.id || crypto.randomUUID()
     const persona = await getOrCreatePersona(sid)
+
+    // Link persona to session if not already linked
+    if (!session.personaId) {
+      session.personaId = persona.id
+    }
 
     // Build session info with persona data
     const now = Date.now()
@@ -35,7 +37,7 @@ export async function buildClaudeSessionInfo(
       id: sid,
       name: persona.name,
       avatarSvg: persona.avatarUrl || undefined,
-      status: session?.status || 'idle',
+      status: session.status || 'idle',
       tier: persona.tier,
       badges: persona.badges,
       personality: persona.personality,
