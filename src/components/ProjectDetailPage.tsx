@@ -1,6 +1,7 @@
 import type { Companion } from '@shared/types'
 import { levelFromTotalXP } from '@shared/types'
 import { useStore } from '../store'
+import { RadarChart, calculateStatsRadar } from './RadarChart'
 
 interface ProjectDetailPageProps {
   companionId: string
@@ -174,6 +175,19 @@ export function ProjectDetailPage({ companionId, connected, onNavigateBack }: Pr
           />
         </div>
       </div>
+
+      {/* Stat Distribution Chart */}
+      {companion.stats.sessionsCompleted > 0 && (
+        <div className="rounded-lg border border-rpg-border bg-rpg-bg-elevated p-4">
+          <h2 className="text-sm font-medium text-rpg-text mb-2">Stat Distribution</h2>
+          <div className="flex justify-center">
+            <RadarChart
+              data={calculateStatsRadar(companion.stats)}
+              size={220}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Stats Overview Grid */}
       <div className="grid grid-cols-2 gap-3">
