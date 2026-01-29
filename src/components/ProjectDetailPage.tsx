@@ -1,13 +1,12 @@
-import { useState, useEffect } from 'react'
 import type { Companion } from '@shared/types'
 import { levelFromTotalXP } from '@shared/types'
+import { useStore } from '../store'
 
 interface ProjectDetailPageProps {
   companionId: string
+  connected: boolean
   onNavigateBack: () => void
 }
-
-const API_URL = ''  // Same origin, proxied by Vite in dev
 
 // Fire icon for streak indicator
 function FireIcon() {
@@ -48,36 +47,11 @@ function getRarityClass(rarity: string): string {
   }
 }
 
-export function ProjectDetailPage({ companionId, onNavigateBack }: ProjectDetailPageProps) {
-  const [companion, setCompanion] = useState<Companion | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  // Fetch companion data
-  useEffect(() => {
-    fetch(`${API_URL}/api/companions`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.ok && data.data) {
-          const found = data.data.find((c: Companion) => c.id === companionId)
-          setCompanion(found || null)
-        }
-        setLoading(false)
-      })
-      .catch(e => {
-        console.error('[claude-rpg] Error fetching companion:', e)
-        setLoading(false)
-      })
-  }, [companionId])
-
-  if (loading) {
-    return (
-      <div className="p-4">
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin w-6 h-6 border-2 border-rpg-accent border-t-transparent rounded-full" />
-        </div>
-      </div>
-    )
-  }
+export function ProjectDetailPage({ companionId, connected, onNavigateBack }: ProjectDetailPageProps) {
+  // Get companion from store
+  const companion = useStore((state) =>
+    state.companions.find((c) => c.id === companionId) || null
+  )
 
   if (!companion) {
     return (

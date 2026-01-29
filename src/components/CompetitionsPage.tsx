@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
-import type { TimePeriod, LeaderboardEntry, Companion, Achievement } from '@shared/types'
+import { useState } from 'react'
+import type { TimePeriod, LeaderboardEntry, Achievement } from '@shared/types'
 import { ACHIEVEMENT_CATALOG, getAchievementInfo, RARITY_COLORS, RARITY_BG } from '@shared/achievement-defs'
+import { useStore } from '../store'
 import { useCompetitions } from '../hooks/useCompetitions'
 import { LeaderboardCard, StreakCard } from './LeaderboardCard'
 import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
@@ -30,32 +31,9 @@ const CATEGORY_CONFIG = {
 export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavigateBack, onNavigateToProject }: CompetitionsPageProps) {
   const [period, setPeriod] = useState<TimePeriod>('all')
   const { competitions, loading, getByCategory } = useCompetitions(period)
-  const [companions, setCompanions] = useState<Companion[]>([])
 
-  // Fetch companions for achievements display (#37)
-  useEffect(() => {
-    fetch('/api/companions')
-      .then(res => res.json())
-      .then(data => { if (data.ok && data.data) setCompanions(data.data) })
-      .catch(() => {})
-  }, [])
-
-  // Listen for companion updates (achievements may change)
-  useEffect(() => {
-    const handleUpdate = (e: CustomEvent<Companion>) => {
-      setCompanions(prev => {
-        const idx = prev.findIndex(c => c.id === e.detail.id)
-        if (idx >= 0) {
-          const updated = [...prev]
-          updated[idx] = e.detail
-          return updated
-        }
-        return [...prev, e.detail]
-      })
-    }
-    window.addEventListener('companion_update', handleUpdate as EventListener)
-    return () => window.removeEventListener('companion_update', handleUpdate as EventListener)
-  }, [])
+  // Get companions from store for achievements display
+  const companions = useStore((state) => state.companions)
 
   // Get streak entries from XP competition (all have streak info)
   const xpCompetition = getByCategory('xp')
