@@ -39,6 +39,7 @@ export async function buildClaudeSessionInfo(
       tier: persona.tier,
       badges: persona.badges,
       personality: persona.personality,
+      health: persona.health,
       createdAt: now,
       lastActivity: now,
     }
@@ -70,6 +71,7 @@ export function updateClaudeSessionInfo(
         tier: persona.tier,
         badges: persona.badges,
         personality: persona.personality,
+        health: persona.health,
         lastActivity: Date.now(),
       }
     }

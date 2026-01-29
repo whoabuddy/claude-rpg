@@ -28,6 +28,12 @@ export interface PersonaPersonality {
   quirk: string | null
 }
 
+export interface PersonaHealth {
+  energy: number
+  morale: number
+  lastUpdated: string
+}
+
 export interface ClaudeSessionInfo {
   id: string
   name: string
@@ -36,6 +42,7 @@ export interface ClaudeSessionInfo {
   tier: PersonaTier
   badges: string[]
   personality: PersonaPersonality
+  health?: PersonaHealth
   createdAt: number
   lastActivity: number
 }

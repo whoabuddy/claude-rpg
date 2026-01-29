@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useStore } from '../store'
 import { PaneAvatar } from '../components/PaneAvatar'
 import { StatusPill } from '../components/StatusPill'
@@ -114,7 +114,22 @@ interface PersonaCardProps {
 
 function PersonaCard({ pane }: PersonaCardProps) {
   const session = pane.process.claudeSession
-  const [challenges] = useState<PersonaChallenge[]>([])
+  const [challenges, setChallenges] = useState<PersonaChallenge[]>([])
+
+  // Fetch challenges when session ID is available
+  useEffect(() => {
+    if (session?.id) {
+      fetch(`/api/personas/${session.id}/challenges`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success && data.data?.challenges) {
+            // Filter to only show active challenges
+            setChallenges(data.data.challenges.filter((c: PersonaChallenge) => c.status === 'active'))
+          }
+        })
+        .catch((err) => console.error('Failed to fetch challenges:', err))
+    }
+  }, [session?.id])
 
   if (!session) return null
 
@@ -124,10 +139,6 @@ function PersonaCard({ pane }: PersonaCardProps) {
     morale: session.stats ? Math.min(100, 50 + (session.stats.totalXPGained / 10)) : 50,
     lastUpdated: new Date().toISOString(),
   }
-
-  // Mock challenges (will be fetched from API in future)
-  // For now, show empty state or placeholder
-  // TODO: Fetch challenges via GET /api/personas/:id/challenges when endpoint is ready
 
   return (
     <div className="p-4 rounded-lg border border-rpg-border bg-rpg-card hover:border-rpg-accent/50 transition-colors">
