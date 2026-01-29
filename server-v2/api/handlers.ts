@@ -13,7 +13,7 @@ import { getXpByCategory, getXpTimeline } from '../xp'
 import { isWhisperAvailable, transcribeAudio as whisperTranscribe } from '../lib/whisper'
 import { cloneRepo } from '../projects/clone'
 import { createNote, getNoteById, getAllNotes, updateNote, deleteNote } from '../notes'
-import { getAllChallenges } from '../personas/challenges'
+import { getAllChallenges, getChallengeDefinition } from '../personas/challenges'
 import type { Note, NoteStatus } from '../notes'
 import type {
   ApiResponse,
@@ -278,7 +278,14 @@ export function getPersonaChallenges(params: Record<string, string>): ApiRespons
     }
   }
 
-  const challenges = getAllChallenges(params.id)
+  const challenges = getAllChallenges(params.id).map((challenge) => {
+    const definition = getChallengeDefinition(challenge.challengeId)
+    return {
+      ...challenge,
+      name: definition?.name || 'Unknown Challenge',
+      description: definition?.description || '',
+    }
+  })
   return { success: true, data: { challenges } }
 }
 
