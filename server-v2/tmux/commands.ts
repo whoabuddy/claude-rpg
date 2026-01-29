@@ -12,15 +12,17 @@ const log = createLogger('tmux')
 async function tmux(...args: string[]): Promise<string> {
   log.debug('Executing tmux command', { args })
 
-  const result = await Bun.spawn(['tmux', ...args], {
+  const proc = Bun.spawn(['tmux', ...args], {
     stdout: 'pipe',
     stderr: 'pipe',
   })
 
-  const stdout = await new Response(result.stdout).text()
-  const stderr = await new Response(result.stderr).text()
+  // Must await exited before checking exitCode
+  const exitCode = await proc.exited
+  const stdout = await new Response(proc.stdout).text()
+  const stderr = await new Response(proc.stderr).text()
 
-  if (result.exitCode !== 0) {
+  if (exitCode !== 0) {
     throw new Error(`tmux command failed: ${stderr || stdout}`)
   }
 

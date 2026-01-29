@@ -39,10 +39,11 @@ export async function getProcessInfo(pid: number): Promise<ProcessInfo | null> {
  */
 export async function getChildPids(pid: number): Promise<number[]> {
   try {
-    const result = await Bun.spawn(['pgrep', '-P', String(pid)], {
+    const proc = Bun.spawn(['pgrep', '-P', String(pid)], {
       stdout: 'pipe',
     })
-    const output = await new Response(result.stdout).text()
+    await proc.exited  // Wait for process to complete
+    const output = await new Response(proc.stdout).text()
     return output
       .trim()
       .split('\n')

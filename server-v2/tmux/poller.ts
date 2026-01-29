@@ -5,7 +5,7 @@
 import { createLogger } from '../lib/logger'
 import { classifyProcess, getProcessCwd } from './process'
 import { isTmuxRunning } from './commands'
-import type { TmuxWindow, TmuxPane, TmuxState } from './types'
+import type { TmuxWindow, TmuxPane, TmuxState, PaneProcessType, RepoInfo } from './types'
 
 const log = createLogger('tmux-poller')
 
@@ -89,50 +89,70 @@ export async function pollTmux(): Promise<TmuxState> {
 
   try {
     // Get windows
-    const windowsResult = await Bun.spawn([
+    const windowsProc = Bun.spawn([
       'tmux', 'list-windows', '-a',
       '-F', '#{window_id}:#{session_name}:#{window_index}:#{window_name}:#{window_active}'
     ], { stdout: 'pipe' })
-    const windowsOutput = await new Response(windowsResult.stdout).text()
+    await windowsProc.exited  // Wait for process to complete
+    const windowsOutput = await new Response(windowsProc.stdout).text()
     const parsedWindows = parseWindows(windowsOutput)
 
     // Get panes
-    const panesResult = await Bun.spawn([
+    const panesProc = Bun.spawn([
       'tmux', 'list-panes', '-a',
       '-F', '#{pane_id}:#{window_id}:#{pane_index}:#{pane_active}:#{pane_width}:#{pane_height}:#{pane_pid}:#{pane_current_command}'
     ], { stdout: 'pipe' })
-    const panesOutput = await new Response(panesResult.stdout).text()
+    await panesProc.exited  // Wait for process to complete
+    const panesOutput = await new Response(panesProc.stdout).text()
     const parsedPanes = parsePanes(panesOutput)
 
     // Enrich panes with process info
-    const panes: TmuxPane[] = await Promise.all(
+    const panes: (TmuxPane & { windowId: string })[] = await Promise.all(
       parsedPanes.map(async (p) => {
-        const processType = await classifyProcess(p.pid)
-        const cwd = await getProcessCwd(p.pid)
+        const processType = await classifyProcess(p.pid) as PaneProcessType
+        const cwd = await getProcessCwd(p.pid) || '/tmp'
+
+        // Parse repo from cwd
+        let repo: RepoInfo | undefined
+        if (cwd) {
+          const match = cwd.match(/\/([^\/]+)\/([^\/]+)$/)
+          if (match) {
+            repo = {
+              path: cwd,
+              org: match[1],
+              name: match[2],
+            }
+          }
+        }
 
         return {
           id: p.paneId,
-          windowId: p.windowId,
+          windowId: p.windowId,  // Keep for internal grouping
           index: p.paneIndex,
           active: p.active,
           width: p.width,
           height: p.height,
-          process: processType,
-          command: p.command,
+          process: {
+            type: processType,
+            command: p.command,
+            pid: p.pid,
+            // claudeSession will be populated by session manager
+          },
           cwd,
-          pid: p.pid,
+          repo,
         }
       })
     )
 
-    // Build windows with panes
+    // Build windows with panes (use correct field names for client)
     const windows: TmuxWindow[] = parsedWindows.map(w => ({
       id: w.windowId,
       sessionName: w.sessionName,
-      index: w.windowIndex,
-      name: w.windowName,
-      active: w.active,
-      panes: panes.filter(p => p.windowId === w.windowId),
+      windowIndex: w.windowIndex,   // Renamed from 'index'
+      windowName: w.windowName,     // Renamed from 'name'
+      panes: panes
+        .filter(p => p.windowId === w.windowId)
+        .map(({ windowId, ...pane }) => pane),  // Remove internal windowId field
     }))
 
     // Group by session
