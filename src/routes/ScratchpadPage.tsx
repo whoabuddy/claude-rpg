@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { VoiceButton } from '../components/VoiceButton'
 
 type NoteStatus = 'inbox' | 'triaged' | 'archived'
 
@@ -114,6 +115,17 @@ export default function ScratchpadPage() {
     }
   }
 
+  // Handle voice transcription
+  const handleVoiceTranscription = (text: string) => {
+    setNewNoteContent(prev => {
+      // If there's existing content, add a newline before appending
+      if (prev.trim()) {
+        return `${prev}\n${text}`
+      }
+      return text
+    })
+  }
+
   // Format date nicely
   const formatDate = (isoDate: string) => {
     const date = new Date(isoDate)
@@ -189,13 +201,19 @@ export default function ScratchpadPage() {
           className="w-full px-3 py-2 bg-rpg-card border border-rpg-border rounded-lg text-rpg-text placeholder-rpg-text-dim resize-none focus:outline-none focus:border-rpg-accent transition-colors"
           rows={3}
         />
-        <button
-          type="submit"
-          disabled={!newNoteContent.trim() || isCreating}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isCreating ? 'Creating...' : 'Add Note'}
-        </button>
+        <div className="flex items-center gap-3">
+          <VoiceButton
+            onTranscription={handleVoiceTranscription}
+            disabled={isCreating}
+          />
+          <button
+            type="submit"
+            disabled={!newNoteContent.trim() || isCreating}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isCreating ? 'Creating...' : 'Add Note'}
+          </button>
+        </div>
       </form>
 
       {/* Notes list */}
