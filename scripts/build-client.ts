@@ -2,6 +2,9 @@
 /**
  * Bun client build script
  * Replaces Vite for production builds
+ *
+ * Note: CSS is built separately with Tailwind CLI (v3) since bun-plugin-tailwind
+ * requires Tailwind v4 which has incompatible syntax.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, cpSync } from 'fs'
@@ -44,6 +47,19 @@ const aliasPlugin = {
   },
 }
 
+// Plugin to ignore CSS imports (CSS is built separately)
+const cssIgnorePlugin = {
+  name: 'css-ignore',
+  setup(build: any) {
+    build.onResolve({ filter: /\.css$/ }, () => {
+      return { path: 'css-ignored', namespace: 'css-ignore' }
+    })
+    build.onLoad({ filter: /.*/, namespace: 'css-ignore' }, () => {
+      return { contents: '', loader: 'js' }
+    })
+  },
+}
+
 const buildResult = await Bun.build({
   entrypoints: [join(SRC, 'main.tsx')],
   outdir: join(DIST, 'assets'),
@@ -61,7 +77,7 @@ const buildResult = await Bun.build({
     chunk: '[name]-[hash].js',
     asset: '[name]-[hash][ext]',
   },
-  plugins: [aliasPlugin],
+  plugins: [aliasPlugin, cssIgnorePlugin],
 })
 
 if (!buildResult.success) {
@@ -72,17 +88,17 @@ if (!buildResult.success) {
   process.exit(1)
 }
 
-// Find the entry file
-const entryFile = buildResult.outputs.find(o => o.path.includes('main-'))
+// Find the entry JS file
+const entryFile = buildResult.outputs.find(o => o.path.endsWith('.js') && o.path.includes('main-'))
 if (!entryFile) {
   console.error('Could not find entry file in build output')
   process.exit(1)
 }
 const entryName = entryFile.path.split('/').pop()
 
-// Build CSS with Tailwind
+// Build CSS separately with Tailwind CLI
 console.log('  Building Tailwind CSS...')
-await $`bunx tailwindcss -i ${join(SRC, 'styles', 'index.css')} -o ${join(DIST, 'assets', 'index.css')} --minify`
+await $`bunx tailwindcss@3 -i ${join(SRC, 'styles', 'index.css')} -o ${join(DIST, 'assets', 'index.css')} --minify`
 
 // Generate content hash for CSS
 const cssContent = readFileSync(join(DIST, 'assets', 'index.css'))
