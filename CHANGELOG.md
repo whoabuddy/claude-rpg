@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/whoabuddy/claude-rpg/compare/v1.8.1...v1.9.0) (2026-01-29)
+
+
+### Features
+
+* **quests:** add archive system for manual quest completion ([#108](https://github.com/whoabuddy/claude-rpg/issues/108)) ([731f7f0](https://github.com/whoabuddy/claude-rpg/commit/731f7f09d2756dbf7fd9fb389b30b0cc18f0c972))
+
 ## [1.8.1](https://github.com/whoabuddy/claude-rpg/compare/v1.8.0...v1.8.1) (2026-01-28)
 
 
