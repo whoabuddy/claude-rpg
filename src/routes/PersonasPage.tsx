@@ -1,8 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useStore } from '../store'
 import { PaneAvatar } from '../components/PaneAvatar'
 import { StatusPill } from '../components/StatusPill'
-import type { TmuxPane } from '../../shared/types'
+import { TierBadge } from '../components/TierBadge'
+import { PersonaBadges } from '../components/PersonaBadges'
+import { HealthMeter } from '../components/HealthMeter'
+import { ChallengeCard } from '../components/ChallengeCard'
+import type { TmuxPane, PersonaChallenge } from '../../shared/types'
 
 type Filter = 'all' | 'active' | 'idle'
 
@@ -17,6 +21,43 @@ export default function PersonasPage() {
     [windows]
   )
   const [filter, setFilter] = useState<Filter>('all')
+
+  // Batch fetch all challenges to avoid N+1 problem
+  const [challengesByPersona, setChallengesByPersona] = useState<Record<string, PersonaChallenge[]>>({})
+
+  // Get session IDs that need challenges fetched
+  const sessionIds = useMemo(
+    () => claudePanes.map(p => p.process.claudeSession?.id).filter(Boolean) as string[],
+    [claudePanes]
+  )
+
+  // Fetch challenges for all personas in parallel
+  const fetchAllChallenges = useCallback(async () => {
+    if (sessionIds.length === 0) return
+
+    const results = await Promise.allSettled(
+      sessionIds.map(async (id) => {
+        const res = await fetch(`/api/personas/${id}/challenges`)
+        const data = await res.json()
+        return { id, challenges: data.success ? data.data?.challenges || [] : [] }
+      })
+    )
+
+    const newChallenges: Record<string, PersonaChallenge[]> = {}
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        const { id, challenges } = result.value
+        // Filter to only show active challenges
+        newChallenges[id] = challenges.filter((c: PersonaChallenge) => c.status === 'active')
+      }
+    }
+    setChallengesByPersona(newChallenges)
+  }, [sessionIds])
+
+  // Fetch challenges when session IDs change
+  useEffect(() => {
+    fetchAllChallenges()
+  }, [fetchAllChallenges])
 
   // Filter panes
   const filteredPanes = claudePanes.filter(p => {
@@ -73,7 +114,11 @@ export default function PersonasPage() {
           <h2 className="text-sm font-medium text-rpg-text-muted mb-3">Working</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {activePanes.map(pane => (
-              <PersonaCard key={pane.id} pane={pane} />
+              <PersonaCard
+                key={pane.id}
+                pane={pane}
+                challenges={challengesByPersona[pane.process.claudeSession?.id || ''] || []}
+              />
             ))}
           </div>
         </section>
@@ -85,7 +130,11 @@ export default function PersonasPage() {
           <h2 className="text-sm font-medium text-rpg-text-muted mb-3">Ready</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {idlePanes.map(pane => (
-              <PersonaCard key={pane.id} pane={pane} />
+              <PersonaCard
+                key={pane.id}
+                pane={pane}
+                challenges={challengesByPersona[pane.process.claudeSession?.id || ''] || []}
+              />
             ))}
           </div>
         </section>
@@ -106,15 +155,24 @@ export default function PersonasPage() {
 
 interface PersonaCardProps {
   pane: TmuxPane
+  challenges: PersonaChallenge[]
 }
 
-function PersonaCard({ pane }: PersonaCardProps) {
+function PersonaCard({ pane, challenges }: PersonaCardProps) {
   const session = pane.process.claudeSession
+
   if (!session) return null
+
+  // Use health data from session if available, otherwise compute mock values
+  const health = session.health || {
+    energy: session.status === 'working' ? 65 : session.status === 'idle' ? 85 : 75,
+    morale: session.stats ? Math.min(100, 50 + (session.stats.totalXPGained / 10)) : 50,
+    lastUpdated: new Date().toISOString(),
+  }
 
   return (
     <div className="p-4 rounded-lg border border-rpg-border bg-rpg-card hover:border-rpg-accent/50 transition-colors">
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 mb-3">
         {/* Avatar */}
         <div className="flex-shrink-0">
           <PaneAvatar pane={pane} size="lg" />
@@ -124,6 +182,7 @@ function PersonaCard({ pane }: PersonaCardProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium text-rpg-text truncate">{session.name}</span>
+            <TierBadge tier={session.tier || 'novice'} />
             <StatusPill status={session.status} size="sm" />
           </div>
 
@@ -149,8 +208,44 @@ function PersonaCard({ pane }: PersonaCardProps) {
               <span>{session.stats.promptsReceived} prompts</span>
             </div>
           )}
+
+          {/* Badges row */}
+          {session.badges && session.badges.length > 0 && (
+            <div className="mt-2">
+              <PersonaBadges badges={session.badges} />
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Health meters */}
+      <div className="space-y-2 mb-3">
+        <HealthMeter label="Energy" value={health.energy} size="sm" />
+        <HealthMeter label="Morale" value={health.morale} size="sm" />
+      </div>
+
+      {/* Challenges section (placeholder until backend is ready) */}
+      {challenges.length > 0 && (
+        <div className="mt-3 space-y-2">
+          <h4 className="text-xs font-medium text-rpg-text-muted">Active Challenges</h4>
+          {challenges.slice(0, 2).map(challenge => (
+            <ChallengeCard key={challenge.id} challenge={challenge} compact />
+          ))}
+        </div>
+      )}
+
+      {/* Personality (expandable) */}
+      {(session.personality?.backstory || session.personality?.quirk) && (
+        <details className="mt-3 text-xs text-rpg-text-dim">
+          <summary className="cursor-pointer hover:text-rpg-text-muted">Personality</summary>
+          {session.personality.backstory && (
+            <p className="mt-1">{session.personality.backstory}</p>
+          )}
+          {session.personality.quirk && (
+            <p className="mt-1 italic">"{session.personality.quirk}"</p>
+          )}
+        </details>
+      )}
     </div>
   )
 }

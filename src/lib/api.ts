@@ -189,3 +189,36 @@ export function sendPromptToCompanion(companionId: string, prompt: string) {
     { prompt },
   )
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROJECT ACTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Get project narrative (team stats summary)
+ * @param projectId - Project/companion ID
+ * @param format - 'json' for full structure, 'markdown' for markdown text
+ */
+export async function getProjectNarrative(
+  projectId: string,
+  format: 'json' | 'markdown' = 'json'
+): Promise<{ ok: boolean; data?: unknown; error?: string }> {
+  const url = `${API_URL}/api/projects/${encodeURIComponent(projectId)}/narrative?format=${format}`
+  try {
+    const res = await fetch(url)
+    if (!res.ok) {
+      return { ok: false, error: `HTTP ${res.status}` }
+    }
+    const json = await res.json()
+    // API returns { success: true, data: ... } format
+    if (json.success && json.data) {
+      return { ok: true, data: json.data }
+    } else if (json.error) {
+      return { ok: false, error: json.error.message || 'API error' }
+    }
+    return { ok: false, error: 'Invalid response format' }
+  } catch (error) {
+    console.error('[getProjectNarrative] Error:', error)
+    return { ok: false, error: error instanceof Error ? error.message : 'Network error' }
+  }
+}

@@ -5,6 +5,7 @@
 import { createLogger } from '../lib/logger'
 import { classifyProcess, getProcessCwd } from './process'
 import { isTmuxRunning } from './commands'
+import { buildClaudeSessionInfo } from './session-builder'
 import type { TmuxWindow, TmuxPane, TmuxState, PaneProcessType, RepoInfo } from './types'
 
 const log = createLogger('tmux-poller')
@@ -125,6 +126,12 @@ export async function pollTmux(): Promise<TmuxState> {
           }
         }
 
+        // Build ClaudeSessionInfo if this is a Claude process
+        let claudeSession
+        if (processType === 'claude') {
+          claudeSession = await buildClaudeSessionInfo(p.paneId)
+        }
+
         return {
           id: p.paneId,
           windowId: p.windowId,  // Keep for internal grouping
@@ -136,7 +143,7 @@ export async function pollTmux(): Promise<TmuxState> {
             type: processType,
             command: p.command,
             pid: p.pid,
-            // claudeSession will be populated by session manager
+            claudeSession,
           },
           cwd,
           repo,

@@ -28,6 +28,9 @@ export interface Queries {
   updatePersonaStatus: Statement
   addPersonaXp: Statement
   updatePersonaLevel: Statement
+  updatePersonaBadges: Statement
+  updatePersonaHealth: Statement
+  getPersonaHealth: Statement
 
   // Projects
   insertProject: Statement
@@ -43,6 +46,7 @@ export interface Queries {
   insertXpEvent: Statement
   getXpEventsByPersona: Statement
   getXpEventsByProject: Statement
+  getXpSumByPersonaForProject: Statement
 
   // Stats
   upsertStat: Statement
@@ -68,6 +72,23 @@ export interface Queries {
   insertEvent: Statement
   getRecentEvents: Statement
   deleteOldEvents: Statement
+
+  // Notes
+  insertNote: Statement
+  getNoteById: Statement
+  getAllNotes: Statement
+  getNotesByStatus: Statement
+  updateNote: Statement
+  deleteNote: Statement
+
+  // Challenges
+  insertChallenge: Statement
+  getChallengeById: Statement
+  getActiveChallengesByPersona: Statement
+  getAllChallengesByPersona: Statement
+  updateChallengeProgress: Statement
+  completeChallenge: Statement
+  expireChallenges: Statement
 }
 
 let _queries: Queries | null = null
@@ -175,6 +196,9 @@ function initQueries(db: Database): Queries {
     updatePersonaStatus: db.prepare('UPDATE personas SET status = ? WHERE id = ?'),
     addPersonaXp: db.prepare('UPDATE personas SET total_xp = total_xp + ? WHERE id = ?'),
     updatePersonaLevel: db.prepare('UPDATE personas SET level = ? WHERE id = ?'),
+    updatePersonaBadges: db.prepare('UPDATE personas SET badges = ? WHERE id = ?'),
+    updatePersonaHealth: db.prepare('UPDATE personas SET energy = ?, morale = ?, health_updated_at = ? WHERE id = ?'),
+    getPersonaHealth: db.prepare('SELECT energy, morale, health_updated_at FROM personas WHERE id = ?'),
 
     // Projects
     insertProject: db.prepare(`
@@ -196,6 +220,7 @@ function initQueries(db: Database): Queries {
     `),
     getXpEventsByPersona: db.prepare('SELECT * FROM xp_events WHERE persona_id = ? ORDER BY created_at DESC'),
     getXpEventsByProject: db.prepare('SELECT * FROM xp_events WHERE project_id = ? ORDER BY created_at DESC'),
+    getXpSumByPersonaForProject: db.prepare('SELECT persona_id, SUM(xp_amount) as total_xp FROM xp_events WHERE project_id = ? GROUP BY persona_id'),
 
     // Stats
     upsertStat: db.prepare(`
@@ -234,6 +259,29 @@ function initQueries(db: Database): Queries {
     `),
     getRecentEvents: db.prepare('SELECT * FROM events ORDER BY created_at DESC LIMIT ?'),
     deleteOldEvents: db.prepare('DELETE FROM events WHERE created_at < ?'),
+
+    // Notes
+    insertNote: db.prepare(`
+      INSERT INTO notes (id, content, tags, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `),
+    getNoteById: db.prepare('SELECT * FROM notes WHERE id = ?'),
+    getAllNotes: db.prepare('SELECT * FROM notes ORDER BY created_at DESC'),
+    getNotesByStatus: db.prepare('SELECT * FROM notes WHERE status = ? ORDER BY created_at DESC'),
+    updateNote: db.prepare('UPDATE notes SET content = ?, tags = ?, status = ?, updated_at = ? WHERE id = ?'),
+    deleteNote: db.prepare('DELETE FROM notes WHERE id = ?'),
+
+    // Challenges
+    insertChallenge: db.prepare(`
+      INSERT INTO persona_challenges (id, persona_id, challenge_id, period, status, progress, target, xp_reward, assigned_at, expires_at, completed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `),
+    getChallengeById: db.prepare('SELECT * FROM persona_challenges WHERE id = ?'),
+    getActiveChallengesByPersona: db.prepare('SELECT * FROM persona_challenges WHERE persona_id = ? AND status = "active" ORDER BY assigned_at DESC'),
+    getAllChallengesByPersona: db.prepare('SELECT * FROM persona_challenges WHERE persona_id = ? ORDER BY assigned_at DESC'),
+    updateChallengeProgress: db.prepare('UPDATE persona_challenges SET progress = ? WHERE id = ?'),
+    completeChallenge: db.prepare('UPDATE persona_challenges SET status = ?, completed_at = ? WHERE id = ?'),
+    expireChallenges: db.prepare('UPDATE persona_challenges SET status = "expired" WHERE status = "active" AND expires_at < ?'),
   }
 }
 

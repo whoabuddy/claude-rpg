@@ -32,19 +32,33 @@ export const ROUTES: Route[] = [
   // Personas
   { method: 'GET', pattern: '/api/personas', handler: 'listPersonas' },
   { method: 'GET', pattern: '/api/personas/:id', handler: 'getPersona' },
+  { method: 'GET', pattern: '/api/personas/:id/challenges', handler: 'getPersonaChallenges' },
 
   // Projects
   { method: 'GET', pattern: '/api/projects', handler: 'listProjects' },
   { method: 'GET', pattern: '/api/projects/:id', handler: 'getProject' },
+  { method: 'GET', pattern: '/api/projects/:id/narrative', handler: 'getProjectNarrative' },
+  { method: 'POST', pattern: '/api/clone', handler: 'cloneGitHubRepo' },
 
   // Quests
   { method: 'GET', pattern: '/api/quests', handler: 'listQuests' },
   { method: 'GET', pattern: '/api/quests/:id', handler: 'getQuest' },
   { method: 'PATCH', pattern: '/api/quests/:id', handler: 'updateQuest' },
 
+  // Notes
+  { method: 'GET', pattern: '/api/notes', handler: 'listNotes' },
+  { method: 'POST', pattern: '/api/notes', handler: 'createNoteHandler' },
+  { method: 'GET', pattern: '/api/notes/:id', handler: 'getNote' },
+  { method: 'PATCH', pattern: '/api/notes/:id', handler: 'updateNoteHandler' },
+  { method: 'DELETE', pattern: '/api/notes/:id', handler: 'deleteNoteHandler' },
+  { method: 'POST', pattern: '/api/notes/:id/create-issue', handler: 'createIssueFromNote' },
+
   // XP
   { method: 'GET', pattern: '/api/xp/summary', handler: 'xpSummary' },
   { method: 'GET', pattern: '/api/xp/timeline', handler: 'xpTimeline' },
+
+  // Transcription
+  { method: 'POST', pattern: '/api/transcribe', handler: 'transcribeAudio' },
 
   // Admin (stubs for v2 - no dev proxy mode)
   { method: 'GET', pattern: '/api/admin/backends', handler: 'adminBackends' },

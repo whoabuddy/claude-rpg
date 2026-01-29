@@ -7,9 +7,17 @@ import { processHookEvent } from '../events/hooks'
 import { pollTmux } from '../tmux'
 import * as tmuxCommands from '../tmux/commands'
 import { getAllPersonas, getPersonaById } from '../personas'
-import { getAllProjects, getProjectById } from '../projects'
+import { getAllProjects, getProjectById, getOrCreateProject } from '../projects'
+import { getProjectTeamStats } from '../projects/aggregation'
+import { generateNarrative } from '../projects/narrative'
 import { getActiveQuests, getQuestById, updateQuestStatus } from '../quests'
 import { getXpByCategory, getXpTimeline } from '../xp'
+import { isWhisperAvailable, transcribeAudio as whisperTranscribe } from '../lib/whisper'
+import { cloneRepo } from '../projects/clone'
+import { createNote, getNoteById, getAllNotes, updateNote, deleteNote } from '../notes'
+import { createGitHubIssue } from '../notes/github'
+import { getAllChallenges, getChallengeDefinition } from '../personas/challenges'
+import type { Note, NoteStatus } from '../notes'
 import type {
   ApiResponse,
   CreateWindowRequest,
@@ -18,8 +26,14 @@ import type {
   SendSignalRequest,
   HookEventRequest,
   UpdateQuestRequest,
+  TranscribeResponse,
+  CloneRequest,
+  CreateNoteRequest,
+  UpdateNoteRequest,
+  CreateIssueFromNoteRequest,
 } from './types'
 import type { QuestStatus } from '../quests/types'
+import type { CloneResult } from '../projects/clone'
 
 const log = createLogger('api-handlers')
 
@@ -257,6 +271,29 @@ export function getPersona(params: Record<string, string>): ApiResponse<unknown>
 }
 
 /**
+ * Get challenges for a persona
+ */
+export function getPersonaChallenges(params: Record<string, string>): ApiResponse<unknown> {
+  const persona = getPersonaById(params.id)
+  if (!persona) {
+    return {
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Persona not found' },
+    }
+  }
+
+  const challenges = getAllChallenges(params.id).map((challenge) => {
+    const definition = getChallengeDefinition(challenge.challengeId)
+    return {
+      ...challenge,
+      name: definition?.name || 'Unknown Challenge',
+      description: definition?.description || '',
+    }
+  })
+  return { success: true, data: { challenges } }
+}
+
+/**
  * List all projects
  */
 export function listProjects(): ApiResponse<unknown> {
@@ -276,6 +313,127 @@ export function getProject(params: Record<string, string>): ApiResponse<unknown>
     }
   }
   return { success: true, data: { project } }
+}
+
+/**
+ * Get project narrative
+ */
+export function getProjectNarrative(
+  params: Record<string, string>,
+  query: URLSearchParams
+): ApiResponse<unknown> {
+  const project = getProjectById(params.id)
+  if (!project) {
+    return {
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Project not found' },
+    }
+  }
+
+  const format = query.get('format') || 'json'
+
+  try {
+    const teamStats = getProjectTeamStats(params.id)
+    const narrative = generateNarrative(
+      project.id,
+      project.name,
+      project.level,
+      project.projectClass,
+      teamStats
+    )
+
+    // Return based on requested format
+    if (format === 'markdown') {
+      return { success: true, data: narrative.markdown }
+    }
+
+    // Default: return full JSON structure with team stats
+    return { success: true, data: { ...narrative, teamStats } }
+  } catch (error) {
+    log.error('Failed to generate narrative', {
+      projectId: params.id,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'GENERATION_FAILED', message: 'Failed to generate narrative' },
+    }
+  }
+}
+
+/**
+ * Clone a GitHub repository
+ */
+export async function cloneGitHubRepo(body: CloneRequest): Promise<ApiResponse<CloneResult>> {
+  // Validate URL is provided
+  if (!body.url || typeof body.url !== 'string' || body.url.trim() === '') {
+    return {
+      success: false,
+      error: { code: 'MISSING_URL', message: 'URL is required' },
+    }
+  }
+
+  const url = body.url.trim()
+
+  // Validate URL format (basic GitHub URL check)
+  const isValidGitHubUrl =
+    url.includes('github.com') ||
+    url.match(/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9._-]+$/) ||
+    url.startsWith('git@github.com:')
+
+  if (!isValidGitHubUrl) {
+    return {
+      success: false,
+      error: { code: 'INVALID_URL', message: 'Invalid GitHub URL' },
+    }
+  }
+
+  try {
+    // Clone the repository
+    const result = await cloneRepo(url)
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: { code: 'CLONE_FAILED', message: result.error || 'Clone failed' },
+      }
+    }
+
+    // If successfully cloned (not already exists), try to register it as a project
+    if (result.path && !result.alreadyExists) {
+      try {
+        await getOrCreateProject(result.path)
+        log.info('Registered new project', { path: result.path })
+      } catch (error) {
+        // Non-fatal: repo was cloned successfully even if project registration failed
+        log.warn('Failed to register project', {
+          path: result.path,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        success: result.success,
+        path: result.path,
+        alreadyExists: result.alreadyExists,
+      },
+    }
+  } catch (error) {
+    log.error('Clone operation failed', {
+      url,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: {
+        code: 'CLONE_ERROR',
+        message: error instanceof Error ? error.message : 'Failed to clone repository',
+      },
+    }
+  }
 }
 
 /**
@@ -392,5 +550,269 @@ export function adminSwitchBackend(): ApiResponse<{ ok: boolean; mode: string; m
       mode: 'production',
       message: 'Dev proxy mode not available in v2',
     },
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NOTES ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * List all notes, optionally filtered by status
+ */
+export function listNotes(query: URLSearchParams): ApiResponse<{ notes: Note[] }> {
+  const status = query.get('status') as NoteStatus | null
+
+  try {
+    const notes = status ? getAllNotes(status) : getAllNotes()
+    return { success: true, data: { notes } }
+  } catch (error) {
+    log.error('Failed to list notes', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'QUERY_FAILED', message: 'Failed to list notes' },
+    }
+  }
+}
+
+/**
+ * Create a new note
+ */
+export function createNoteHandler(body: CreateNoteRequest): ApiResponse<{ note: Note }> {
+  if (!body.content || typeof body.content !== 'string' || body.content.trim() === '') {
+    return {
+      success: false,
+      error: { code: 'INVALID_CONTENT', message: 'Content is required' },
+    }
+  }
+
+  try {
+    const note = createNote(body.content.trim(), body.tags || [])
+    return { success: true, data: { note } }
+  } catch (error) {
+    log.error('Failed to create note', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'CREATE_FAILED', message: 'Failed to create note' },
+    }
+  }
+}
+
+/**
+ * Get a note by ID
+ */
+export function getNote(params: Record<string, string>): ApiResponse<{ note: Note }> {
+  const note = getNoteById(params.id)
+  if (!note) {
+    return {
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Note not found' },
+    }
+  }
+  return { success: true, data: { note } }
+}
+
+/**
+ * Update a note
+ */
+export function updateNoteHandler(
+  params: Record<string, string>,
+  body: UpdateNoteRequest
+): ApiResponse<{ note: Note }> {
+  // Validate that at least one field is being updated
+  if (!body.content && !body.tags && !body.status) {
+    return {
+      success: false,
+      error: { code: 'NO_UPDATES', message: 'No updates provided' },
+    }
+  }
+
+  // Validate status if provided
+  if (body.status && !['inbox', 'triaged', 'archived', 'converted'].includes(body.status)) {
+    return {
+      success: false,
+      error: { code: 'INVALID_STATUS', message: 'Invalid status value' },
+    }
+  }
+
+  try {
+    const updates: { content?: string; tags?: string[]; status?: NoteStatus } = {}
+
+    if (body.content !== undefined) {
+      if (typeof body.content !== 'string' || body.content.trim() === '') {
+        return {
+          success: false,
+          error: { code: 'INVALID_CONTENT', message: 'Content must be a non-empty string' },
+        }
+      }
+      updates.content = body.content.trim()
+    }
+
+    if (body.tags !== undefined) {
+      updates.tags = body.tags
+    }
+
+    if (body.status !== undefined) {
+      updates.status = body.status as NoteStatus
+    }
+
+    const note = updateNote(params.id, updates)
+    if (!note) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Note not found' },
+      }
+    }
+
+    return { success: true, data: { note } }
+  } catch (error) {
+    log.error('Failed to update note', {
+      id: params.id,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'UPDATE_FAILED', message: 'Failed to update note' },
+    }
+  }
+}
+
+/**
+ * Delete a note
+ */
+export function deleteNoteHandler(params: Record<string, string>): ApiResponse<{ deleted: boolean }> {
+  try {
+    const deleted = deleteNote(params.id)
+    if (!deleted) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Note not found' },
+      }
+    }
+    return { success: true, data: { deleted: true } }
+  } catch (error) {
+    log.error('Failed to delete note', {
+      id: params.id,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'DELETE_FAILED', message: 'Failed to delete note' },
+    }
+  }
+}
+
+/**
+ * Create a GitHub issue from a note
+ */
+export async function createIssueFromNote(
+  params: Record<string, string>,
+  body: CreateIssueFromNoteRequest
+): Promise<ApiResponse<{ issueUrl: string }>> {
+  // Validate repo is provided
+  if (!body.repo || typeof body.repo !== 'string' || body.repo.trim() === '') {
+    return {
+      success: false,
+      error: { code: 'MISSING_REPO', message: 'Repository is required' },
+    }
+  }
+
+  try {
+    // Get the note
+    const note = getNoteById(params.id)
+    if (!note) {
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Note not found' },
+      }
+    }
+
+    // Extract title (first line of content) or use provided title
+    const title = body.title || note.content.split('\n')[0].trim()
+
+    // Create the issue
+    const result = await createGitHubIssue({
+      title,
+      body: note.content,
+      repo: body.repo.trim(),
+      labels: body.labels,
+    })
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: { code: 'CREATE_FAILED', message: result.error || 'Failed to create issue' },
+      }
+    }
+
+    // Update note status to converted and store issue URL in tags
+    const issueUrl = result.issueUrl!
+    const updatedTags = [...note.tags, `issue:${issueUrl}`]
+    updateNote(params.id, { status: 'converted', tags: updatedTags })
+
+    return {
+      success: true,
+      data: { issueUrl },
+    }
+  } catch (error) {
+    log.error('Failed to create issue from note', {
+      id: params.id,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'CREATE_FAILED', message: 'Failed to create GitHub issue' },
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRANSCRIPTION ENDPOINT
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Transcribe audio to text using whisper.cpp
+ * Returns backward-compatible format: { ok: boolean, text?: string, error?: string }
+ * wrapped in ApiResponse for consistency with other endpoints
+ */
+export async function transcribeAudio(audioData: Buffer): Promise<ApiResponse<TranscribeResponse>> {
+  try {
+    if (!isWhisperAvailable()) {
+      // Return error in backward-compatible format
+      return {
+        success: true, // HTTP 200 with ok: false for client compatibility
+        data: {
+          ok: false,
+          error: 'Whisper model not found. Please install whisper.cpp and download the model.',
+        },
+      }
+    }
+
+    const text = await whisperTranscribe(audioData)
+
+    return {
+      success: true,
+      data: {
+        ok: true,
+        text,
+      },
+    }
+  } catch (error) {
+    log.error('Transcription failed', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+
+    // Return error in backward-compatible format
+    return {
+      success: true, // HTTP 200 with ok: false for client compatibility
+      data: {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Transcription failed',
+      },
+    }
   }
 }

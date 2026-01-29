@@ -24,12 +24,57 @@ const MIGRATIONS: Migration[] = [
     name: 'initial_schema',
     sql: CREATE_TABLES,
   },
-  // Future migrations go here:
-  // {
-  //   version: 2,
-  //   name: 'add_some_column',
-  //   sql: 'ALTER TABLE ...',
-  // },
+  {
+    version: 2,
+    name: 'add_notes_table',
+    sql: `
+      CREATE TABLE IF NOT EXISTS notes (
+        id TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
+        tags TEXT,
+        status TEXT NOT NULL DEFAULT 'inbox',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_notes_status ON notes(status);
+      CREATE INDEX IF NOT EXISTS idx_notes_created ON notes(created_at);
+    `,
+  },
+  {
+    version: 3,
+    name: 'add_persona_badges',
+    sql: `ALTER TABLE personas ADD COLUMN badges TEXT DEFAULT '[]';`,
+  },
+  {
+    version: 4,
+    name: 'add_persona_health',
+    sql: `
+      ALTER TABLE personas ADD COLUMN energy INTEGER DEFAULT 100;
+      ALTER TABLE personas ADD COLUMN morale INTEGER DEFAULT 100;
+      ALTER TABLE personas ADD COLUMN health_updated_at TEXT;
+    `,
+  },
+  {
+    version: 5,
+    name: 'add_persona_challenges',
+    sql: `
+      CREATE TABLE IF NOT EXISTS persona_challenges (
+        id TEXT PRIMARY KEY,
+        persona_id TEXT NOT NULL REFERENCES personas(id),
+        challenge_id TEXT NOT NULL,
+        period TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        progress INTEGER DEFAULT 0,
+        target INTEGER NOT NULL,
+        xp_reward INTEGER NOT NULL,
+        assigned_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_challenges_persona ON persona_challenges(persona_id);
+      CREATE INDEX IF NOT EXISTS idx_challenges_status ON persona_challenges(status);
+    `,
+  },
 ]
 
 /**

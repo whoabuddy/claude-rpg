@@ -36,10 +36,19 @@ export async function handleRequest(request: Request): Promise<Response> {
     // Parse body if present
     let body: unknown = undefined
     if (request.body && (method === 'POST' || method === 'PATCH')) {
-      try {
-        body = await request.json()
-      } catch {
-        body = {}
+      // Check Content-Type for binary audio data
+      const contentType = request.headers.get('Content-Type') || ''
+      if (contentType.startsWith('audio/')) {
+        // Read as ArrayBuffer and convert to Buffer for audio endpoints
+        const arrayBuffer = await request.arrayBuffer()
+        body = Buffer.from(arrayBuffer)
+      } else {
+        // Parse as JSON for all other endpoints
+        try {
+          body = await request.json()
+        } catch {
+          body = {}
+        }
       }
     }
 
@@ -65,9 +74,12 @@ export async function handleRequest(request: Request): Promise<Response> {
     } else if (body) {
       // Params and body (e.g., POST /api/panes/:id/prompt)
       result = await handler(params, body)
-    } else if (route.handler.includes('xp')) {
-      // XP handlers need query params
+    } else if (route.handler.includes('xp') || route.handler === 'listNotes') {
+      // XP handlers and listNotes need query params only
       result = await handler(url.searchParams)
+    } else if (route.handler === 'getProjectNarrative') {
+      // Handler needs both params and query
+      result = await handler(params, url.searchParams)
     } else {
       // Params only (e.g., GET /api/personas/:id)
       result = await handler(params)

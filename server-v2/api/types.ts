@@ -60,3 +60,30 @@ export interface HookEventRequest {
 export interface UpdateQuestRequest {
   status: string
 }
+
+export interface TranscribeResponse {
+  ok: boolean
+  text?: string
+  error?: string
+}
+
+export interface CloneRequest {
+  url: string
+}
+
+export interface CreateNoteRequest {
+  content: string
+  tags?: string[]
+}
+
+export interface UpdateNoteRequest {
+  content?: string
+  tags?: string[]
+  status?: string
+}
+
+export interface CreateIssueFromNoteRequest {
+  repo: string
+  title?: string
+  labels?: string[]
+}

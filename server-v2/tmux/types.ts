@@ -20,12 +20,31 @@ export interface PaneProcess {
   claudeSession?: ClaudeSessionInfo
 }
 
-// Minimal ClaudeSessionInfo for v2 (subset of shared/types.ts)
+// ClaudeSessionInfo for v2 (matches shared/types.ts for client compatibility)
+export type PersonaTier = 'novice' | 'apprentice' | 'journeyman' | 'expert' | 'master'
+
+export interface PersonaPersonality {
+  backstory: string | null
+  quirk: string | null
+}
+
+export interface PersonaHealth {
+  energy: number
+  morale: number
+  lastUpdated: string
+}
+
 export interface ClaudeSessionInfo {
+  id: string
   name: string
   status: 'idle' | 'typing' | 'working' | 'waiting' | 'error'
   avatarSvg?: string
-  // Add more fields as needed for full compatibility
+  tier: PersonaTier
+  badges: string[]
+  personality: PersonaPersonality
+  health?: PersonaHealth
+  createdAt: number
+  lastActivity: number
 }
 
 // RepoInfo for pane context

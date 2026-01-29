@@ -148,6 +148,10 @@ export interface ClaudeSessionInfo {
     cumulative: number   // Total tokens this session
   }
   stats?: SessionStats    // Stats for this session (in-memory only)
+  tier?: PersonaTier      // Progression tier (based on XP)
+  badges?: string[]       // Specialization badge IDs
+  personality?: PersonaPersonality  // Generated personality (backstory/quirk)
+  health?: PersonaHealth  // Health meters (energy/morale) - computed by backend
   createdAt: number
   lastActivity: number
 }
@@ -544,4 +548,60 @@ export interface ApiResponse<T = unknown> {
   ok: boolean
   data?: T
   error?: string
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PERSONAS (Worker identity with tier/badge progression)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type PersonaTier = 'novice' | 'apprentice' | 'journeyman' | 'expert' | 'master'
+
+export interface PersonaPersonality {
+  backstory: string | null
+  quirk: string | null
+}
+
+export interface BadgeDefinition {
+  id: string
+  name: string
+  description: string
+  icon: string
+  requirement: (stats: Record<string, number>) => boolean
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PERSONA HEALTH & CHALLENGES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface PersonaHealth {
+  energy: number        // 0-100 (depletes with tool use, restores with idle time)
+  morale: number        // 0-100 (affected by success/failure rates)
+  lastUpdated: string   // ISO 8601 timestamp
+}
+
+export interface PersonaChallenge {
+  id: string
+  name: string
+  description: string
+  period: 'daily' | 'weekly'
+  status: 'active' | 'completed' | 'expired'
+  progress: number      // Current progress value
+  target: number        // Target value to complete
+  xpReward: number      // XP awarded on completion
+  expiresAt: string     // ISO 8601 timestamp
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NOTES / SCRATCHPAD
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type NoteStatus = 'inbox' | 'triaged' | 'archived' | 'converted'
+
+export interface Note {
+  id: string
+  content: string
+  tags: string[]
+  status: NoteStatus
+  createdAt: string
+  updatedAt: string
 }
