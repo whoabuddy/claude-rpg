@@ -347,8 +347,8 @@ export function getProjectNarrative(
       return { success: true, data: narrative.markdown }
     }
 
-    // Default: return full JSON structure
-    return { success: true, data: narrative }
+    // Default: return full JSON structure with team stats
+    return { success: true, data: { ...narrative, teamStats } }
   } catch (error) {
     log.error('Failed to generate narrative', {
       projectId: params.id,

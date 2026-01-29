@@ -1,7 +1,12 @@
+import { useEffect, useState } from 'react'
 import type { Companion } from '@shared/types'
 import { levelFromTotalXP } from '@shared/types'
 import { useStore } from '../store'
 import { RadarChart, calculateStatsRadar } from './RadarChart'
+import { TeamStats } from './TeamStats'
+import { NarrativeSummary } from './NarrativeSummary'
+import { getProjectNarrative } from '../lib/api'
+import type { TeamStats as TeamStatsType, NarrativeSummary as NarrativeSummaryType } from '../types/project'
 
 interface ProjectDetailPageProps {
   companionId: string
@@ -53,6 +58,51 @@ export function ProjectDetailPage({ companionId, connected, onNavigateBack }: Pr
   const companion = useStore((state) =>
     state.companions.find((c) => c.id === companionId) || null
   )
+
+  // State for team stats and narrative
+  const [teamStats, setTeamStats] = useState<TeamStatsType | null>(null)
+  const [narrative, setNarrative] = useState<NarrativeSummaryType | null>(null)
+  const [loadingNarrative, setLoadingNarrative] = useState(false)
+
+  // Fetch team stats and narrative on mount
+  useEffect(() => {
+    if (!companion) return
+
+    setLoadingNarrative(true)
+    getProjectNarrative(companionId, 'json')
+      .then(result => {
+        if (result.ok && result.data) {
+          const narrativeData = result.data as NarrativeSummaryType
+          setNarrative(narrativeData)
+          // Extract team stats if present (server includes it in format=json)
+          if (narrativeData.teamStats) {
+            setTeamStats(narrativeData.teamStats)
+          }
+        }
+      })
+      .catch(err => {
+        console.error('[ProjectDetailPage] Failed to fetch narrative:', err)
+      })
+      .finally(() => {
+        setLoadingNarrative(false)
+      })
+  }, [companionId, companion])
+
+  // Handle export narrative as markdown
+  const handleExport = async () => {
+    const result = await getProjectNarrative(companionId, 'markdown')
+    if (result.ok && typeof result.data === 'string') {
+      const blob = new Blob([result.data], { type: 'text/markdown' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${companion?.name || 'project'}-narrative.md`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    }
+  }
 
   if (!companion) {
     return (
@@ -300,6 +350,16 @@ export function ProjectDetailPage({ companionId, connected, onNavigateBack }: Pr
           </div>
         </div>
       )}
+
+      {/* Team Stats */}
+      <TeamStats teamStats={teamStats} loading={loadingNarrative} />
+
+      {/* Narrative Summary */}
+      <NarrativeSummary
+        narrative={narrative}
+        loading={loadingNarrative}
+        onExport={handleExport}
+      />
     </div>
   )
 }
