@@ -36,8 +36,13 @@ export default function ScratchpadPage() {
         throw new Error('Failed to fetch notes')
       }
 
-      const data = await response.json()
-      setNotes(data)
+      const result = await response.json()
+      if (result.success && result.data?.notes) {
+        setNotes(result.data.notes)
+      } else {
+        console.error('Unexpected API response format:', result)
+        setNotes([])
+      }
     } catch (error) {
       console.error('Error fetching notes:', error)
     } finally {
@@ -72,6 +77,11 @@ export default function ScratchpadPage() {
         throw new Error('Failed to create note')
       }
 
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to create note')
+      }
+
       // Clear the input and refetch notes
       setNewNoteContent('')
       await fetchNotes()
@@ -91,6 +101,11 @@ export default function ScratchpadPage() {
 
       if (!response.ok) {
         throw new Error('Failed to delete note')
+      }
+
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to delete note')
       }
 
       await fetchNotes()
