@@ -9,6 +9,11 @@ import { getConfig } from './lib/config'
 import { logger, createLogger } from './lib/logger'
 import { initShutdown, onShutdown } from './lib/shutdown'
 import { initDatabase } from './db'
+import { eventBus } from './events'
+import { startPolling, stopPolling } from './tmux'
+import { handleRequest, handleCors, isWebSocketUpgrade, wsHandlers, broadcast } from './api'
+import type { WsData } from './api'
+import type { PaneDiscoveredEvent, PaneRemovedEvent } from './events/types'
 
 const log = createLogger('main')
 
@@ -27,53 +32,64 @@ async function main() {
   const db = initDatabase()
   log.info('Database ready')
 
-  // TODO: Initialize modules in Phase 2+
-  // - Event bus
-  // - Personas service
-  // - Projects service
-  // - XP service
-  // - Quests service
-  // - Sessions manager
-  // - Tmux poller
+  // Subscribe to events for broadcasts
+  eventBus.on('*', async (event) => {
+    // Broadcast all events to WebSocket clients
+    broadcast({
+      type: 'event',
+      eventType: event.type,
+      paneId: 'paneId' in event ? (event as { paneId: string }).paneId : undefined,
+      timestamp: new Date().toISOString(),
+    })
+  })
+
+  // Start tmux poller
+  startPolling(async (state) => {
+    // Broadcast windows state
+    broadcast({
+      type: 'windows',
+      state,
+    })
+
+    // Emit pane events
+    // Note: In a full implementation, we'd track previous state
+    // and emit discovered/removed events. For now, we just broadcast windows.
+  }, config.pollInterval)
+
+  onShutdown('tmux-poller', () => {
+    log.info('Stopping tmux poller')
+    stopPolling()
+  }, 60)
 
   // Start HTTP/WebSocket server
-  const server = Bun.serve({
+  const server = Bun.serve<WsData>({
     port: config.port,
 
-    fetch(req) {
-      const url = new URL(req.url)
-
-      // Health check
-      if (url.pathname === '/health') {
-        return Response.json({
-          success: true,
-          data: {
-            status: 'healthy',
-            version: '2.0.0',
-            uptime: process.uptime(),
-          },
-        })
+    fetch(req, server) {
+      // Handle CORS preflight
+      if (req.method === 'OPTIONS') {
+        return handleCors()
       }
 
-      // TODO: Add routes in Phase 6
-      return Response.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Not found' } },
-        { status: 404 }
-      )
+      // Handle WebSocket upgrade
+      if (isWebSocketUpgrade(req)) {
+        const success = server.upgrade(req, {
+          data: {
+            sessionId: '',
+            connectedAt: new Date().toISOString(),
+          },
+        })
+        if (success) {
+          return undefined as unknown as Response
+        }
+        return new Response('WebSocket upgrade failed', { status: 400 })
+      }
+
+      // Handle HTTP request
+      return handleRequest(req)
     },
 
-    websocket: {
-      open(ws) {
-        log.debug('WebSocket connected')
-        ws.send(JSON.stringify({ type: 'connected', version: '2.0.0' }))
-      },
-      message(ws, message) {
-        log.debug('WebSocket message received', { message: String(message) })
-      },
-      close(ws) {
-        log.debug('WebSocket disconnected')
-      },
-    },
+    websocket: wsHandlers,
   })
 
   // Register server shutdown
@@ -85,6 +101,7 @@ async function main() {
   log.info('Server ready', {
     url: `http://localhost:${config.port}`,
     health: `http://localhost:${config.port}/health`,
+    ws: `ws://localhost:${config.port}`,
   })
 }
 

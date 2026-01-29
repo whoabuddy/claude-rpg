@@ -41,10 +41,14 @@ export async function isTmuxRunning(): Promise<boolean> {
 
 /**
  * Send keys to a pane
+ * @param submit - If true, send Enter after text
  */
-export async function sendKeys(paneId: string, text: string): Promise<void> {
+export async function sendKeys(paneId: string, text: string, submit = true): Promise<void> {
   // Escape special characters for tmux
   await tmux('send-keys', '-t', paneId, text)
+  if (submit) {
+    await tmux('send-keys', '-t', paneId, 'Enter')
+  }
 }
 
 /**
