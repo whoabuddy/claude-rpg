@@ -6,4 +6,4 @@ loader = "ts"
 
 [test]
 # Test configuration
-preload = ["./server-v2/__tests__/setup.ts"]
+preload = ["./__tests__/setup.ts"]

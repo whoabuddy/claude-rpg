@@ -70,6 +70,7 @@ export function transitionPhase(current: QuestPhaseStatus, next: QuestPhaseStatu
  * Check if a quest transition is valid
  */
 export function isValidQuestTransition(current: QuestStatus, next: QuestStatus): boolean {
+  if (current === next) return true // Same state is always valid
   return VALID_QUEST_TRANSITIONS[current]?.includes(next) ?? false
 }
 
@@ -77,6 +78,7 @@ export function isValidQuestTransition(current: QuestStatus, next: QuestStatus):
  * Check if a phase transition is valid
  */
 export function isValidPhaseTransition(current: QuestPhaseStatus, next: QuestPhaseStatus): boolean {
+  if (current === next) return true // Same state is always valid
   return VALID_PHASE_TRANSITIONS[current]?.includes(next) ?? false
 }
 
