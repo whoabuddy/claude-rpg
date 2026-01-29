@@ -8,6 +8,8 @@ import { pollTmux } from '../tmux'
 import * as tmuxCommands from '../tmux/commands'
 import { getAllPersonas, getPersonaById } from '../personas'
 import { getAllProjects, getProjectById, getOrCreateProject } from '../projects'
+import { getProjectTeamStats } from '../projects/aggregation'
+import { generateNarrative } from '../projects/narrative'
 import { getActiveQuests, getQuestById, updateQuestStatus } from '../quests'
 import { getXpByCategory, getXpTimeline } from '../xp'
 import { isWhisperAvailable, transcribeAudio as whisperTranscribe } from '../lib/whisper'
@@ -311,6 +313,52 @@ export function getProject(params: Record<string, string>): ApiResponse<unknown>
     }
   }
   return { success: true, data: { project } }
+}
+
+/**
+ * Get project narrative
+ */
+export function getProjectNarrative(
+  params: Record<string, string>,
+  query: URLSearchParams
+): ApiResponse<unknown> {
+  const project = getProjectById(params.id)
+  if (!project) {
+    return {
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Project not found' },
+    }
+  }
+
+  const format = query.get('format') || 'json'
+
+  try {
+    const teamStats = getProjectTeamStats(params.id)
+    const narrative = generateNarrative(
+      project.id,
+      project.name,
+      project.level,
+      project.projectClass,
+      teamStats
+    )
+
+    // Return based on requested format
+    if (format === 'markdown') {
+      return { success: true, data: narrative.markdown }
+    }
+
+    // Default: return full JSON structure
+    return { success: true, data: narrative }
+  } catch (error) {
+    log.error('Failed to generate narrative', {
+      projectId: params.id,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'GENERATION_FAILED', message: 'Failed to generate narrative' },
+    }
+  }
 }
 
 /**

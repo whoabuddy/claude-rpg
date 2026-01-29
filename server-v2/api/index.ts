@@ -75,8 +75,11 @@ export async function handleRequest(request: Request): Promise<Response> {
       // Params and body (e.g., POST /api/panes/:id/prompt)
       result = await handler(params, body)
     } else if (route.handler.includes('xp') || route.handler === 'listNotes') {
-      // XP handlers and listNotes need query params
+      // XP handlers and listNotes need query params only
       result = await handler(url.searchParams)
+    } else if (route.handler === 'getProjectNarrative') {
+      // Handler needs both params and query
+      result = await handler(params, url.searchParams)
     } else {
       // Params only (e.g., GET /api/personas/:id)
       result = await handler(params)
