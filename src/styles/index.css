@@ -144,6 +144,51 @@ html, body, #root {
   }
 }
 
+/* Focus visible styles for accessibility */
+.focus-ring:focus-visible {
+  outline: 2px solid theme('colors.rpg.accent');
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid theme('colors.rpg.accent');
+  outline-offset: 2px;
+}
+
+/* Card hover lift effect */
+.card-lift {
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Subtle border glow on hover */
+.border-glow:hover {
+  border-color: theme('colors.rpg.accent-dim');
+}
+
+/* Loading shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    theme('colors.rpg.card') 0%,
+    theme('colors.rpg.card-hover') 50%,
+    theme('colors.rpg.card') 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
 /* Safe area padding for mobile bottom nav (#59) */
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);

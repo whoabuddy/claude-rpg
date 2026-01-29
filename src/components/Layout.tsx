@@ -20,43 +20,96 @@ export function Layout() {
   const isFullscreen = location.pathname.startsWith('/pane/')
 
   return (
-    <div className="h-full flex flex-col bg-rpg-bg">
-      {/* Disconnected banner */}
-      {!connected && (
-        <div className="px-4 py-2 bg-rpg-error/20 border-b border-rpg-error/50 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-rpg-error animate-pulse" />
-            <span className="text-sm text-rpg-error">
-              Disconnected
-              {reconnectAttempt > 0 && ` (retry ${reconnectAttempt})`}
-            </span>
-          </div>
-          <button
-            onClick={forceReconnect}
-            className="px-3 py-1 text-xs bg-rpg-error/20 hover:bg-rpg-error/30 text-rpg-error rounded transition-colors"
-          >
-            Retry Now
-          </button>
-        </div>
-      )}
-
-      {/* Main content */}
-      <main className={`flex-1 overflow-y-auto ${!isFullscreen ? 'pb-[52px] sm:pb-0' : ''}`}>
-        <Outlet />
-      </main>
-
-      {/* Bottom navigation - mobile */}
+    <div className="h-full flex flex-col sm:flex-row bg-rpg-bg">
+      {/* Desktop sidebar */}
       {!isFullscreen && (
-        <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-rpg-card border-t border-rpg-border">
-          <div className="flex justify-around">
-            <NavItem to="/" icon="grid" label="Dashboard" />
-            <NavItem to="/personas" icon="users" label="Personas" />
-            <NavItem to="/projects" icon="folder" label="Projects" badge={attentionCount} />
-            <NavItem to="/quests" icon="scroll" label="Quests" />
-            <NavItem to="/leaderboard" icon="trophy" label="Leaders" />
+        <aside className="hidden sm:flex flex-col w-56 border-r border-rpg-border bg-rpg-bg-elevated">
+          {/* Logo/branding */}
+          <div className="p-4 border-b border-rpg-border">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rpg-accent to-rpg-accent-dim flex items-center justify-center">
+                <span className="text-lg">⚔</span>
+              </div>
+              <div>
+                <h1 className="font-bold text-rpg-text leading-tight">Claude RPG</h1>
+                <p className="text-[10px] text-rpg-text-dim tracking-wide">COMPANION TRACKER</p>
+              </div>
+            </div>
           </div>
-        </nav>
+
+          {/* Navigation links */}
+          <nav className="flex-1 p-2 space-y-1">
+            <SidebarItem to="/" icon="grid" label="Dashboard" end />
+            <SidebarItem to="/personas" icon="users" label="Personas" />
+            <SidebarItem to="/projects" icon="folder" label="Projects" badge={attentionCount} />
+            <SidebarItem to="/quests" icon="scroll" label="Quests" />
+            <SidebarItem to="/leaderboard" icon="trophy" label="Leaderboard" />
+          </nav>
+
+          {/* Settings at bottom */}
+          <div className="p-2 border-t border-rpg-border">
+            <SidebarItem to="/settings" icon="settings" label="Settings" />
+          </div>
+
+          {/* Connection status */}
+          <div className="p-3 border-t border-rpg-border">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${connected ? 'bg-rpg-success' : 'bg-rpg-error animate-pulse'}`} />
+              <span className="text-xs text-rpg-text-dim">
+                {connected ? 'Connected' : `Disconnected${reconnectAttempt > 0 ? ` (${reconnectAttempt})` : ''}`}
+              </span>
+              {!connected && (
+                <button
+                  onClick={forceReconnect}
+                  className="ml-auto text-xs text-rpg-accent hover:text-rpg-accent-bright transition-colors"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          </div>
+        </aside>
       )}
+
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile disconnected banner */}
+        {!connected && (
+          <div className="sm:hidden px-4 py-2 bg-rpg-error/20 border-b border-rpg-error/50 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-rpg-error animate-pulse" />
+              <span className="text-sm text-rpg-error">
+                Disconnected
+                {reconnectAttempt > 0 && ` (retry ${reconnectAttempt})`}
+              </span>
+            </div>
+            <button
+              onClick={forceReconnect}
+              className="px-3 py-1 text-xs bg-rpg-error/20 hover:bg-rpg-error/30 text-rpg-error rounded transition-colors"
+            >
+              Retry Now
+            </button>
+          </div>
+        )}
+
+        {/* Main content */}
+        <main className={`flex-1 overflow-y-auto ${!isFullscreen ? 'pb-14 sm:pb-0' : ''}`}>
+          <Outlet />
+        </main>
+
+        {/* Bottom navigation - mobile */}
+        {!isFullscreen && (
+          <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-rpg-card border-t border-rpg-border safe-area-bottom">
+            <div className="flex justify-around">
+              <NavItem to="/" icon="grid" label="Dashboard" end />
+              <NavItem to="/personas" icon="users" label="Personas" />
+              <NavItem to="/projects" icon="folder" label="Projects" badge={attentionCount} />
+              <NavItem to="/quests" icon="scroll" label="Quests" />
+              <NavItem to="/leaderboard" icon="trophy" label="Leaders" />
+            </div>
+          </nav>
+        )}
+      </div>
 
       {/* Toast notifications */}
       <ToastContainer />
@@ -64,27 +117,32 @@ export function Layout() {
   )
 }
 
-interface NavItemProps {
+// Desktop sidebar item
+interface SidebarItemProps {
   to: string
-  icon: 'grid' | 'users' | 'folder' | 'scroll' | 'trophy' | 'settings'
+  icon: IconName
   label: string
   badge?: number
+  end?: boolean
 }
 
-function NavItem({ to, icon, label, badge }: NavItemProps) {
+function SidebarItem({ to, icon, label, badge, end }: SidebarItemProps) {
   return (
     <NavLink
       to={to}
+      end={end}
       className={({ isActive }) =>
-        `flex flex-col items-center py-2 px-3 text-xs transition-colors ${
-          isActive ? 'text-rpg-accent' : 'text-rpg-text-muted hover:text-rpg-text'
+        `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${
+          isActive
+            ? 'bg-rpg-accent/15 text-rpg-accent font-medium'
+            : 'text-rpg-text-muted hover:bg-rpg-card hover:text-rpg-text'
         }`
       }
     >
       <NavIcon icon={icon} />
-      <span className="mt-1">{label}</span>
+      <span className="flex-1">{label}</span>
       {badge !== undefined && badge > 0 && (
-        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 text-[10px] font-bold bg-rpg-waiting text-rpg-bg rounded-full flex items-center justify-center">
+        <span className="min-w-[20px] h-5 px-1.5 text-xs font-bold bg-rpg-waiting text-rpg-bg rounded-full flex items-center justify-center">
           {badge > 9 ? '9+' : badge}
         </span>
       )}
@@ -92,7 +150,40 @@ function NavItem({ to, icon, label, badge }: NavItemProps) {
   )
 }
 
-function NavIcon({ icon }: { icon: NavItemProps['icon'] }) {
+// Mobile bottom nav item
+interface NavItemProps {
+  to: string
+  icon: IconName
+  label: string
+  badge?: number
+  end?: boolean
+}
+
+function NavItem({ to, icon, label, badge, end }: NavItemProps) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) =>
+        `relative flex flex-col items-center py-2 px-3 text-xs transition-colors touch-feedback ${
+          isActive ? 'text-rpg-accent' : 'text-rpg-text-muted active:text-rpg-text'
+        }`
+      }
+    >
+      <NavIcon icon={icon} />
+      <span className="mt-1">{label}</span>
+      {badge !== undefined && badge > 0 && (
+        <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 text-[10px] font-bold bg-rpg-waiting text-rpg-bg rounded-full flex items-center justify-center">
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
+    </NavLink>
+  )
+}
+
+type IconName = 'grid' | 'users' | 'folder' | 'scroll' | 'trophy' | 'settings'
+
+function NavIcon({ icon }: { icon: IconName }) {
   const className = "w-5 h-5"
 
   switch (icon) {
