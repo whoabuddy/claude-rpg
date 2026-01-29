@@ -340,6 +340,12 @@ export const OverviewDashboard = memo(function OverviewDashboard({
 
       {/* Main content - dimmed when disconnected */}
       <div className={!connected ? 'opacity-60 pointer-events-none' : undefined}>
+        {/* Keyboard shortcuts hint - visible on desktop */}
+        <div className="hidden sm:flex items-center gap-4 text-xs text-rpg-text-dim px-1">
+          <span><kbd className="px-1 py-0.5 bg-rpg-card rounded border border-rpg-border">/</kbd> Search</span>
+          <span><kbd className="px-1 py-0.5 bg-rpg-card rounded border border-rpg-border">Esc</kbd> Clear/Cancel</span>
+        </div>
+
         {/* Empty state */}
         {windowGroups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-rpg-text-muted">
