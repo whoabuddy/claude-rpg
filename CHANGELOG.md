@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/whoabuddy/claude-rpg/compare/v1.11.0...v1.11.1) (2026-01-29)
+
+
+### Bug Fixes
+
+* address critical audit findings ([#160](https://github.com/whoabuddy/claude-rpg/issues/160)) ([d4a82cc](https://github.com/whoabuddy/claude-rpg/commit/d4a82cc69be8131aaf3465eb71b3453c12f4764f))
+
 ## [1.11.0](https://github.com/whoabuddy/claude-rpg/compare/v1.10.0...v1.11.0) (2026-01-29)
 
 
