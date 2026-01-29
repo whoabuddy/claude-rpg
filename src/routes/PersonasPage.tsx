@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react'
 import { useStore } from '../store'
 import { PaneAvatar } from '../components/PaneAvatar'
 import { StatusPill } from '../components/StatusPill'
+import { TierBadge } from '../components/TierBadge'
+import { PersonaBadges } from '../components/PersonaBadges'
 import type { TmuxPane } from '../../shared/types'
 
 type Filter = 'all' | 'active' | 'idle'
@@ -124,6 +126,7 @@ function PersonaCard({ pane }: PersonaCardProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium text-rpg-text truncate">{session.name}</span>
+            <TierBadge tier={session.tier || 'novice'} />
             <StatusPill status={session.status} size="sm" />
           </div>
 
@@ -148,6 +151,26 @@ function PersonaCard({ pane }: PersonaCardProps) {
               <span>{session.stats.totalXPGained} XP</span>
               <span>{session.stats.promptsReceived} prompts</span>
             </div>
+          )}
+
+          {/* Badges row */}
+          {session.badges && session.badges.length > 0 && (
+            <div className="mt-2">
+              <PersonaBadges badges={session.badges} />
+            </div>
+          )}
+
+          {/* Personality (expandable) */}
+          {(session.personality?.backstory || session.personality?.quirk) && (
+            <details className="mt-2 text-xs text-rpg-text-dim">
+              <summary className="cursor-pointer hover:text-rpg-text-muted">Personality</summary>
+              {session.personality.backstory && (
+                <p className="mt-1">{session.personality.backstory}</p>
+              )}
+              {session.personality.quirk && (
+                <p className="mt-1 italic">"{session.personality.quirk}"</p>
+              )}
+            </details>
           )}
         </div>
       </div>

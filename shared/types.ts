@@ -148,6 +148,9 @@ export interface ClaudeSessionInfo {
     cumulative: number   // Total tokens this session
   }
   stats?: SessionStats    // Stats for this session (in-memory only)
+  tier?: PersonaTier      // Progression tier (based on XP)
+  badges?: string[]       // Specialization badge IDs
+  personality?: PersonaPersonality  // Generated personality (backstory/quirk)
   createdAt: number
   lastActivity: number
 }
