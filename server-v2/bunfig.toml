@@ -1,0 +1,9 @@
+# Bun configuration for server-v2
+
+[run]
+# Use Bun's built-in TypeScript support
+loader = "ts"
+
+[test]
+# Test configuration
+preload = ["./server-v2/__tests__/setup.ts"]
