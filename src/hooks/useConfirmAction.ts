@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 
+const DEFAULT_TIMEOUT = 3000
+
 /**
  * Hook for two-step confirmation pattern (click once to show confirm, click again to execute).
- * Auto-dismisses after 3 seconds if not confirmed.
+ * Auto-dismisses after timeout (default 3 seconds) if not confirmed.
  */
-export function useConfirmAction(onConfirm: () => void) {
+export function useConfirmAction(onConfirm: () => void, timeout = DEFAULT_TIMEOUT) {
   const [confirming, setConfirming] = useState(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -21,9 +23,9 @@ export function useConfirmAction(onConfirm: () => void) {
       timeoutRef.current = setTimeout(() => {
         setConfirming(false)
         timeoutRef.current = null
-      }, 3000)
+      }, timeout)
     }
-  }, [confirming, onConfirm])
+  }, [confirming, onConfirm, timeout])
 
   const handleCancel = useCallback(() => {
     setConfirming(false)

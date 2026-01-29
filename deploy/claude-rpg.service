@@ -4,11 +4,11 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/dev/whoabuddy/claude-rpg
+WorkingDirectory=%h/dev/whoabuddy/claude-rpg/server-v2
 Environment=NODE_ENV=production
 Environment=CLAUDE_RPG_PORT=4011
-Environment=PATH=%h/.nvm/versions/node/v24.5.0/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=%h/.nvm/versions/node/v24.5.0/bin/node dist/server/server/index.js
+Environment=PATH=%h/.bun/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/.bun/bin/bun run index.ts
 Restart=always
 RestartSec=5
 StandardOutput=journal

@@ -12,6 +12,7 @@ import { initDatabase } from './db'
 import { eventBus } from './events'
 import { startPolling, stopPolling } from './tmux'
 import { handleRequest, handleCors, isWebSocketUpgrade, wsHandlers, broadcast } from './api'
+import { hasClientBuild, serveStatic, serveSpaFallback } from './api/static'
 import type { WsData } from './api'
 import type { PaneDiscoveredEvent, PaneRemovedEvent } from './events/types'
 
@@ -61,11 +62,22 @@ async function main() {
     stopPolling()
   }, 60)
 
+  // Check for client build
+  const serveClient = hasClientBuild()
+  if (serveClient) {
+    log.info('Client build found, serving static files')
+  } else {
+    log.warn('No client build found - run "bun run build" in project root')
+  }
+
   // Start HTTP/WebSocket server
   const server = Bun.serve<WsData>({
     port: config.port,
 
-    fetch(req, server) {
+    async fetch(req, server) {
+      const url = new URL(req.url)
+      const pathname = url.pathname
+
       // Handle CORS preflight
       if (req.method === 'OPTIONS') {
         return handleCors()
@@ -85,7 +97,27 @@ async function main() {
         return new Response('WebSocket upgrade failed', { status: 400 })
       }
 
-      // Handle HTTP request
+      // Try API routes first
+      if (pathname.startsWith('/api/') || pathname === '/health' || pathname === '/event') {
+        return handleRequest(req)
+      }
+
+      // Serve static files in production
+      if (serveClient) {
+        // Try to serve exact file
+        const staticResponse = await serveStatic(pathname)
+        if (staticResponse) {
+          return staticResponse
+        }
+
+        // SPA fallback - serve index.html for client-side routing
+        const spaResponse = await serveSpaFallback()
+        if (spaResponse) {
+          return spaResponse
+        }
+      }
+
+      // No client build - return API error
       return handleRequest(req)
     },
 
