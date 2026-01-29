@@ -11,3 +11,4 @@ silent = false
 [test]
 # Test configuration
 coverage = false
+preload = ["./src/__tests__/setup.ts"]
