@@ -151,6 +151,7 @@ export interface ClaudeSessionInfo {
   tier?: PersonaTier      // Progression tier (based on XP)
   badges?: string[]       // Specialization badge IDs
   personality?: PersonaPersonality  // Generated personality (backstory/quirk)
+  health?: PersonaHealth  // Health meters (energy/morale) - computed by backend
   createdAt: number
   lastActivity: number
 }
@@ -566,4 +567,26 @@ export interface BadgeDefinition {
   description: string
   icon: string
   requirement: (stats: Record<string, number>) => boolean
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PERSONA HEALTH & CHALLENGES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface PersonaHealth {
+  energy: number        // 0-100 (depletes with tool use, restores with idle time)
+  morale: number        // 0-100 (affected by success/failure rates)
+  lastUpdated: string   // ISO 8601 timestamp
+}
+
+export interface PersonaChallenge {
+  id: string
+  name: string
+  description: string
+  period: 'daily' | 'weekly'
+  status: 'active' | 'completed' | 'expired'
+  progress: number      // Current progress value
+  target: number        // Target value to complete
+  xpReward: number      // XP awarded on completion
+  expiresAt: string     // ISO 8601 timestamp
 }
