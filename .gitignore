@@ -23,5 +23,9 @@ npm-debug.log*
 # Data (user-specific)
 data/
 
-# Quest planning (local state)
+# Quest planning and state (LLM coordination, not source code)
 .planning/
+quests/
+
+# Operation logs (temporary)
+V2_OPERATION_LOG.md
