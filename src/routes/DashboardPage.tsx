@@ -1,0 +1,111 @@
+import { useMemo, useState, useCallback, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useStore } from '../store'
+import { useConnection } from '../hooks/useConnection'
+import { initTerminalCache } from '../hooks/usePaneTerminal'
+import { useNotifications, usePaneNotifications } from '../hooks/useNotifications'
+import { PaneActionsProvider, type PaneActionsContextValue } from '../contexts/PaneActionsContext'
+import { OverviewDashboard } from '../components/OverviewDashboard'
+import { FullScreenPane } from '../components/FullScreenPane'
+import {
+  sendPromptToPane,
+  sendSignalToPane,
+  dismissWaiting,
+  refreshPane,
+  closePane,
+  createPaneInWindow,
+  createWindow,
+  renameWindow,
+} from '../lib/api'
+
+export default function DashboardPage() {
+  const navigate = useNavigate()
+  const { connected, reconnectAttempt, forceReconnect } = useConnection()
+
+  const windows = useStore((state) => state.windows)
+  const attentionPanes = useStore((state) =>
+    state.windows.flatMap(w => w.panes).filter(p =>
+      p.process.type === 'claude' &&
+      (p.process.claudeSession?.status === 'waiting' || p.process.claudeSession?.status === 'error')
+    )
+  )
+
+  const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
+  const [rpgEnabled] = useState(true)
+
+  // Initialize terminal cache
+  useEffect(() => {
+    const cleanup = initTerminalCache()
+    return cleanup
+  }, [])
+
+  // Notifications
+  const { permission, notify } = useNotifications()
+  usePaneNotifications({
+    windows,
+    enabled: permission === 'granted',
+    notify,
+  })
+
+  // Pane action handlers
+  const handleCreateWindow = useCallback(
+    async (sessionName: string, windowName: string): Promise<boolean> => {
+      const result = await createWindow(sessionName, windowName)
+      return result.ok
+    },
+    []
+  )
+
+  const handleExpandPane = useCallback((paneId: string) => setFullscreenPaneId(paneId), [])
+  const handleCloseFullscreen = useCallback(() => setFullscreenPaneId(null), [])
+
+  const paneActions = useMemo<PaneActionsContextValue>(() => ({
+    onSendPrompt: sendPromptToPane,
+    onSendSignal: sendSignalToPane,
+    onDismissWaiting: dismissWaiting,
+    onExpandPane: handleExpandPane,
+    onRefreshPane: refreshPane,
+    onClosePane: closePane,
+    rpgEnabled,
+  }), [handleExpandPane, rpgEnabled])
+
+  const fullscreenData = useMemo(() => {
+    if (!fullscreenPaneId) return null
+    for (const window of windows) {
+      const pane = window.panes.find(p => p.id === fullscreenPaneId)
+      if (pane) return { pane, window }
+    }
+    return null
+  }, [fullscreenPaneId, windows])
+
+  const otherAttentionCount = useMemo(() => {
+    if (!fullscreenPaneId) return 0
+    return attentionPanes.filter(p => p.id !== fullscreenPaneId).length
+  }, [attentionPanes, fullscreenPaneId])
+
+  return (
+    <PaneActionsProvider value={paneActions}>
+      <OverviewDashboard
+        windows={windows}
+        attentionCount={attentionPanes.length}
+        connected={connected}
+        reconnectAttempt={reconnectAttempt}
+        onRetry={forceReconnect}
+        onNewPane={createPaneInWindow}
+        onCreateWindow={handleCreateWindow}
+        onRenameWindow={renameWindow}
+        onNavigateToCompetitions={() => navigate('/leaderboard')}
+        onNavigateToQuests={() => navigate('/quests')}
+      />
+
+      {fullscreenData && (
+        <FullScreenPane
+          pane={fullscreenData.pane}
+          window={fullscreenData.window}
+          attentionCount={otherAttentionCount}
+          onClose={handleCloseFullscreen}
+        />
+      )}
+    </PaneActionsProvider>
+  )
+}
