@@ -1,41 +1,36 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
+import { useStore } from '../store'
 import type { Competition, TimePeriod } from '@shared/types'
 
 const API_URL = ''  // Same origin, proxied by Vite in dev
 
+/**
+ * Hook to access competitions from the Zustand store.
+ * Fetches initial data on mount, WebSocket updates flow through store.
+ */
 export function useCompetitions(period: TimePeriod = 'all') {
-  const [competitions, setCompetitions] = useState<Competition[]>([])
-  const [loading, setLoading] = useState(true)
+  const competitions = useStore((state) => state.competitions)
+  const setCompetitions = useStore((state) => state.setCompetitions)
 
-  // Fetch competitions on mount
+  // Fetch competitions on mount (initial load before WebSocket connects)
   useEffect(() => {
-    setLoading(true)
     fetch(`${API_URL}/api/competitions`)
       .then(res => res.json())
       .then(data => {
         if (data.ok && data.data) {
           setCompetitions(data.data)
         }
-        setLoading(false)
       })
       .catch(e => {
         console.error('[claude-rpg] Error fetching competitions:', e)
-        setLoading(false)
       })
-  }, [])
-
-  // Listen for WebSocket updates
-  useEffect(() => {
-    const handleUpdate = (e: CustomEvent<Competition[]>) => {
-      setCompetitions(e.detail)
-    }
-
-    window.addEventListener('competitions_update', handleUpdate as EventListener)
-    return () => window.removeEventListener('competitions_update', handleUpdate as EventListener)
-  }, [])
+  }, [setCompetitions])
 
   // Filter competitions by period
-  const filtered = competitions.filter(c => c.period === period)
+  const filtered = useMemo(() =>
+    competitions.filter(c => c.period === period),
+    [competitions, period]
+  )
 
   // Get competition by category for the current period
   const getByCategory = (category: string) =>
@@ -44,7 +39,16 @@ export function useCompetitions(period: TimePeriod = 'all') {
   return {
     competitions: filtered,
     allCompetitions: competitions,
-    loading,
+    loading: false, // Store is always populated by WebSocket
     getByCategory,
   }
+}
+
+/**
+ * Get a specific competition by category and period.
+ */
+export function useCompetition(category: string, period: TimePeriod): Competition | undefined {
+  return useStore((state) =>
+    state.competitions.find(c => c.category === category && c.period === period)
+  )
 }

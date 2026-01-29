@@ -5,19 +5,36 @@ import { CompetitionsPage } from './components/CompetitionsPage'
 import { QuestsPage } from './components/QuestsPage'
 import { WorkersPage } from './components/WorkersPage'
 import { ProjectDetailPage } from './components/ProjectDetailPage'
-import { useWebSocket } from './hooks/useWebSocket'
-import { useWindows, sendPromptToPane, sendSignalToPane, dismissWaiting, refreshPane, closePane, createPaneInWindow, createWindow, renameWindow } from './hooks/useWindows'
+import { useStore, useClaudePanes, useAttentionPanes } from './store'
+import { useConnection } from './hooks/useConnection'
 import { initTerminalCache } from './hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from './hooks/useNotifications'
 import { PaneActionsProvider, type PaneActionsContextValue } from './contexts/PaneActionsContext'
 import { BottomNav } from './components/BottomNav'
 import { ToastContainer } from './components/ToastContainer'
+import {
+  sendPromptToPane,
+  sendSignalToPane,
+  dismissWaiting,
+  refreshPane,
+  closePane,
+  createPaneInWindow,
+  createWindow,
+  renameWindow,
+} from './lib/api'
 
 type ViewTab = 'dashboard' | 'quests' | 'workers' | 'competitions' | 'project'
 
 export default function App() {
-  const { connected, reconnectAttempt, forceReconnect } = useWebSocket()
-  const { windows, attentionPanes } = useWindows()
+  // Connection state from store via hook
+  const { connected, reconnectAttempt, forceReconnect } = useConnection()
+
+  // Pane state from store
+  const windows = useStore((state) => state.windows)
+  const claudePanes = useClaudePanes()
+  const attentionPanes = useAttentionPanes()
+
+  // Local UI state
   const [notificationsDismissed, setNotificationsDismissed] = useState(false)
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard')
@@ -54,7 +71,7 @@ export default function App() {
     notify,
   })
 
-  // Pane action handlers — module-level functions are stable references, no useCallback needed
+  // Pane action handlers
   const handleCreateWindow = useCallback(
     async (sessionName: string, windowName: string): Promise<boolean> => {
       const result = await createWindow(sessionName, windowName)
@@ -75,7 +92,7 @@ export default function App() {
     setActiveTab('project')
   }, [])
 
-  // PaneActionsContext value — module-level functions are stable, only handleExpandPane and rpgEnabled change
+  // PaneActionsContext value
   const paneActions = useMemo<PaneActionsContextValue>(() => ({
     onSendPrompt: sendPromptToPane,
     onSendSignal: sendSignalToPane,
@@ -174,7 +191,7 @@ export default function App() {
           )}
         </main>
 
-        {/* Mobile bottom navigation (#59) */}
+        {/* Mobile bottom navigation */}
         <BottomNav
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -182,7 +199,7 @@ export default function App() {
           attentionCount={attentionPanes.length}
         />
 
-        {/* Toast notifications (#83, #84) */}
+        {/* Toast notifications */}
         <ToastContainer />
 
         {/* Full-screen pane overlay */}

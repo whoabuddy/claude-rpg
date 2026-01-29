@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react'
-import type { Companion, ClaudeEvent, ServerMessage } from '@shared/types'
+import { useStore } from '../store'
+import type { Companion } from '@shared/types'
 
 const API_URL = ''  // Same origin, proxied by Vite in dev
 
-export function useCompanions(events: ClaudeEvent[]) {
-  const [companions, setCompanions] = useState<Companion[]>([])
+/**
+ * Hook to access companions from the Zustand store.
+ * Fetches initial data on mount, WebSocket updates flow through store.
+ */
+export function useCompanions() {
+  const companions = useStore((state) => state.companions)
+  const setCompanions = useStore((state) => state.setCompanions)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  // Fetch companions on mount
+  // Fetch companions on mount (initial load before WebSocket connects)
   useEffect(() => {
     fetch(`${API_URL}/api/companions`)
       .then(res => res.json())
@@ -21,43 +27,24 @@ export function useCompanions(events: ClaudeEvent[]) {
         }
       })
       .catch(e => console.error('[claude-rpg] Error fetching companions:', e))
-  }, [])
-
-  // Update companions from WebSocket events
-  useEffect(() => {
-    // Listen for companion updates via custom event
-    const handleUpdate = (e: CustomEvent<Companion>) => {
-      setCompanions(prev => {
-        const idx = prev.findIndex(c => c.id === e.detail.id)
-        if (idx >= 0) {
-          const updated = [...prev]
-          updated[idx] = e.detail
-          return updated
-        }
-        return [...prev, e.detail]
-      })
-    }
-
-    window.addEventListener('companion_update', handleUpdate as EventListener)
-    return () => window.removeEventListener('companion_update', handleUpdate as EventListener)
-  }, [])
+  }, [setCompanions])
 
   return { companions, selectedId, setSelectedId }
 }
 
-// Helper to send prompts to a companion
-export async function sendPrompt(companionId: string, prompt: string): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_URL}/api/companions/${companionId}/prompt`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
-    })
-    const data = await res.json()
-    return data.ok
-  } catch (e) {
-    console.error('[claude-rpg] Error sending prompt:', e)
-    return false
-  }
+/**
+ * Get a single companion by ID from the store.
+ */
+export function useCompanion(id: string): Companion | undefined {
+  return useStore((state) => state.companions.find(c => c.id === id))
 }
 
+/**
+ * Get companion for a specific repo path.
+ */
+export function useCompanionByRepoPath(repoPath: string | undefined): Companion | undefined {
+  return useStore((state) => {
+    if (!repoPath) return undefined
+    return state.companions.find(c => c.repo.path === repoPath)
+  })
+}

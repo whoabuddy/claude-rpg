@@ -1,9 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useCallback } from 'react'
+import { useStore } from '../store'
 import type { Quest, QuestStatus } from '@shared/types'
 
 const API_URL = ''  // Same origin, proxied by Vite in dev
 
-// Update quest status (pause/resume/complete) (#81)
+/**
+ * Update quest status (pause/resume/complete)
+ */
 export async function updateQuestStatus(questId: string, status: QuestStatus): Promise<{ ok: boolean; data?: Quest; error?: string }> {
   try {
     const res = await fetch(`${API_URL}/api/quests/${encodeURIComponent(questId)}`, {
@@ -17,7 +20,9 @@ export async function updateQuestStatus(questId: string, status: QuestStatus): P
   }
 }
 
-// Archive quest (compute stats from event history)
+/**
+ * Archive quest (compute stats from event history)
+ */
 export async function archiveQuest(questId: string): Promise<{ ok: boolean; data?: Quest; error?: string }> {
   try {
     const res = await fetch(`${API_URL}/api/quests/${encodeURIComponent(questId)}`, {
@@ -31,81 +36,27 @@ export async function archiveQuest(questId: string): Promise<{ ok: boolean; data
   }
 }
 
+/**
+ * Hook to access quests from the Zustand store.
+ * Fetches initial data on mount, WebSocket updates flow through store.
+ */
 export function useQuests() {
-  const [quests, setQuests] = useState<Quest[]>([])
-  const [loading, setLoading] = useState(true)
+  const quests = useStore((state) => state.quests)
+  const setQuests = useStore((state) => state.setQuests)
 
-  // Fetch quests on mount
+  // Fetch quests on mount (initial load before WebSocket connects)
   useEffect(() => {
-    setLoading(true)
     fetch(`${API_URL}/api/quests`)
       .then(res => res.json())
       .then(data => {
         if (data.ok && data.data) {
           setQuests(data.data)
         }
-        setLoading(false)
       })
       .catch(e => {
         console.error('[claude-rpg] Error fetching quests:', e)
-        setLoading(false)
       })
-  }, [])
-
-  // Listen for WebSocket updates
-  useEffect(() => {
-    const handleQuestUpdate = (e: CustomEvent<Quest>) => {
-      setQuests(prev => {
-        const idx = prev.findIndex(q => q.id === e.detail.id)
-        if (idx >= 0) {
-          const next = [...prev]
-          next[idx] = e.detail
-          return next
-        }
-        return [...prev, e.detail]
-      })
-    }
-
-    const handleQuestsInit = (e: CustomEvent<Quest[]>) => {
-      setQuests(e.detail)
-    }
-
-    const handleQuestXP = (e: CustomEvent<{ questId: string; phaseId: string; xp: number; reason: string }>) => {
-      const { questId, phaseId, xp } = e.detail
-      setQuests(prev => {
-        const idx = prev.findIndex(q => q.id === questId)
-        if (idx < 0) return prev
-
-        const next = [...prev]
-        const quest = { ...next[idx] }
-
-        // Update phase XP
-        const phaseIdx = quest.phases.findIndex(p => p.id === phaseId)
-        if (phaseIdx >= 0) {
-          quest.phases = [...quest.phases]
-          quest.phases[phaseIdx] = {
-            ...quest.phases[phaseIdx],
-            xpEarned: (quest.phases[phaseIdx].xpEarned || 0) + xp,
-          }
-        }
-
-        // Update quest total XP
-        quest.xpEarned = (quest.xpEarned || 0) + xp
-
-        next[idx] = quest
-        return next
-      })
-    }
-
-    window.addEventListener('quest_update', handleQuestUpdate as EventListener)
-    window.addEventListener('quests_init', handleQuestsInit as EventListener)
-    window.addEventListener('quest_xp', handleQuestXP as EventListener)
-    return () => {
-      window.removeEventListener('quest_update', handleQuestUpdate as EventListener)
-      window.removeEventListener('quests_init', handleQuestsInit as EventListener)
-      window.removeEventListener('quest_xp', handleQuestXP as EventListener)
-    }
-  }, [])
+  }, [setQuests])
 
   // Active quests
   const activeQuests = quests.filter(q => q.status === 'active')
@@ -118,7 +69,14 @@ export function useQuests() {
   return {
     quests,
     activeQuests,
-    loading,
+    loading: false, // Store is always populated by WebSocket, no separate loading state
     questForRepo,
   }
+}
+
+/**
+ * Get active quests from the store.
+ */
+export function useActiveQuests(): Quest[] {
+  return useStore((state) => state.quests.filter(q => q.status === 'active'))
 }
