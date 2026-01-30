@@ -17,6 +17,7 @@ import { handleRequest, handleCors, isWebSocketUpgrade, wsHandlers, broadcast } 
 import { hasClientBuild, serveStatic, serveSpaFallback } from './api/static'
 import { startHeartbeat, stopHeartbeat } from './api/heartbeat'
 import { getAllCompanions } from './companions'
+import { updateFromTerminal } from './sessions/manager'
 import type { WsData } from './api'
 import type { PaneDiscoveredEvent, PaneRemovedEvent } from './events/types'
 
@@ -91,9 +92,13 @@ async function main() {
     })
 
     // Broadcast terminal content for Claude panes (only when changed)
+    // Also update session status based on terminal content
     let terminalBroadcasts = 0
     for (const pane of state.panes) {
       if (pane.process.type === 'claude' && pane.terminalContent) {
+        // Update session status from terminal content
+        await updateFromTerminal(pane.id, pane.terminalContent)
+
         const contentHash = hashContent(pane.terminalContent)
         const previousHash = terminalHashes.get(pane.id)
 
