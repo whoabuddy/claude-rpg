@@ -115,9 +115,21 @@ function handleMessage(event: MessageEvent): void {
         break
 
       // Events
-      case 'event':
-        store.addEvent(message.payload)
+      case 'event': {
+        const event = message.payload
+        store.addEvent(event)
+
+        // Record pane activity for visual pulse
+        if (event.paneId) {
+          const activityType = event.type.includes('tool') ? 'tool'
+            : event.type === 'user_prompt_submit' ? 'prompt'
+            : event.type === 'stop' ? 'stop'
+            : event.type.includes('error') ? 'error'
+            : 'tool'
+          store.recordPaneActivity(event.paneId, activityType)
+        }
         break
+      }
 
       case 'history':
         store.setEventHistory(message.payload)
