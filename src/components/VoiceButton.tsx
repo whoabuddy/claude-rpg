@@ -4,12 +4,13 @@ import { useVoiceInput } from '../hooks/useVoiceInput'
 interface VoiceButtonProps {
   onTranscription: (text: string) => void
   disabled?: boolean
+  size?: 'sm' | 'md'
 }
 
 // Auto-dismiss error after this duration
 const ERROR_DISMISS_MS = 5000
 
-export const VoiceButton = memo(function VoiceButton({ onTranscription, disabled = false }: VoiceButtonProps) {
+export const VoiceButton = memo(function VoiceButton({ onTranscription, disabled = false, size = 'md' }: VoiceButtonProps) {
   const { isRecording, isProcessing, error, startRecording, stopRecording, cancelRecording } = useVoiceInput()
   const isActiveRef = useRef(false)
   const [showError, setShowError] = useState(false)
@@ -70,17 +71,21 @@ export const VoiceButton = memo(function VoiceButton({ onTranscription, disabled
   const isActive = isRecording || isProcessing
   const isDisabled = disabled || isProcessing
 
+  // Size-based classes
+  const sizeClasses = size === 'sm' ? 'w-8 h-8' : 'w-11 h-11'
+  const iconSize = size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'
+
   return (
     <div className="relative">
       <button
         type="button"
         className={`
-          w-11 h-11 flex items-center justify-center rounded-lg
+          ${sizeClasses} flex items-center justify-center rounded-lg
           transition-all duration-150 select-none touch-none
           ${isRecording
-            ? 'bg-rpg-error text-white scale-110 shadow-lg shadow-rpg-error/50'
+            ? 'bg-rpg-error text-white scale-110 shadow-lg shadow-rpg-error/50 animate-pulse'
             : isProcessing
-              ? 'bg-rpg-accent/30 text-rpg-accent cursor-wait'
+              ? 'bg-rpg-working text-white cursor-wait'
               : isDisabled
                 ? 'bg-rpg-bg-elevated text-rpg-text-dim cursor-not-allowed opacity-50'
                 : 'bg-rpg-bg-elevated text-rpg-text-muted hover:bg-rpg-accent/20 hover:text-rpg-accent active:scale-95'
@@ -99,7 +104,7 @@ export const VoiceButton = memo(function VoiceButton({ onTranscription, disabled
       >
         {isProcessing ? (
           // Spinner
-          <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+          <svg className={`${iconSize} animate-spin`} viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path
               className="opacity-75"
@@ -110,7 +115,7 @@ export const VoiceButton = memo(function VoiceButton({ onTranscription, disabled
         ) : (
           // Microphone icon
           <svg
-            className={`w-5 h-5 ${isRecording ? 'animate-pulse' : ''}`}
+            className={iconSize}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"

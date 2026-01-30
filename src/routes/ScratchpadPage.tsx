@@ -33,6 +33,10 @@ function QuickCapture({ onCapture }: { onCapture: (text: string) => void }) {
     }
   }
 
+  const handleTranscript = (transcript: string) => {
+    setText(prev => prev ? `${prev} ${transcript}` : transcript)
+  }
+
   return (
     <div className="bg-rpg-card border border-rpg-border rounded-lg p-3">
       <textarea
@@ -51,7 +55,11 @@ function QuickCapture({ onCapture }: { onCapture: (text: string) => void }) {
           {text.length > 0 && `${text.length} chars`}
         </span>
         <div className="flex gap-2">
-          <VoiceButton onTranscription={t => setText(prev => prev + t)} disabled={isCapturing} />
+          <VoiceButton
+            onTranscription={handleTranscript}
+            disabled={isCapturing}
+            size="sm"
+          />
           <button
             onClick={handleSubmit}
             disabled={!text.trim() || isCapturing}
