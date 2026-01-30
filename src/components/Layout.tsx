@@ -1,9 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useStore } from '../store'
 import { useConnectionStatus } from '../hooks/useConnection'
 import { ToastContainer } from './ToastContainer'
 import { CelebrationOverlay } from './CelebrationOverlay'
+
+const MOBILE_NAV_KEY = 'claude-rpg:mobile-nav-visible'
 
 /**
  * Main application layout with navigation
@@ -23,6 +25,18 @@ export function Layout() {
 
   // Hide nav on fullscreen pane view
   const isFullscreen = location.pathname.startsWith('/pane/')
+
+  // Mobile nav visibility state (persisted to localStorage)
+  const [mobileNavVisible, setMobileNavVisible] = useState(() => {
+    const stored = localStorage.getItem(MOBILE_NAV_KEY)
+    return stored === null ? true : stored === 'true'
+  })
+
+  useEffect(() => {
+    localStorage.setItem(MOBILE_NAV_KEY, String(mobileNavVisible))
+  }, [mobileNavVisible])
+
+  const toggleMobileNav = () => setMobileNavVisible(prev => !prev)
 
   return (
     <div className="h-full flex flex-col sm:flex-row bg-rpg-bg">
@@ -105,16 +119,44 @@ export function Layout() {
 
         {/* Bottom navigation - mobile */}
         {!isFullscreen && (
-          <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-rpg-card border-t border-rpg-border safe-area-bottom">
-            <div className="flex justify-around">
-              <NavItem to="/" icon="grid" label="Dashboard" end />
-              <NavItem to="/personas" icon="users" label="Personas" />
-              <NavItem to="/projects" icon="folder" label="Projects" badge={attentionCount} />
-              <NavItem to="/quests" icon="scroll" label="Quests" />
-              <NavItem to="/scratchpad" icon="note" label="Notes" />
-              <NavItem to="/leaderboard" icon="trophy" label="Leaders" />
-            </div>
-          </nav>
+          <>
+            <nav className={`sm:hidden fixed bottom-0 left-0 right-0 bg-rpg-card border-t border-rpg-border safe-area-bottom transition-transform duration-300 ${
+              mobileNavVisible ? 'translate-y-0' : 'translate-y-full'
+            }`}>
+              <div className="flex justify-around">
+                <NavItem to="/" icon="grid" label="Dashboard" end />
+                <NavItem to="/personas" icon="users" label="Personas" />
+                <NavItem to="/projects" icon="folder" label="Projects" badge={attentionCount} />
+                <NavItem to="/quests" icon="scroll" label="Quests" />
+                <NavItem to="/scratchpad" icon="note" label="Notes" />
+                <NavItem to="/leaderboard" icon="trophy" label="Leaders" />
+              </div>
+            </nav>
+            {/* FAB - shown when nav hidden */}
+            {!mobileNavVisible && (
+              <button
+                onClick={toggleMobileNav}
+                className="sm:hidden fixed bottom-4 right-4 w-14 h-14 rounded-full bg-rpg-accent text-rpg-bg shadow-lg flex items-center justify-center z-50 transition-transform active:scale-95"
+                aria-label="Show navigation"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            )}
+            {/* Hide button - shown when nav visible */}
+            {mobileNavVisible && (
+              <button
+                onClick={toggleMobileNav}
+                className="sm:hidden fixed bottom-20 right-4 w-10 h-10 rounded-full bg-rpg-bg-elevated border border-rpg-border text-rpg-text-muted shadow-md flex items-center justify-center z-50 transition-transform active:scale-95"
+                aria-label="Hide navigation"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            )}
+          </>
         )}
       </div>
 
