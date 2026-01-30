@@ -2,10 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* White Rabbit font - 1001fonts.com (free for use) */
+@font-face {
+  font-family: 'White Rabbit';
+  src: url('/fonts/white-rabbit.woff2') format('woff2'),
+    url('/fonts/white-rabbit.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Base styles */
 html, body, #root {
   height: 100%;
   overflow: hidden;
+}
+
+body {
+  font-family: 'White Rabbit', monospace;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Custom scrollbar */

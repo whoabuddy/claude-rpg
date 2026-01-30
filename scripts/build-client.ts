@@ -119,12 +119,13 @@ const html = `<!DOCTYPE html>
     <title>Claude RPG</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👹</text></svg>" />
     <link rel="manifest" href="/manifest.json" />
+    <link rel="preload" href="/fonts/white-rabbit.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/${cssName}">
   </head>
-  <body class="bg-rpg-bg text-white font-mono">
+  <body class="bg-rpg-bg text-rpg-text">
     <div id="root"></div>
     <script type="module" src="/assets/${entryName}"></script>
   </body>
