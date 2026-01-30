@@ -16,9 +16,15 @@ import type {
 // STATE SHAPE
 // ═══════════════════════════════════════════════════════════════════════════
 
+export interface PaneActivity {
+  timestamp: number
+  type: 'tool' | 'prompt' | 'stop' | 'error'
+}
+
 export interface PanesState {
   windows: TmuxWindow[]
   terminalCache: Map<string, string> // paneId -> content
+  paneActivity: Record<string, PaneActivity> // paneId -> activity
 }
 
 export interface CompanionsState {
@@ -84,6 +90,7 @@ export interface AppState extends
   updatePane: (pane: TmuxPane) => void
   removePane: (paneId: string) => void
   setTerminalContent: (paneId: string, content: string) => void
+  recordPaneActivity: (paneId: string, type: PaneActivity['type']) => void
 
   // Actions - Companions
   setCompanions: (companions: Companion[]) => void
@@ -133,6 +140,7 @@ export const useStore = create<AppState>()(
     // Initial state - Panes
     windows: [],
     terminalCache: new Map(),
+    paneActivity: {},
 
       // Initial state - Companions
       companions: [],
@@ -214,6 +222,16 @@ export const useStore = create<AppState>()(
         terminalCache.set(paneId, content)
         return { terminalCache }
       }),
+
+      recordPaneActivity: (paneId, type) => set((state) => ({
+        paneActivity: {
+          ...state.paneActivity,
+          [paneId]: {
+            timestamp: Date.now(),
+            type,
+          },
+        },
+      })),
 
       // ═════════════════════════════════════════════════════════════════════
       // COMPANION ACTIONS
@@ -383,3 +401,8 @@ export const useCompetition = (category: string, period: string) => useStore((st
 
 // Check if connected
 export const useIsConnected = () => useStore((state) => state.status === 'connected')
+
+// Get pane activity
+export const usePaneActivity = (paneId: string) => useStore((state) =>
+  state.paneActivity[paneId]
+)

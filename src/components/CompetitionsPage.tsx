@@ -30,7 +30,7 @@ const CATEGORY_CONFIG = {
 }
 
 export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavigateBack, onNavigateToProject }: CompetitionsPageProps) {
-  const [period, setPeriod] = useState<TimePeriod>('all')
+  const [period, setPeriod] = useState<TimePeriod>('today')
   const { competitions, loading, getByCategory } = useCompetitions(period)
 
   // Get companions from store for achievements display
@@ -48,29 +48,27 @@ export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavig
   return (
     <div className="flex flex-col h-full">
       <PageHeader title="Leaderboard">
-        <ConnectionDot connected={connected} />
+        {/* Time Period Toggle in header */}
+        <div className="inline-flex rounded-lg border border-rpg-border bg-rpg-card p-0.5">
+          {(Object.keys(PERIOD_LABELS) as TimePeriod[]).map(p => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                period === p
+                  ? 'bg-rpg-accent text-rpg-bg'
+                  : 'text-rpg-text-muted hover:text-rpg-text'
+              }`}
+            >
+              {PERIOD_LABELS[p]}
+            </button>
+          ))}
+        </div>
       </PageHeader>
       <div className="p-4 space-y-4 flex-1 overflow-y-auto">
 
       {/* Disconnected banner */}
       <ConnectionBanner connected={connected} reconnectAttempt={reconnectAttempt} onRetry={onRetry} />
-
-      {/* Time Period Selector */}
-      <div className="flex gap-1 p-1 bg-rpg-card rounded-lg">
-        {(Object.keys(PERIOD_LABELS) as TimePeriod[]).map(p => (
-          <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            className={`flex-1 px-3 py-1.5 text-sm rounded transition-colors ${
-              period === p
-                ? 'bg-rpg-accent text-rpg-bg font-medium'
-                : 'text-rpg-text-muted hover:text-rpg-text'
-            }`}
-          >
-            {PERIOD_LABELS[p]}
-          </button>
-        ))}
-      </div>
 
       {/* Main content - dimmed when disconnected */}
       <div className={!connected ? 'opacity-60 pointer-events-none' : undefined}>
