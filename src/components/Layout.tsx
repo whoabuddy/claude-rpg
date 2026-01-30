@@ -50,8 +50,8 @@ export function Layout() {
                 <span className="text-lg">⚔</span>
               </div>
               <div>
-                <h1 className="font-bold text-rpg-text leading-tight">Claude RPG</h1>
-                <p className="text-[10px] text-rpg-text-dim tracking-wide">COMPANION TRACKER</p>
+                <h1 className="font-bold text-rpg-text leading-tight">tmux tracker</h1>
+                <p className="text-[10px] text-rpg-text-dim tracking-wide">CLAUDE COMPANION</p>
               </div>
             </div>
           </div>
@@ -59,11 +59,9 @@ export function Layout() {
           {/* Navigation links */}
           <nav className="flex-1 p-2 space-y-1">
             <SidebarItem to="/" icon="grid" label="Dashboard" end />
-            <SidebarItem to="/personas" icon="users" label="Personas" />
-            <SidebarItem to="/projects" icon="folder" label="Projects" badge={attentionCount} />
             <SidebarItem to="/quests" icon="scroll" label="Quests" />
-            <SidebarItem to="/scratchpad" icon="note" label="Scratchpad" />
             <SidebarItem to="/leaderboard" icon="trophy" label="Leaderboard" />
+            <SidebarItem to="/scratchpad" icon="note" label="Scratchpad" />
           </nav>
 
           {/* Settings at bottom */}
@@ -124,12 +122,11 @@ export function Layout() {
               mobileNavVisible ? 'translate-y-0' : 'translate-y-full'
             }`}>
               <div className="flex justify-around">
-                <NavItem to="/" icon="grid" label="Dashboard" end />
-                <NavItem to="/personas" icon="users" label="Personas" />
-                <NavItem to="/projects" icon="folder" label="Projects" badge={attentionCount} />
+                <NavItem to="/" icon="grid" label="Home" end />
                 <NavItem to="/quests" icon="scroll" label="Quests" />
+                <NavItem to="/leaderboard" icon="trophy" label="Scores" />
                 <NavItem to="/scratchpad" icon="note" label="Notes" />
-                <NavItem to="/leaderboard" icon="trophy" label="Leaders" />
+                <NavItem to="/settings" icon="settings" label="More" />
               </div>
             </nav>
             {/* FAB - shown when nav hidden */}

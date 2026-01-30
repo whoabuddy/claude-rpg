@@ -1,29 +1,18 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useNotifications } from '../hooks/useNotifications'
+import { PageHeader } from '../components/PageHeader'
 
 /**
  * Settings page - configure notifications, theme, etc.
  */
 export default function SettingsPage() {
-  const navigate = useNavigate()
   const { permission, requestPermission } = useNotifications()
   const [soundEnabled, setSoundEnabled] = useState(false)
 
   return (
-    <div className="p-4 max-w-xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="p-2 -ml-2 text-rpg-text-muted hover:text-rpg-text transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <h1 className="text-xl font-bold text-rpg-text">Settings</h1>
-      </div>
+    <div className="flex flex-col h-full">
+      <PageHeader title="Settings" backTo="/" />
+      <div className="p-4 max-w-xl mx-auto space-y-6 flex-1 overflow-y-auto">
 
       {/* Notifications */}
       <section className="rounded-lg border border-rpg-border bg-rpg-card p-4">
@@ -99,6 +88,7 @@ export default function SettingsPage() {
           </a>
         </div>
       </section>
+      </div>
     </div>
   )
 }

@@ -243,12 +243,9 @@ export const OverviewDashboard = memo(function OverviewDashboard({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Filter windows by name, repo, or session..."
-            className="w-full px-3 py-2 pl-8 text-sm rounded bg-rpg-bg border border-rpg-border text-rpg-text placeholder:text-rpg-text-dim focus:outline-none focus:border-rpg-accent"
+            placeholder="Search windows..."
+            className="w-full px-3 py-2 text-sm rounded bg-rpg-bg border border-rpg-border text-rpg-text placeholder:text-rpg-text-dim focus:outline-none focus:border-rpg-accent"
           />
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-rpg-text-dim text-xs">
-            /
-          </span>
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
@@ -329,12 +326,6 @@ export const OverviewDashboard = memo(function OverviewDashboard({
 
       {/* Main content - dimmed when disconnected */}
       <div className={!connected ? 'opacity-60 pointer-events-none' : undefined}>
-        {/* Keyboard shortcuts hint - visible on desktop */}
-        <div className="hidden sm:flex items-center gap-4 text-xs text-rpg-text-dim px-1">
-          <span><kbd className="px-1 py-0.5 bg-rpg-card rounded border border-rpg-border">/</kbd> Search</span>
-          <span><kbd className="px-1 py-0.5 bg-rpg-card rounded border border-rpg-border">Esc</kbd> Clear/Cancel</span>
-        </div>
-
         {/* Empty state */}
         {windowGroups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-rpg-text-muted">
@@ -447,16 +438,6 @@ function WorkersSummary({ windows, onExpandPane }: WorkersSummaryProps) {
 
   if (workers.length < 2) return null
 
-  // Helper to format elapsed time
-  const formatElapsed = (startedAt: number) => {
-    const elapsed = Math.floor((Date.now() - startedAt) / 1000)
-    if (elapsed < 60) return `${elapsed}s`
-    const mins = Math.floor(elapsed / 60)
-    if (mins < 60) return `${mins}m`
-    const hours = Math.floor(mins / 60)
-    return `${hours}h ${mins % 60}m`
-  }
-
   return (
     <div className="rounded-lg border border-rpg-border bg-rpg-card/50 p-3">
       <button
@@ -471,7 +452,7 @@ function WorkersSummary({ windows, onExpandPane }: WorkersSummaryProps) {
         </div>
       </button>
       {!collapsed && (
-        <div className="space-y-1.5 mt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
           {workers.map(({ pane, windowName }) => {
             const session = pane.process.claudeSession!
             const status = session.status
@@ -493,44 +474,41 @@ function WorkersSummary({ windows, onExpandPane }: WorkersSummaryProps) {
             }
 
             return (
-              <div key={pane.id}>
-                <button
-                  onClick={() => onExpandPane(pane.id)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-rpg-card-hover transition-colors text-left"
-                >
-                  {/* Status dot */}
+              <button
+                key={pane.id}
+                onClick={() => onExpandPane(pane.id)}
+                className="flex flex-col gap-1.5 px-2 py-2 rounded hover:bg-rpg-card-hover transition-colors text-left min-w-0 border border-rpg-border-dim"
+              >
+                {/* Header row: status dot + name */}
+                <div className="flex items-center gap-2 min-w-0">
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDotClass(status)}`} />
-                  {/* Name - more space for full names */}
-                  <span className="text-sm text-rpg-text font-medium truncate min-w-[80px] max-w-[120px] flex-shrink-0">
+                  <span className="text-sm text-rpg-text font-medium truncate">
                     {session.name}
                   </span>
-                  {/* Repo - responsive width */}
-                  <span className="text-xs text-rpg-accent truncate max-w-[100px] sm:max-w-[120px] flex-shrink-0">
-                    {repoLabel}
-                  </span>
-                  {/* Activity - more space on desktop */}
-                  <span className="text-xs text-rpg-text-dim truncate flex-1 min-w-0 max-w-[200px] sm:max-w-none">
-                    {activity || STATUS_LABELS[status] || 'Ready'}
-                  </span>
-                  {/* Subagent badge */}
-                  {(session.activeSubagents?.length || 0) > 0 && (
-                    <span className="text-[10px] text-rpg-accent flex-shrink-0">
-                      {session.activeSubagents!.length} sub{session.activeSubagents!.length > 1 ? 's' : ''}
-                    </span>
-                  )}
-                </button>
-                {/* Subagent details */}
-                {session.activeSubagents && session.activeSubagents.length > 0 && (
-                  <div className="space-y-0.5 mt-0.5">
-                    {session.activeSubagents.map(sub => (
-                      <div key={sub.id} className="ml-4 pl-2 border-l border-rpg-border text-xs flex items-center gap-2">
-                        <span className="text-rpg-accent truncate flex-1">{sub.description}</span>
-                        <span className="text-rpg-text-dim">{formatElapsed(sub.startedAt)}</span>
-                      </div>
-                    ))}
+                </div>
+
+                {/* Repo */}
+                <div className="text-xs text-rpg-accent truncate">
+                  {repoLabel}
+                </div>
+
+                {/* Full cwd path */}
+                <div className="text-xs text-rpg-text-dim font-mono truncate" title={pane.cwd}>
+                  {pane.cwd}
+                </div>
+
+                {/* Activity */}
+                <div className="text-xs text-rpg-text-muted truncate">
+                  {activity || STATUS_LABELS[status] || 'Ready'}
+                </div>
+
+                {/* Subagent badge */}
+                {(session.activeSubagents?.length || 0) > 0 && (
+                  <div className="text-[10px] text-rpg-accent pt-1 border-t border-rpg-border-dim">
+                    {session.activeSubagents!.length} subagent{session.activeSubagents!.length > 1 ? 's' : ''} active
                   </div>
                 )}
-              </div>
+              </button>
             )
           })}
         </div>

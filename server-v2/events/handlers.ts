@@ -21,7 +21,7 @@ import {
   initChallengeSystem,
 } from '../personas/challenges'
 import { incrementStat, updateStreak } from '../companions'
-import { getSession, updateFromHook } from '../sessions/manager'
+import { getSession, updateFromHook, clearError } from '../sessions/manager'
 import { getProjectById } from '../projects'
 import type { PostToolUseEvent, UserPromptEvent, StopEvent, PreToolUseEvent } from './types'
 
@@ -37,6 +37,16 @@ export function initEventHandlers(): void {
   // Handle pre-tool-use events (set status to working)
   eventBus.on<PreToolUseEvent>('hook:pre_tool_use', async (event) => {
     try {
+      // Ensure persona exists for this session (first hook event creates it)
+      const persona = await getOrCreatePersona(event.sessionId)
+
+      // Get session and link persona if not already linked
+      const session = getSession(event.paneId)
+      if (session && !session.personaId) {
+        session.personaId = persona.id
+        log.debug('Linked persona to session (first hook)', { paneId: event.paneId, personaId: persona.id })
+      }
+
       // Update session status to working
       await updateFromHook(event.paneId, 'working')
 
@@ -55,10 +65,21 @@ export function initEventHandlers(): void {
   // Handle user prompt events (energy replenishment + challenge tracking)
   eventBus.on<UserPromptEvent>('hook:user_prompt', async (event) => {
     try {
+      // Ensure persona exists for this session (first hook event creates it)
       const persona = await getOrCreatePersona(event.sessionId)
+
+      // Get session and link persona if not already linked
+      const session = getSession(event.paneId)
+      if (session && !session.personaId) {
+        session.personaId = persona.id
+        log.debug('Linked persona to session (first hook)', { paneId: event.paneId, personaId: persona.id })
+      }
 
       // Update session status to typing
       await updateFromHook(event.paneId, 'typing')
+
+      // Clear any previous error state when user submits new prompt
+      clearError(event.paneId)
 
       // Replenish energy and auto-assign challenges if needed
       updateHealth(persona.id, ENERGY_GAIN_PROMPT, 0)
@@ -82,11 +103,16 @@ export function initEventHandlers(): void {
   // Handle tool use events
   eventBus.on<PostToolUseEvent>('hook:post_tool_use', async (event) => {
     try {
-      // Get or create persona for this session
+      // Ensure persona exists for this session (first hook event creates it)
       const persona = await getOrCreatePersona(event.sessionId)
 
-      // Get project from pane session
+      // Get session and link persona if not already linked
       const session = getSession(event.paneId)
+      if (session && !session.personaId) {
+        session.personaId = persona.id
+        log.debug('Linked persona to session (first hook)', { paneId: event.paneId, personaId: persona.id })
+      }
+
       const projectId = session?.projectId || null
       const project = projectId ? getProjectById(projectId) : null
 
@@ -128,6 +154,22 @@ export function initEventHandlers(): void {
 
       // Update persona XP (this also checks for level ups and badges)
       addXp(persona.id, xpAmount)
+
+      // Handle error state: set on failure, clear on success
+      if (event.success === false) {
+        // Set error state
+        if (session) {
+          session.lastError = {
+            tool: event.toolName,
+            message: typeof event.output === 'string' ? event.output : undefined,
+            timestamp: Date.now(),
+          }
+        }
+        await updateFromHook(event.paneId, 'error')
+      } else {
+        // Clear error state on successful tool use
+        clearError(event.paneId)
+      }
 
       // Update health and challenges
       const energyDelta = ENERGY_GAIN_TOOL_USE
@@ -215,6 +257,9 @@ export function initEventHandlers(): void {
     try {
       // Update session status to idle
       await updateFromHook(event.paneId, 'idle')
+
+      // Clear error state when transitioning to idle
+      clearError(event.paneId)
 
       const session = getSession(event.paneId)
       const projectId = session?.projectId || null

@@ -6,9 +6,8 @@ import type { TmuxWindow } from '../tmux/types'
 import type { ClaudeSession } from '../sessions/types'
 import type { Persona } from '../personas/types'
 import type { Project } from '../projects/types'
-import type { Quest } from '../quests/types'
 import type { XpGain } from '../xp/types'
-import type { Companion } from '../../shared/types'
+import type { Companion, Quest } from '../../shared/types'
 
 export type MessagePriority = 'high' | 'normal' | 'low'
 
@@ -56,14 +55,14 @@ export interface ProjectUpdateMessage {
   project: Project
 }
 
-export interface QuestsMessage {
-  type: 'quests'
-  quests: Quest[]
+export interface QuestsInitMessage {
+  type: 'quests_init'
+  payload: Quest[]
 }
 
 export interface QuestUpdateMessage {
   type: 'quest_update'
-  quest: Quest
+  payload: Quest
 }
 
 export interface CompanionsMessage {
@@ -114,7 +113,7 @@ export type ServerMessage =
   | PersonaUpdateMessage
   | ProjectsMessage
   | ProjectUpdateMessage
-  | QuestsMessage
+  | QuestsInitMessage
   | QuestUpdateMessage
   | CompanionsMessage
   | CompanionUpdateMessage
@@ -141,7 +140,7 @@ export function getPriority(message: ServerMessage): MessagePriority {
     case 'persona_update':
     case 'projects':
     case 'project_update':
-    case 'quests':
+    case 'quests_init':
     case 'quest_update':
     case 'companions':
     case 'companion_update':

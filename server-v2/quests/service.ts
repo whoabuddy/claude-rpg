@@ -12,6 +12,28 @@ import type { Quest, QuestPhase, QuestPhaseStatus, QuestStatus, QuestCreateInput
 const log = createLogger('quest-service')
 
 /**
+ * Broadcast quest update via WebSocket
+ * Import dynamically to avoid circular dependency
+ */
+function broadcastQuestUpdate(quest: Quest): void {
+  // Dynamic import to avoid circular deps (api -> quests -> api)
+  import('../api/broadcast').then(({ broadcast }) => {
+    import('../api/handlers').then(({ mapQuestToShared }) => {
+      const sharedQuest = mapQuestToShared(quest)
+      broadcast({
+        type: 'quest_update',
+        payload: sharedQuest,
+      })
+    })
+  }).catch((error) => {
+    log.error('Failed to broadcast quest update', {
+      questId: quest.id,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  })
+}
+
+/**
  * Create a new quest
  */
 export function createQuest(input: QuestCreateInput): Quest {
@@ -38,7 +60,7 @@ export function createQuest(input: QuestCreateInput): Quest {
 
   log.info('Created quest', { id, title: input.title, phases: phases.length })
 
-  return {
+  const quest: Quest = {
     id,
     projectId: input.projectId || null,
     title: input.title,
@@ -50,6 +72,11 @@ export function createQuest(input: QuestCreateInput): Quest {
     startedAt: null,
     completedAt: null,
   }
+
+  // Broadcast to WebSocket clients
+  broadcastQuestUpdate(quest)
+
+  return quest
 }
 
 /**
@@ -85,7 +112,12 @@ export async function updateQuestStatus(questId: string, newStatus: QuestStatus)
 
   log.info('Quest status updated', { questId, from: quest.status, to: validatedStatus })
 
-  return { ...quest, status: validatedStatus }
+  const updatedQuest = { ...quest, status: validatedStatus }
+
+  // Broadcast to WebSocket clients
+  broadcastQuestUpdate(updatedQuest)
+
+  return updatedQuest
 }
 
 /**
@@ -134,7 +166,12 @@ export async function updatePhaseStatus(
     to: validatedStatus,
   })
 
-  return { ...quest, phases: updatedPhases }
+  const updatedQuest = { ...quest, phases: updatedPhases }
+
+  // Broadcast to WebSocket clients
+  broadcastQuestUpdate(updatedQuest)
+
+  return updatedQuest
 }
 
 /**
@@ -173,7 +210,12 @@ export async function completeQuest(questId: string, xpAwarded: number): Promise
 
   log.info('Quest completed', { questId, xpAwarded })
 
-  return { ...quest, status: 'completed', xpAwarded, completedAt: now }
+  const completedQuest = { ...quest, status: 'completed' as QuestStatus, xpAwarded, completedAt: now }
+
+  // Broadcast to WebSocket clients
+  broadcastQuestUpdate(completedQuest)
+
+  return completedQuest
 }
 
 /**

@@ -1,20 +1,127 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { VoiceButton } from '../components/VoiceButton'
 import { NoteCard } from '../components/NoteCard'
 import { CreateIssueModal } from '../components/CreateIssueModal'
+import { PageHeader } from '../components/PageHeader'
+import { TagSuggestions } from '../components/TagSuggestions'
 import type { Note, NoteStatus } from '../../shared/types'
 
 type FilterType = 'all' | NoteStatus
+
+const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'inbox', label: 'Inbox' },
+  { value: 'triaged', label: 'Triaged' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'converted', label: 'Converted' },
+]
+
+/**
+ * Quick capture component for fast note entry
+ */
+function QuickCapture({
+  onCapture,
+  existingTags,
+}: {
+  onCapture: (text: string) => void
+  existingTags: string[]
+}) {
+  const [text, setText] = useState('')
+  const [isCapturing, setIsCapturing] = useState(false)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-focus on desktop only (not mobile - keyboard would pop up)
+  useEffect(() => {
+    if (window.innerWidth >= 640) {
+      inputRef.current?.focus()
+    }
+  }, [])
+
+  const handleSubmit = async () => {
+    if (text.trim() && !isCapturing) {
+      setIsCapturing(true)
+      await onCapture(text.trim())
+      setText('')
+      setIsCapturing(false)
+      inputRef.current?.focus()
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Cmd/Ctrl+Enter to submit
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault()
+      handleSubmit()
+    }
+  }
+
+  const handleTranscript = (transcript: string) => {
+    setText(prev => prev ? `${prev} ${transcript}` : transcript)
+  }
+
+  const handleTagSelect = (tag: string) => {
+    setText(prev => `${prev} #${tag}`)
+    inputRef.current?.focus()
+  }
+
+  return (
+    <div className="bg-rpg-card border border-rpg-border rounded-lg p-3">
+      <textarea
+        ref={inputRef}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Quick thought... (Cmd+Enter to save)"
+        inputMode="text"
+        enterKeyHint="send"
+        autoComplete="off"
+        autoCorrect="on"
+        spellCheck={true}
+        className="w-full bg-transparent text-rpg-text placeholder-rpg-text-dim
+                   resize-none outline-none text-sm"
+        rows={2}
+        disabled={isCapturing}
+      />
+
+      {/* Tag suggestions */}
+      {existingTags.length > 0 && (
+        <div className="mt-2">
+          <TagSuggestions existingTags={existingTags} onSelect={handleTagSelect} />
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-xs text-rpg-text-dim">
+          {text.length > 0 && `${text.length} chars`}
+        </span>
+        <div className="flex gap-2">
+          <VoiceButton
+            onTranscription={handleTranscript}
+            disabled={isCapturing}
+            size="sm"
+          />
+          <button
+            onClick={handleSubmit}
+            disabled={!text.trim() || isCapturing}
+            className="px-3 py-1.5 text-sm bg-rpg-accent text-rpg-bg rounded-lg
+                     disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-0"
+          >
+            {isCapturing ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 /**
  * Scratchpad page - quick note capture for thoughts, ideas, and TODOs
  */
 export default function ScratchpadPage() {
   const [notes, setNotes] = useState<Note[]>([])
-  const [newNoteContent, setNewNoteContent] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
-  const [isCreating, setIsCreating] = useState(false)
   const [selectedNoteForIssue, setSelectedNoteForIssue] = useState<Note | null>(null)
 
   // Fetch notes from the server
@@ -49,22 +156,15 @@ export default function ScratchpadPage() {
     fetchNotes()
   }, [fetchNotes])
 
-  // Create a new note
-  const handleCreateNote = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!newNoteContent.trim()) {
-      return
-    }
-
-    setIsCreating(true)
+  // Handle quick capture
+  const handleQuickCapture = useCallback(async (text: string) => {
     try {
       const response = await fetch('/api/notes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content: newNoteContent }),
+        body: JSON.stringify({ content: text, status: 'inbox' }),
       })
 
       if (!response.ok) {
@@ -76,15 +176,12 @@ export default function ScratchpadPage() {
         throw new Error(result.error?.message || 'Failed to create note')
       }
 
-      // Clear the input and refetch notes
-      setNewNoteContent('')
+      // Refetch notes to show the new one
       await fetchNotes()
     } catch (error) {
       console.error('Error creating note:', error)
-    } finally {
-      setIsCreating(false)
     }
-  }, [newNoteContent, fetchNotes])
+  }, [fetchNotes])
 
   // Update note status
   const handleStatusChange = useCallback(async (id: string, status: NoteStatus) => {
@@ -134,16 +231,6 @@ export default function ScratchpadPage() {
     }
   }, [fetchNotes])
 
-  // Handle voice transcription
-  const handleVoiceTranscription = useCallback((text: string) => {
-    setNewNoteContent(prev => {
-      // If there's existing content, add a newline before appending
-      if (prev.trim()) {
-        return `${prev}\n${text}`
-      }
-      return text
-    })
-  }, [])
 
   // Handle creating a GitHub issue from a note
   const handleCreateIssue = useCallback((note: Note) => {
@@ -156,119 +243,48 @@ export default function ScratchpadPage() {
     await fetchNotes()
   }, [fetchNotes])
 
+  // Extract unique tags from all notes for suggestions
+  const uniqueTags = useMemo(() => {
+    const tagSet = new Set<string>()
+    notes.forEach(note => {
+      note.tags.forEach(tag => tagSet.add(tag))
+    })
+    return Array.from(tagSet)
+  }, [notes])
+
   return (
-    <div className="p-4 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-rpg-text">Scratchpad</h1>
+    <div className="flex flex-col h-full">
+      <PageHeader title="Scratchpad">
         <span className="text-sm text-rpg-text-muted">
           {notes.length} {notes.length === 1 ? 'note' : 'notes'}
         </span>
-      </div>
+      </PageHeader>
+      <div className="p-4 space-y-6 flex-1 overflow-y-auto">
+      {/* Quick capture */}
+      <QuickCapture onCapture={handleQuickCapture} existingTags={uniqueTags} />
 
       {/* Filter tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        <button
-          onClick={() => setActiveFilter('all')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
-            activeFilter === 'all'
-              ? 'bg-rpg-accent text-rpg-bg font-medium'
-              : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
-          }`}
-        >
-          All
-          {activeFilter === 'all' && notes.length > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
-              {notes.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveFilter('inbox')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
-            activeFilter === 'inbox'
-              ? 'bg-rpg-accent text-rpg-bg font-medium'
-              : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
-          }`}
-        >
-          Inbox
-          {activeFilter === 'inbox' && notes.length > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
-              {notes.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveFilter('triaged')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
-            activeFilter === 'triaged'
-              ? 'bg-rpg-accent text-rpg-bg font-medium'
-              : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
-          }`}
-        >
-          Triaged
-          {activeFilter === 'triaged' && notes.length > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
-              {notes.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveFilter('archived')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
-            activeFilter === 'archived'
-              ? 'bg-rpg-accent text-rpg-bg font-medium'
-              : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
-          }`}
-        >
-          Archived
-          {activeFilter === 'archived' && notes.length > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
-              {notes.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveFilter('converted')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
-            activeFilter === 'converted'
-              ? 'bg-rpg-accent text-rpg-bg font-medium'
-              : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
-          }`}
-        >
-          Converted
-          {activeFilter === 'converted' && notes.length > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
-              {notes.length}
-            </span>
-          )}
-        </button>
+        {FILTER_OPTIONS.map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => setActiveFilter(value)}
+            className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
+              activeFilter === value
+                ? 'bg-rpg-accent text-rpg-bg font-medium'
+                : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
+            }`}
+          >
+            {label}
+            {activeFilter === value && notes.length > 0 && (
+              <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
+                {notes.length}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
-      {/* New note form */}
-      <form onSubmit={handleCreateNote} className="space-y-3">
-        <textarea
-          value={newNoteContent}
-          onChange={(e) => setNewNoteContent(e.target.value)}
-          placeholder="Quick thought..."
-          disabled={isCreating}
-          className="w-full px-3 py-2 bg-rpg-card border border-rpg-border rounded-lg text-rpg-text placeholder-rpg-text-dim resize-none focus:outline-none focus:border-rpg-accent transition-colors"
-          rows={3}
-        />
-        <div className="flex items-center gap-3">
-          <VoiceButton
-            onTranscription={handleVoiceTranscription}
-            disabled={isCreating}
-          />
-          <button
-            type="submit"
-            disabled={!newNoteContent.trim() || isCreating}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isCreating ? 'Creating...' : 'Add Note'}
-          </button>
-        </div>
-      </form>
 
       {/* Notes list */}
       {isLoading ? (
@@ -302,6 +318,7 @@ export default function ScratchpadPage() {
         onClose={() => setSelectedNoteForIssue(null)}
         onCreated={handleIssueCreated}
       />
+      </div>
     </div>
   )
 }

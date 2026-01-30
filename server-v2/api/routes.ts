@@ -70,6 +70,9 @@ export const ROUTES: Route[] = [
   // Transcription
   { method: 'POST', pattern: '/api/transcribe', handler: 'transcribeAudio' },
 
+  // Report
+  { method: 'GET', pattern: '/api/report', handler: 'getReport' },
+
   // Admin (stubs for v2 - no dev proxy mode)
   { method: 'GET', pattern: '/api/admin/backends', handler: 'adminBackends' },
   { method: 'POST', pattern: '/api/admin/backend', handler: 'adminSwitchBackend' },

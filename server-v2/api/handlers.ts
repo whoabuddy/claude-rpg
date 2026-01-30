@@ -14,13 +14,13 @@ import { generateNarrative } from '../projects/narrative'
 import { getActiveQuests, getQuestById, updateQuestStatus } from '../quests'
 import { getXpByCategory, getXpTimeline } from '../xp'
 import { getAllCompetitions } from '../competitions'
-import { getProjectById } from '../projects/service'
 import { isWhisperAvailable, transcribeAudio as whisperTranscribe } from '../lib/whisper'
 import { cloneRepo } from '../projects/clone'
 import { createNote, getNoteById, getAllNotes, updateNote, deleteNote } from '../notes'
 import { createGitHubIssue } from '../notes/github'
 import { getAllChallenges, getChallengeDefinition } from '../personas/challenges'
 import { serveAvatar } from './avatars'
+import { generateReport, reportToMarkdown } from '../report'
 import type { Note, NoteStatus } from '../notes'
 import type {
   ApiResponse,
@@ -479,7 +479,7 @@ export function getCompanion(params: Record<string, string>): ApiResponse<unknow
 /**
  * Map server-v2 Quest to shared Quest format (for client compatibility)
  */
-function mapQuestToShared(serverQuest: ServerQuest): SharedQuest {
+export function mapQuestToShared(serverQuest: ServerQuest): SharedQuest {
   // Get project to extract repo name
   const project = serverQuest.projectId ? getProjectById(serverQuest.projectId) : null
   const repoName = project?.name || 'unknown'
@@ -496,13 +496,26 @@ function mapQuestToShared(serverQuest: ServerQuest): SharedQuest {
     completedAt: p.completedAt ? new Date(p.completedAt).getTime() : undefined,
   }))
 
+  // Map server quest status to shared quest status
+  // Server 'planned' and 'active' both map to shared 'active'
+  // Server 'failed' maps to shared 'archived' (no 'failed' in shared types)
+  let sharedStatus: SharedQuest['status']
+  if (serverQuest.status === 'planned' || serverQuest.status === 'active') {
+    sharedStatus = 'active'
+  } else if (serverQuest.status === 'failed') {
+    sharedStatus = 'archived'
+  } else {
+    // 'completed', 'paused', 'archived' map directly
+    sharedStatus = serverQuest.status as SharedQuest['status']
+  }
+
   return {
     id: serverQuest.id,
     name: serverQuest.title, // Map title -> name
     description: serverQuest.description || '',
     repos: [repoName], // Map projectId -> repos array
     phases,
-    status: serverQuest.status,
+    status: sharedStatus,
     createdAt: new Date(serverQuest.createdAt).getTime(),
     completedAt: serverQuest.completedAt ? new Date(serverQuest.completedAt).getTime() : undefined,
     xpEarned: serverQuest.xpAwarded || undefined,
@@ -590,6 +603,49 @@ export function xpTimeline(query: URLSearchParams): ApiResponse<unknown> {
 
   const timeline = getXpTimeline(entityType, entityId, days)
   return { success: true, data: { timeline } }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REPORT ENDPOINT
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Get daily report
+ */
+export function getReport(query: URLSearchParams): ApiResponse<unknown> | Response {
+  try {
+    // Parse query params
+    const days = parseInt(query.get('days') || '1', 10)
+    const format = query.get('format') || 'json'
+
+    // Validate days parameter
+    if (isNaN(days) || days < 1 || days > 30) {
+      return {
+        success: false,
+        error: { code: 'INVALID_PARAM', message: 'days must be 1-30' },
+      }
+    }
+
+    const report = generateReport(days)
+
+    // Return markdown if requested
+    if (format === 'markdown') {
+      return new Response(reportToMarkdown(report), {
+        headers: { 'Content-Type': 'text/markdown' },
+      })
+    }
+
+    // Default: return JSON
+    return { success: true, data: report }
+  } catch (error) {
+    log.error('Failed to generate report', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'GENERATION_FAILED', message: 'Failed to generate report' },
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

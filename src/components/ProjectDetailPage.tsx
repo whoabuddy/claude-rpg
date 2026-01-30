@@ -5,6 +5,7 @@ import { useStore } from '../store'
 import { RadarChart, calculateStatsRadar } from './RadarChart'
 import { TeamStats } from './TeamStats'
 import { NarrativeSummary } from './NarrativeSummary'
+import { PageHeader } from './PageHeader'
 import { getProjectNarrative } from '../lib/api'
 import { formatNumber } from '../lib/format'
 import type { TeamStats as TeamStatsType, NarrativeSummary as NarrativeSummaryType } from '../types/project'
@@ -96,14 +97,11 @@ export function ProjectDetailPage({ companionId, connected, onNavigateBack }: Pr
 
   if (!companion) {
     return (
-      <div className="p-4">
-        <button
-          onClick={onNavigateBack}
-          className="text-rpg-text-muted hover:text-rpg-text transition-colors mb-4"
-        >
-          &larr; Back
-        </button>
-        <p className="text-rpg-text-dim text-center py-8">Project not found</p>
+      <div className="flex flex-col h-full">
+        <PageHeader title="Project" backTo="/projects" backLabel="Back to Projects" />
+        <div className="p-4 flex-1">
+          <p className="text-rpg-text-dim text-center py-8">Project not found</p>
+        </div>
       </div>
     )
   }
@@ -167,27 +165,14 @@ export function ProjectDetailPage({ companionId, connected, onNavigateBack }: Pr
   }
 
   return (
-    <div className="p-4 max-w-2xl mx-auto space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onNavigateBack}
-          className="p-2 -ml-2 text-rpg-text-muted hover:text-rpg-text transition-colors"
-          title="Back"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold text-rpg-text">{companion.name}</h1>
-          {companion.repo.path && (
-            <p className="text-xs text-rpg-text-dim font-mono truncate">
-              {companion.repo.path}
-            </p>
-          )}
-        </div>
-      </div>
+    <div className="flex flex-col h-full">
+      <PageHeader title={companion.name} backTo="/projects" backLabel="Back to Projects" />
+      <div className="p-4 max-w-2xl mx-auto space-y-4 flex-1 overflow-y-auto">
+        {companion.repo.path && (
+          <p className="text-xs text-rpg-text-dim font-mono truncate -mt-2">
+            {companion.repo.path}
+          </p>
+        )}
 
       {/* Level & XP Progress */}
       <div className="rounded-lg border border-rpg-border bg-rpg-bg-elevated p-4">
@@ -350,6 +335,7 @@ export function ProjectDetailPage({ companionId, connected, onNavigateBack }: Pr
         loading={loadingNarrative}
         onExport={handleExport}
       />
+      </div>
     </div>
   )
 }

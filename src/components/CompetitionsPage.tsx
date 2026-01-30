@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import type { TimePeriod, LeaderboardEntry, Achievement } from '@shared/types'
+import type { TimePeriod, LeaderboardEntry, Achievement, CompetitionCategory } from '@shared/types'
 import { ACHIEVEMENT_CATALOG, getAchievementInfo, RARITY_COLORS, RARITY_BG } from '@shared/achievement-defs'
 import { useStore } from '../store'
 import { useCompetitions } from '../hooks/useCompetitions'
 import { LeaderboardCard, StreakCard } from './LeaderboardCard'
 import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
+import { PageHeader } from './PageHeader'
 
 interface CompetitionsPageProps {
   connected: boolean
@@ -20,16 +21,18 @@ const PERIOD_LABELS: Record<TimePeriod, string> = {
   all: 'All Time',
 }
 
-const CATEGORY_CONFIG = {
-  xp: { title: 'XP Leaders', unit: 'XP' },
-  commits: { title: 'Commit Champions', unit: '' },
-  tests: { title: 'Test Warriors', unit: '' },
-  tools: { title: 'Tool Masters', unit: '' },
-  prompts: { title: 'Prompt Pioneers', unit: '' },
-}
+const CATEGORIES: { id: CompetitionCategory; label: string; icon: string; unit: string }[] = [
+  { id: 'xp', label: 'XP', icon: '⚡', unit: 'XP' },
+  { id: 'commits', label: 'Commits', icon: '📝', unit: '' },
+  { id: 'tests', label: 'Tests', icon: '✓', unit: '' },
+  { id: 'tools', label: 'Tools', icon: '🔧', unit: '' },
+  { id: 'prompts', label: 'Prompts', icon: '💬', unit: '' },
+  { id: 'quests', label: 'Quests', icon: '📜', unit: '' },
+]
 
 export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavigateBack, onNavigateToProject }: CompetitionsPageProps) {
-  const [period, setPeriod] = useState<TimePeriod>('all')
+  const [period, setPeriod] = useState<TimePeriod>('today')
+  const [category, setCategory] = useState<CompetitionCategory>('xp')
   const { competitions, loading, getByCategory } = useCompetitions(period)
 
   // Get companions from store for achievements display
@@ -39,49 +42,39 @@ export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavig
   const xpCompetition = getByCategory('xp')
   const streakEntries: LeaderboardEntry[] = xpCompetition?.entries ?? []
 
+  // Get selected competition
+  const selectedCompetition = getByCategory(category)
+  const selectedCategoryConfig = CATEGORIES.find(c => c.id === category)
+
   // Aggregate all achievements across companions (#37)
   const allAchievements = companions.flatMap(c =>
     (c.achievements || []).map(a => ({ ...a, companionName: c.name }))
   )
 
   return (
-    <div className="p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onNavigateBack}
-            className="p-2 -ml-2 text-rpg-text-muted hover:text-rpg-text transition-colors"
-            title="Back to Dashboard"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h1 className="text-lg font-medium text-rpg-text">Leaderboard</h1>
+    <div className="flex flex-col h-full">
+      <PageHeader title="Leaderboard">
+        {/* Time Period Toggle in header */}
+        <div className="inline-flex rounded-lg border border-rpg-border bg-rpg-card p-0.5">
+          {(Object.keys(PERIOD_LABELS) as TimePeriod[]).map(p => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                period === p
+                  ? 'bg-rpg-accent text-rpg-bg'
+                  : 'text-rpg-text-muted hover:text-rpg-text'
+              }`}
+            >
+              {PERIOD_LABELS[p]}
+            </button>
+          ))}
         </div>
-        <ConnectionDot connected={connected} />
-      </div>
+      </PageHeader>
+      <div className="p-4 space-y-4 flex-1 overflow-y-auto">
 
       {/* Disconnected banner */}
       <ConnectionBanner connected={connected} reconnectAttempt={reconnectAttempt} onRetry={onRetry} />
-
-      {/* Time Period Selector */}
-      <div className="flex gap-1 p-1 bg-rpg-card rounded-lg">
-        {(Object.keys(PERIOD_LABELS) as TimePeriod[]).map(p => (
-          <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            className={`flex-1 px-3 py-1.5 text-sm rounded transition-colors ${
-              period === p
-                ? 'bg-rpg-accent text-rpg-bg font-medium'
-                : 'text-rpg-text-muted hover:text-rpg-text'
-            }`}
-          >
-            {PERIOD_LABELS[p]}
-          </button>
-        ))}
-      </div>
 
       {/* Main content - dimmed when disconnected */}
       <div className={!connected ? 'opacity-60 pointer-events-none' : undefined}>
@@ -92,62 +85,49 @@ export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavig
           </div>
         )}
 
-        {/* Leaderboards */}
+        {/* Category Tabs */}
+        {!loading && (
+          <div className="flex gap-1 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-thin">
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setCategory(cat.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg
+                          whitespace-nowrap transition-colors flex-shrink-0 ${
+                  category === cat.id
+                    ? 'bg-rpg-accent/15 text-rpg-accent border border-rpg-accent/30'
+                    : 'text-rpg-text-muted hover:bg-rpg-card border border-transparent'
+                }`}
+              >
+                <span>{cat.icon}</span>
+                <span>{cat.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Selected Leaderboard */}
         {!loading && (
           <div className="space-y-4">
-            {/* XP Leaders - always show first, full width */}
-            <LeaderboardCard
-              competition={getByCategory('xp')}
-              title={CATEGORY_CONFIG.xp.title}
-              unit={CATEGORY_CONFIG.xp.unit}
-              emptyMessage="No XP earned yet"
-              onSelectEntry={onNavigateToProject}
-            />
+            {selectedCompetition ? (
+              <LeaderboardCard
+                competition={selectedCompetition}
+                title={`${selectedCategoryConfig?.icon || ''} ${selectedCategoryConfig?.label || 'Leaderboard'}`}
+                unit={selectedCategoryConfig?.unit || ''}
+                emptyMessage={`No ${selectedCategoryConfig?.label.toLowerCase()} data yet`}
+                onSelectEntry={onNavigateToProject}
+              />
+            ) : (
+              <p className="text-rpg-text-dim text-center py-8">
+                No data for this category
+              </p>
+            )}
 
-            {/* Streaks - always visible (#82) */}
+            {/* Streaks - always visible below main leaderboard (#82) */}
             <StreakCard entries={streakEntries} onSelectEntry={onNavigateToProject} />
 
             {/* Achievements showcase (#37) */}
             <AchievementsCard achievements={allAchievements} />
-
-            {/* Other leaderboards in 2-column grid on md+ */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Git Activity */}
-              <LeaderboardCard
-                competition={getByCategory('commits')}
-                title={CATEGORY_CONFIG.commits.title}
-                unit={CATEGORY_CONFIG.commits.unit}
-                emptyMessage="No commits yet"
-                onSelectEntry={onNavigateToProject}
-              />
-
-              {/* Tests */}
-              <LeaderboardCard
-                competition={getByCategory('tests')}
-                title={CATEGORY_CONFIG.tests.title}
-                unit={CATEGORY_CONFIG.tests.unit}
-                emptyMessage="No tests run yet"
-                onSelectEntry={onNavigateToProject}
-              />
-
-              {/* Tools */}
-              <LeaderboardCard
-                competition={getByCategory('tools')}
-                title={CATEGORY_CONFIG.tools.title}
-                unit={CATEGORY_CONFIG.tools.unit}
-                emptyMessage="No tools used yet"
-                onSelectEntry={onNavigateToProject}
-              />
-
-              {/* Prompts */}
-              <LeaderboardCard
-                competition={getByCategory('prompts')}
-                title={CATEGORY_CONFIG.prompts.title}
-                unit={CATEGORY_CONFIG.prompts.unit}
-                emptyMessage="No prompts sent yet"
-                onSelectEntry={onNavigateToProject}
-              />
-            </div>
           </div>
         )}
 
@@ -158,6 +138,7 @@ export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavig
             <p className="text-sm text-rpg-text-dim">Start using Claude Code to earn XP and climb the leaderboards!</p>
           </div>
         )}
+      </div>
       </div>
     </div>
   )

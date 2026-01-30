@@ -179,6 +179,17 @@ async function updateSessionStatus(session: ClaudeSession, update: SessionUpdate
 }
 
 /**
+ * Clear error state for a session
+ */
+export function clearError(paneId: string): void {
+  const session = sessions.get(paneId)
+  if (session && session.lastError) {
+    session.lastError = undefined
+    log.debug('Cleared error state', { paneId })
+  }
+}
+
+/**
  * Remove session
  */
 export function removeSession(paneId: string): void {
