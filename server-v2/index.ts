@@ -154,7 +154,7 @@ async function main() {
 
       // Handle CORS preflight
       if (req.method === 'OPTIONS') {
-        return handleCors()
+        return handleCors(req)
       }
 
       // Handle WebSocket upgrade
