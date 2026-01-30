@@ -1,5 +1,6 @@
 import { useQuests } from '../hooks/useQuests'
 import { QuestCard } from './QuestCard'
+import { PageHeader } from './PageHeader'
 
 interface QuestsPageProps {
   connected: boolean
@@ -13,20 +14,13 @@ export function QuestsPage({ connected, onNavigateBack }: QuestsPageProps) {
   const pausedQuests = quests.filter(q => q.status === 'paused')
 
   return (
-    <div className="p-4 max-w-xl mx-auto space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onNavigateBack}
-          className="text-rpg-text-muted hover:text-rpg-text transition-colors"
-        >
-          &larr;
-        </button>
-        <h1 className="text-lg font-bold">Quests</h1>
+    <div className="flex flex-col h-full">
+      <PageHeader title="Quests">
         {!connected && (
-          <span className="text-xs text-rpg-error ml-auto">Disconnected</span>
+          <span className="text-xs text-rpg-error">Disconnected</span>
         )}
-      </div>
+      </PageHeader>
+      <div className="p-4 max-w-xl mx-auto space-y-4 flex-1 overflow-y-auto">
 
       {loading ? (
         <div className="text-center py-8 text-rpg-text-dim">Loading quests...</div>
@@ -82,6 +76,7 @@ export function QuestsPage({ connected, onNavigateBack }: QuestsPageProps) {
           )}
         </>
       )}
+      </div>
     </div>
   )
 }

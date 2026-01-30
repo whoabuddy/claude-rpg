@@ -5,6 +5,7 @@ import { useStore } from '../store'
 import { useCompetitions } from '../hooks/useCompetitions'
 import { LeaderboardCard, StreakCard } from './LeaderboardCard'
 import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
+import { PageHeader } from './PageHeader'
 
 interface CompetitionsPageProps {
   connected: boolean
@@ -45,23 +46,11 @@ export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavig
   )
 
   return (
-    <div className="p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onNavigateBack}
-            className="p-2 -ml-2 text-rpg-text-muted hover:text-rpg-text transition-colors"
-            title="Back to Dashboard"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h1 className="text-lg font-medium text-rpg-text">Leaderboard</h1>
-        </div>
+    <div className="flex flex-col h-full">
+      <PageHeader title="Leaderboard">
         <ConnectionDot connected={connected} />
-      </div>
+      </PageHeader>
+      <div className="p-4 space-y-4 flex-1 overflow-y-auto">
 
       {/* Disconnected banner */}
       <ConnectionBanner connected={connected} reconnectAttempt={reconnectAttempt} onRetry={onRetry} />
@@ -158,6 +147,7 @@ export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavig
             <p className="text-sm text-rpg-text-dim">Start using Claude Code to earn XP and climb the leaderboards!</p>
           </div>
         )}
+      </div>
       </div>
     </div>
   )

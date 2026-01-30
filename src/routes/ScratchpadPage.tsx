@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { VoiceButton } from '../components/VoiceButton'
 import { NoteCard } from '../components/NoteCard'
 import { CreateIssueModal } from '../components/CreateIssueModal'
+import { PageHeader } from '../components/PageHeader'
 import type { Note, NoteStatus } from '../../shared/types'
 
 type FilterType = 'all' | NoteStatus
@@ -157,14 +158,13 @@ export default function ScratchpadPage() {
   }, [fetchNotes])
 
   return (
-    <div className="p-4 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-rpg-text">Scratchpad</h1>
+    <div className="flex flex-col h-full">
+      <PageHeader title="Scratchpad">
         <span className="text-sm text-rpg-text-muted">
           {notes.length} {notes.length === 1 ? 'note' : 'notes'}
         </span>
-      </div>
+      </PageHeader>
+      <div className="p-4 space-y-6 flex-1 overflow-y-auto">
 
       {/* Filter tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
@@ -302,6 +302,7 @@ export default function ScratchpadPage() {
         onClose={() => setSelectedNoteForIssue(null)}
         onCreated={handleIssueCreated}
       />
+      </div>
     </div>
   )
 }
