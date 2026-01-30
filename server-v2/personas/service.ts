@@ -33,7 +33,8 @@ export function findPersonaBySessionId(sessionId: string): Persona | null {
 
 /**
  * Get or create a persona for a session ID
- * This should ONLY be called from hook event handlers with a stable Claude sessionId
+ * Handles race conditions gracefully - if insert fails due to UNIQUE constraint,
+ * returns the existing persona.
  */
 export async function getOrCreatePersona(sessionId: string): Promise<Persona> {
   // Check if persona already exists
@@ -58,35 +59,47 @@ export async function getOrCreatePersona(sessionId: string): Promise<Persona> {
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
 
-  queries.insertPersona.run(
-    id,
-    sessionId,
-    name,
-    avatarUrl,
-    'active' as PersonaStatus,
-    0, // total_xp
-    1, // level
-    now, // created_at
-    now  // last_seen_at
-  )
+  try {
+    queries.insertPersona.run(
+      id,
+      sessionId,
+      name,
+      avatarUrl,
+      'active' as PersonaStatus,
+      0, // total_xp
+      1, // level
+      now, // created_at
+      now  // last_seen_at
+    )
 
-  log.info('Created new persona (from hook event)', { id, sessionId, name })
+    log.info('Created new persona', { id, sessionId, name })
 
-  const tier = getTierForLevel(1)
+    const tier = getTierForLevel(1)
 
-  return {
-    id,
-    sessionId,
-    name,
-    avatarUrl,
-    status: 'active',
-    totalXp: 0,
-    level: 1,
-    tier: tier.name,
-    badges: [],
-    personality: { backstory: null, quirk: null },
-    createdAt: now,
-    lastSeenAt: now,
+    return {
+      id,
+      sessionId,
+      name,
+      avatarUrl,
+      status: 'active',
+      totalXp: 0,
+      level: 1,
+      tier: tier.name,
+      badges: [],
+      personality: { backstory: null, quirk: null },
+      createdAt: now,
+      lastSeenAt: now,
+    }
+  } catch (error) {
+    // Race condition - another call created the persona first
+    // Return the existing one
+    const raceWinner = findPersonaBySessionId(sessionId)
+    if (raceWinner) {
+      log.debug('Persona created by concurrent call, returning existing', { sessionId })
+      return raceWinner
+    }
+    // Unexpected error - rethrow
+    throw error
   }
 }
 
@@ -138,10 +151,11 @@ export function getPersonaById(id: string): Persona | null {
 export function addXp(personaId: string, amount: number): void {
   queries.addPersonaXp.run(amount, personaId)
 
-  // Check for level up
+  // Fetch updated persona (totalXp already includes the added amount)
   const persona = getPersonaById(personaId)
   if (persona) {
-    const newLevel = calculateLevel(persona.totalXp + amount)
+    // Check for level up using the updated totalXp
+    const newLevel = calculateLevel(persona.totalXp)
     if (newLevel > persona.level) {
       queries.updatePersonaLevel.run(newLevel, personaId)
       log.info('Persona leveled up', { personaId, oldLevel: persona.level, newLevel })

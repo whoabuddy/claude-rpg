@@ -960,3 +960,42 @@ export async function transcribeAudio(audioData: Buffer): Promise<ApiResponse<Tr
     }
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MOLTBOOK ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+import {
+  getMoltbookActivity as moltbookActivity,
+  getMoltbookHealth as moltbookHealth,
+  getMoltbookRelationships as moltbookRelationships,
+  getMoltbookState as moltbookState,
+} from '../moltbook'
+
+/**
+ * Get moltbook activity feed
+ */
+export function getMoltbookActivity(query: URLSearchParams): ApiResponse<unknown> {
+  return moltbookActivity(query)
+}
+
+/**
+ * Get moltbook health state
+ */
+export function getMoltbookHealth(): ApiResponse<unknown> {
+  return moltbookHealth()
+}
+
+/**
+ * Get moltbook relationships
+ */
+export function getMoltbookRelationships(): ApiResponse<unknown> {
+  return moltbookRelationships()
+}
+
+/**
+ * Get moltbook orchestrator state
+ */
+export function getMoltbookState(): ApiResponse<unknown> {
+  return moltbookState()
+}

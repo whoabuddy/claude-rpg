@@ -7,16 +7,39 @@ import { getOrCreatePersona, getPersonaById } from '../personas/service'
 import { getSession, getOrCreateSession } from '../sessions/manager'
 import { getOrCreateProject } from '../projects/service'
 import type { ClaudeSessionInfo } from './types'
+import type { Persona } from '../personas/types'
+import type { ClaudeSession } from '../sessions/types'
 
 const log = createLogger('session-builder')
 
 /**
+ * Build ClaudeSessionInfo from persona and session data
+ */
+function buildSessionInfo(persona: Persona, session: ClaudeSession): ClaudeSessionInfo {
+  const now = Date.now()
+  return {
+    id: persona.sessionId,
+    name: persona.name,
+    avatarSvg: persona.avatarUrl || undefined,
+    status: session.status || 'idle',
+    tier: persona.tier,
+    badges: persona.badges,
+    personality: persona.personality,
+    health: persona.health,
+    lastError: session.lastError,
+    createdAt: now,
+    lastActivity: now,
+  }
+}
+
+/**
  * Build ClaudeSessionInfo for a pane with a Claude process
- * Creates a session on-demand if one doesn't exist yet
+ * Creates a session and persona on-demand if they don't exist yet
  *
- * NOTE: This does NOT create personas. Personas are only created when the first
- * hook event arrives with a stable Claude sessionId. Until then, the pane is
- * marked as "awaiting identity".
+ * Personas are created immediately using paneId as a fallback sessionId.
+ * This ensures the UI shows real persona data right away, not "Initializing...".
+ * If a hook event later provides a different sessionId, we still use the
+ * existing persona (keyed by paneId in the session).
  */
 export async function buildClaudeSessionInfo(
   paneId: string,
@@ -50,40 +73,20 @@ export async function buildClaudeSessionInfo(
     if (session.personaId) {
       const persona = getPersonaById(session.personaId)
       if (persona) {
-        const now = Date.now()
-        const sessionInfo: ClaudeSessionInfo = {
-          id: persona.sessionId,
-          name: persona.name,
-          avatarSvg: persona.avatarUrl || undefined,
-          status: session.status || 'idle',
-          tier: persona.tier,
-          badges: persona.badges,
-          personality: persona.personality,
-          health: persona.health,
-          lastError: session.lastError,
-          createdAt: now,
-          lastActivity: now,
-        }
-        return sessionInfo
+        return buildSessionInfo(persona, session)
       }
     }
 
-    // No persona yet - return placeholder until first hook event arrives
-    const now = Date.now()
-    const sessionInfo: ClaudeSessionInfo = {
-      id: session.id,
-      name: 'Initializing...',
-      avatarSvg: undefined,
-      status: 'idle',
-      tier: 'Initiate',
-      badges: [],
-      personality: { backstory: null, quirk: null },
-      health: { energy: 100, morale: 100, lastUpdated: new Date().toISOString() },
-      createdAt: now,
-      lastActivity: now,
-    }
+    // No persona yet - create one immediately using paneId as fallback sessionId
+    // This ensures the UI shows a real persona right away, not a placeholder
+    const effectiveSessionId = sessionId || `pane-${paneId}`
+    const persona = await getOrCreatePersona(effectiveSessionId)
 
-    return sessionInfo
+    // Link persona to session
+    session.personaId = persona.id
+    log.debug('Auto-created persona for Claude pane', { paneId, personaId: persona.id, name: persona.name })
+
+    return buildSessionInfo(persona, session)
   } catch (error) {
     log.error('Failed to build ClaudeSessionInfo', {
       paneId,
