@@ -51,6 +51,20 @@ async function main() {
     })
   })
 
+  // Track previous terminal content hashes to avoid redundant broadcasts
+  const terminalHashes = new Map<string, string>()
+
+  // Simple hash function for terminal content
+  function hashContent(content: string): string {
+    let hash = 0
+    for (let i = 0; i < content.length; i++) {
+      const char = content.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash // Convert to 32bit integer
+    }
+    return hash.toString(36)
+  }
+
   // Start tmux poller
   startPolling(async (state) => {
     // Broadcast windows state (client expects TmuxWindow[] in payload)
@@ -65,6 +79,39 @@ async function main() {
       type: 'companions',
       payload: companions,
     })
+
+    // Broadcast terminal content for Claude panes (only when changed)
+    let terminalBroadcasts = 0
+    for (const pane of state.panes) {
+      if (pane.process.type === 'claude' && pane.terminalContent) {
+        const contentHash = hashContent(pane.terminalContent)
+        const previousHash = terminalHashes.get(pane.id)
+
+        if (contentHash !== previousHash) {
+          // Content changed, broadcast it
+          broadcast({
+            type: 'terminal_output',
+            paneId: pane.id,
+            content: pane.terminalContent,
+          })
+          terminalHashes.set(pane.id, contentHash)
+          terminalBroadcasts++
+        }
+      }
+    }
+
+    // Log terminal broadcasts if any occurred
+    if (terminalBroadcasts > 0) {
+      log.debug('Broadcast terminal updates', { count: terminalBroadcasts })
+    }
+
+    // Clean up hashes for panes that no longer exist
+    const currentPaneIds = new Set(state.panes.map(p => p.id))
+    for (const paneId of terminalHashes.keys()) {
+      if (!currentPaneIds.has(paneId)) {
+        terminalHashes.delete(paneId)
+      }
+    }
 
     // Emit pane events
     // Note: In a full implementation, we'd track previous state
