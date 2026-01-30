@@ -50,8 +50,8 @@ export function Layout() {
                 <span className="text-lg">⚔</span>
               </div>
               <div>
-                <h1 className="font-bold text-rpg-text leading-tight">tmux tracker</h1>
-                <p className="text-[10px] text-rpg-text-dim tracking-wide">CLAUDE COMPANION</p>
+                <h1 className="font-bold text-rpg-text leading-tight">claude-rpg</h1>
+                <p className="text-[10px] text-rpg-text-dim tracking-wide">TMUX TRACKER</p>
               </div>
             </div>
           </div>
