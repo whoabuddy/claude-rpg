@@ -186,7 +186,9 @@ export async function pollTmux(): Promise<TmuxState> {
 
     const sessions = Array.from(sessionMap.entries()).map(([name, wins]) => ({
       name,
-      attached: true, // TODO: Check actual attachment status
+      // Attached status is not used by client or server logic, so hardcoded true is acceptable.
+      // Could be retrieved with: tmux list-sessions -F '#{session_name}:#{session_attached}'
+      attached: true,
       windows: wins,
     }))
 
