@@ -13,6 +13,10 @@ const log = createLogger('session-builder')
 /**
  * Build ClaudeSessionInfo for a pane with a Claude process
  * Creates a session on-demand if one doesn't exist yet
+ *
+ * NOTE: This does NOT create personas. Personas are only created when the first
+ * hook event arrives with a stable Claude sessionId. Until then, the pane is
+ * marked as "awaiting identity".
  */
 export async function buildClaudeSessionInfo(
   paneId: string,
@@ -23,15 +27,6 @@ export async function buildClaudeSessionInfo(
     // Get or create session for this pane
     // This ensures Claude panes always have a session, even if started before server
     const session = getSession(paneId) || getOrCreateSession(paneId, null, null)
-    const sid = sessionId || session.id
-
-    // Get or create persona
-    const persona = await getOrCreatePersona(sid)
-
-    // Link persona to session if not already linked
-    if (!session.personaId) {
-      session.personaId = persona.id
-    }
 
     // Link project to session based on cwd
     if (cwd && !session.projectId) {
@@ -51,17 +46,38 @@ export async function buildClaudeSessionInfo(
       }
     }
 
-    // Build session info with persona data
+    // If session has a persona, use its data
+    if (session.personaId) {
+      const persona = getPersonaById(session.personaId)
+      if (persona) {
+        const now = Date.now()
+        const sessionInfo: ClaudeSessionInfo = {
+          id: persona.sessionId,
+          name: persona.name,
+          avatarSvg: persona.avatarUrl || undefined,
+          status: session.status || 'idle',
+          tier: persona.tier,
+          badges: persona.badges,
+          personality: persona.personality,
+          health: persona.health,
+          createdAt: now,
+          lastActivity: now,
+        }
+        return sessionInfo
+      }
+    }
+
+    // No persona yet - return placeholder until first hook event arrives
     const now = Date.now()
     const sessionInfo: ClaudeSessionInfo = {
-      id: sid,
-      name: persona.name,
-      avatarSvg: persona.avatarUrl || undefined,
-      status: session.status || 'idle',
-      tier: persona.tier,
-      badges: persona.badges,
-      personality: persona.personality,
-      health: persona.health,
+      id: session.id,
+      name: 'Initializing...',
+      avatarSvg: undefined,
+      status: 'idle',
+      tier: 'Initiate',
+      badges: [],
+      personality: { backstory: null, quirk: null },
+      health: { energy: 100, morale: 100, lastUpdated: new Date().toISOString() },
       createdAt: now,
       lastActivity: now,
     }
