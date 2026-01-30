@@ -18,6 +18,7 @@ import { cloneRepo } from '../projects/clone'
 import { createNote, getNoteById, getAllNotes, updateNote, deleteNote } from '../notes'
 import { createGitHubIssue } from '../notes/github'
 import { getAllChallenges, getChallengeDefinition } from '../personas/challenges'
+import { serveAvatar } from './avatars'
 import type { Note, NoteStatus } from '../notes'
 import type {
   ApiResponse,
@@ -795,6 +796,18 @@ export async function createIssueFromNote(
       error: { code: 'CREATE_FAILED', message: 'Failed to create GitHub issue' },
     }
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AVATARS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Serve cached avatar SVG
+ * Note: Returns raw Response, not ApiResponse (serves SVG directly)
+ */
+export async function getAvatar(params: Record<string, string>): Promise<Response> {
+  return serveAvatar(params.seed)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

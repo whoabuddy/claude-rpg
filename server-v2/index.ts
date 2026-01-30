@@ -5,6 +5,8 @@
  * and real-time WebSocket updates.
  */
 
+import { existsSync, mkdirSync } from 'fs'
+import { join } from 'path'
 import { getConfig } from './lib/config'
 import { logger, createLogger } from './lib/logger'
 import { initShutdown, onShutdown } from './lib/shutdown'
@@ -34,6 +36,13 @@ async function main() {
   // Initialize database
   const db = initDatabase()
   log.info('Database ready')
+
+  // Initialize avatars directory
+  const avatarsDir = join(config.dataDir, 'avatars')
+  if (!existsSync(avatarsDir)) {
+    mkdirSync(avatarsDir, { recursive: true })
+    log.info('Created avatars directory', { path: avatarsDir })
+  }
 
   // Initialize event handlers (persona XP, etc.)
   initEventHandlers()

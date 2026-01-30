@@ -61,6 +61,9 @@ export const ROUTES: Route[] = [
   { method: 'GET', pattern: '/api/xp/summary', handler: 'xpSummary' },
   { method: 'GET', pattern: '/api/xp/timeline', handler: 'xpTimeline' },
 
+  // Avatars
+  { method: 'GET', pattern: '/api/avatars/:seed', handler: 'getAvatar' },
+
   // Transcription
   { method: 'POST', pattern: '/api/transcribe', handler: 'transcribeAudio' },
 

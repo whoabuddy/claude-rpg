@@ -63,7 +63,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     }
 
     // Call handler with appropriate args based on handler name and available data
-    let result: ApiResponse<unknown>
+    let result: ApiResponse<unknown> | Response
     const hasParams = Object.keys(params).length > 0
 
     // Handlers that need query params (check first, before generic cases)
@@ -84,6 +84,11 @@ export async function handleRequest(request: Request): Promise<Response> {
     } else {
       // Params only (e.g., GET /api/personas/:id)
       result = await handler(params)
+    }
+
+    // Some handlers return raw Response (e.g., getAvatar for SVG content)
+    if (result instanceof Response) {
+      return result
     }
 
     const status = result.success ? 200 : (result.error?.code === 'NOT_FOUND' ? 404 : 400)
