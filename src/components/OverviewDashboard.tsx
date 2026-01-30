@@ -438,16 +438,6 @@ function WorkersSummary({ windows, onExpandPane }: WorkersSummaryProps) {
 
   if (workers.length < 2) return null
 
-  // Helper to format elapsed time
-  const formatElapsed = (startedAt: number) => {
-    const elapsed = Math.floor((Date.now() - startedAt) / 1000)
-    if (elapsed < 60) return `${elapsed}s`
-    const mins = Math.floor(elapsed / 60)
-    if (mins < 60) return `${mins}m`
-    const hours = Math.floor(mins / 60)
-    return `${hours}h ${mins % 60}m`
-  }
-
   return (
     <div className="rounded-lg border border-rpg-border bg-rpg-card/50 p-3">
       <button

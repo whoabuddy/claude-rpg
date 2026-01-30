@@ -6,7 +6,7 @@ import { PageHeader } from '../components/PageHeader'
 import { QuestCard } from '../components/QuestCard'
 import { WorkerPill } from '../components/WorkerPill'
 import { ProjectMiniCard } from '../components/ProjectMiniCard'
-import type { TmuxPane, Companion } from '../../shared/types'
+import type { TmuxPane, Companion, Quest } from '../../shared/types'
 
 export default function QuestsPage() {
   const { connected } = useConnectionStatus()
@@ -73,10 +73,10 @@ function ActiveWorkersSection({ panes }: ActiveWorkersSectionProps) {
 }
 
 interface QuestsSectionProps {
-  quests: any[]
-  activeQuests: any[]
-  pausedQuests: any[]
-  completedQuests: any[]
+  quests: Quest[]
+  activeQuests: Quest[]
+  pausedQuests: Quest[]
+  completedQuests: Quest[]
   loading: boolean
 }
 

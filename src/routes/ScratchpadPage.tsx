@@ -8,6 +8,14 @@ import type { Note, NoteStatus } from '../../shared/types'
 
 type FilterType = 'all' | NoteStatus
 
+const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'inbox', label: 'Inbox' },
+  { value: 'triaged', label: 'Triaged' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'converted', label: 'Converted' },
+]
+
 /**
  * Quick capture component for fast note entry
  */
@@ -257,81 +265,24 @@ export default function ScratchpadPage() {
 
       {/* Filter tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        <button
-          onClick={() => setActiveFilter('all')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
-            activeFilter === 'all'
-              ? 'bg-rpg-accent text-rpg-bg font-medium'
-              : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
-          }`}
-        >
-          All
-          {activeFilter === 'all' && notes.length > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
-              {notes.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveFilter('inbox')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
-            activeFilter === 'inbox'
-              ? 'bg-rpg-accent text-rpg-bg font-medium'
-              : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
-          }`}
-        >
-          Inbox
-          {activeFilter === 'inbox' && notes.length > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
-              {notes.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveFilter('triaged')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
-            activeFilter === 'triaged'
-              ? 'bg-rpg-accent text-rpg-bg font-medium'
-              : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
-          }`}
-        >
-          Triaged
-          {activeFilter === 'triaged' && notes.length > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
-              {notes.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveFilter('archived')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
-            activeFilter === 'archived'
-              ? 'bg-rpg-accent text-rpg-bg font-medium'
-              : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
-          }`}
-        >
-          Archived
-          {activeFilter === 'archived' && notes.length > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
-              {notes.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveFilter('converted')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
-            activeFilter === 'converted'
-              ? 'bg-rpg-accent text-rpg-bg font-medium'
-              : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
-          }`}
-        >
-          Converted
-          {activeFilter === 'converted' && notes.length > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
-              {notes.length}
-            </span>
-          )}
-        </button>
+        {FILTER_OPTIONS.map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => setActiveFilter(value)}
+            className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap ${
+              activeFilter === value
+                ? 'bg-rpg-accent text-rpg-bg font-medium'
+                : 'bg-rpg-card text-rpg-text-muted hover:bg-rpg-card-hover'
+            }`}
+          >
+            {label}
+            {activeFilter === value && notes.length > 0 && (
+              <span className="ml-1.5 px-1.5 py-0.5 bg-rpg-bg text-rpg-accent rounded-full text-xs">
+                {notes.length}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
 

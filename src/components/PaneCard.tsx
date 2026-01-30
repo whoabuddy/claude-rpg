@@ -56,6 +56,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
   const terminalContent = usePaneTerminal(pane.id)
   const activity = usePaneActivity(pane.id)
   const inputAreaRef = useRef<HTMLDivElement>(null)
+  const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // After copying from terminal, refocus the input (#62)
   const handleTerminalCopy = useCallback(() => {
@@ -67,18 +68,28 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
 
   // Error timeout and fade logic
   useEffect(() => {
+    // Clear any pending fade timeout on effect re-run
+    if (fadeTimeoutRef.current) {
+      clearTimeout(fadeTimeoutRef.current)
+      fadeTimeoutRef.current = null
+    }
+
     const session = pane.process.claudeSession
     if (!session?.lastError) {
       // No error or error was cleared - hide visible error
       if (visibleError) {
         setFadingOut(true)
-        const fadeTimeout = setTimeout(() => {
+        fadeTimeoutRef.current = setTimeout(() => {
           setVisibleError(null)
           setFadingOut(false)
         }, 500) // Match CSS animation duration
-        return () => clearTimeout(fadeTimeout)
       }
-      return
+      return () => {
+        if (fadeTimeoutRef.current) {
+          clearTimeout(fadeTimeoutRef.current)
+          fadeTimeoutRef.current = null
+        }
+      }
     }
 
     // New error or error changed - show immediately
@@ -92,14 +103,20 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
       const timeSinceError = Date.now() - session.lastError.timestamp
       if (timeSinceError >= 5000 && session.status === 'error') {
         setFadingOut(true)
-        setTimeout(() => {
+        fadeTimeoutRef.current = setTimeout(() => {
           setVisibleError(null)
           setFadingOut(false)
         }, 500)
       }
     }, 5000)
 
-    return () => clearTimeout(timeout)
+    return () => {
+      clearTimeout(timeout)
+      if (fadeTimeoutRef.current) {
+        clearTimeout(fadeTimeoutRef.current)
+        fadeTimeoutRef.current = null
+      }
+    }
   }, [pane.process.claudeSession?.lastError, visibleError])
 
   const handleDismissError = useCallback(() => {
