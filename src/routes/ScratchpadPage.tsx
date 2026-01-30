@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { VoiceButton } from '../components/VoiceButton'
 import { NoteCard } from '../components/NoteCard'
 import { CreateIssueModal } from '../components/CreateIssueModal'
@@ -8,14 +8,71 @@ import type { Note, NoteStatus } from '../../shared/types'
 type FilterType = 'all' | NoteStatus
 
 /**
+ * Quick capture component for fast note entry
+ */
+function QuickCapture({ onCapture }: { onCapture: (text: string) => void }) {
+  const [text, setText] = useState('')
+  const [isCapturing, setIsCapturing] = useState(false)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  const handleSubmit = async () => {
+    if (text.trim() && !isCapturing) {
+      setIsCapturing(true)
+      await onCapture(text.trim())
+      setText('')
+      setIsCapturing(false)
+      inputRef.current?.focus()
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Cmd/Ctrl+Enter to submit
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault()
+      handleSubmit()
+    }
+  }
+
+  return (
+    <div className="bg-rpg-card border border-rpg-border rounded-lg p-3">
+      <textarea
+        ref={inputRef}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Quick thought... (Cmd+Enter to save)"
+        className="w-full bg-transparent text-rpg-text placeholder-rpg-text-dim
+                   resize-none outline-none text-sm"
+        rows={2}
+        disabled={isCapturing}
+      />
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-xs text-rpg-text-dim">
+          {text.length > 0 && `${text.length} chars`}
+        </span>
+        <div className="flex gap-2">
+          <VoiceButton onTranscription={t => setText(prev => prev + t)} disabled={isCapturing} />
+          <button
+            onClick={handleSubmit}
+            disabled={!text.trim() || isCapturing}
+            className="px-3 py-1.5 text-sm bg-rpg-accent text-rpg-bg rounded-lg
+                     disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isCapturing ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
  * Scratchpad page - quick note capture for thoughts, ideas, and TODOs
  */
 export default function ScratchpadPage() {
   const [notes, setNotes] = useState<Note[]>([])
-  const [newNoteContent, setNewNoteContent] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
-  const [isCreating, setIsCreating] = useState(false)
   const [selectedNoteForIssue, setSelectedNoteForIssue] = useState<Note | null>(null)
 
   // Fetch notes from the server
@@ -50,22 +107,15 @@ export default function ScratchpadPage() {
     fetchNotes()
   }, [fetchNotes])
 
-  // Create a new note
-  const handleCreateNote = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!newNoteContent.trim()) {
-      return
-    }
-
-    setIsCreating(true)
+  // Handle quick capture
+  const handleQuickCapture = useCallback(async (text: string) => {
     try {
       const response = await fetch('/api/notes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content: newNoteContent }),
+        body: JSON.stringify({ content: text, status: 'inbox' }),
       })
 
       if (!response.ok) {
@@ -77,15 +127,12 @@ export default function ScratchpadPage() {
         throw new Error(result.error?.message || 'Failed to create note')
       }
 
-      // Clear the input and refetch notes
-      setNewNoteContent('')
+      // Refetch notes to show the new one
       await fetchNotes()
     } catch (error) {
       console.error('Error creating note:', error)
-    } finally {
-      setIsCreating(false)
     }
-  }, [newNoteContent, fetchNotes])
+  }, [fetchNotes])
 
   // Update note status
   const handleStatusChange = useCallback(async (id: string, status: NoteStatus) => {
@@ -135,16 +182,6 @@ export default function ScratchpadPage() {
     }
   }, [fetchNotes])
 
-  // Handle voice transcription
-  const handleVoiceTranscription = useCallback((text: string) => {
-    setNewNoteContent(prev => {
-      // If there's existing content, add a newline before appending
-      if (prev.trim()) {
-        return `${prev}\n${text}`
-      }
-      return text
-    })
-  }, [])
 
   // Handle creating a GitHub issue from a note
   const handleCreateIssue = useCallback((note: Note) => {
@@ -165,6 +202,8 @@ export default function ScratchpadPage() {
         </span>
       </PageHeader>
       <div className="p-4 space-y-6 flex-1 overflow-y-auto">
+      {/* Quick capture */}
+      <QuickCapture onCapture={handleQuickCapture} />
 
       {/* Filter tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
@@ -245,30 +284,6 @@ export default function ScratchpadPage() {
         </button>
       </div>
 
-      {/* New note form */}
-      <form onSubmit={handleCreateNote} className="space-y-3">
-        <textarea
-          value={newNoteContent}
-          onChange={(e) => setNewNoteContent(e.target.value)}
-          placeholder="Quick thought..."
-          disabled={isCreating}
-          className="w-full px-3 py-2 bg-rpg-card border border-rpg-border rounded-lg text-rpg-text placeholder-rpg-text-dim resize-none focus:outline-none focus:border-rpg-accent transition-colors"
-          rows={3}
-        />
-        <div className="flex items-center gap-3">
-          <VoiceButton
-            onTranscription={handleVoiceTranscription}
-            disabled={isCreating}
-          />
-          <button
-            type="submit"
-            disabled={!newNoteContent.trim() || isCreating}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isCreating ? 'Creating...' : 'Add Note'}
-          </button>
-        </div>
-      </form>
 
       {/* Notes list */}
       {isLoading ? (
