@@ -92,8 +92,11 @@ export interface EventMessage {
 
 export interface TerminalOutputMessage {
   type: 'terminal_output'
-  paneId: string
-  content: string
+  payload: {
+    paneId: string
+    target: string
+    content: string
+  }
 }
 
 export interface ErrorMessage {
