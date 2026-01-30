@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/whoabuddy/claude-rpg/compare/v2.0.0...v2.1.0) (2026-01-30)
+
+
+### Features
+
+* White Rabbit font and quest data cleanup ([#181](https://github.com/whoabuddy/claude-rpg/issues/181)) ([9e687d3](https://github.com/whoabuddy/claude-rpg/commit/9e687d37968f1b21ffb77cde2715eae82f54c1a4))
+
 ## [2.0.0](https://github.com/whoabuddy/claude-rpg/compare/v1.11.1...v2.0.0) (2026-01-30)
 
 
