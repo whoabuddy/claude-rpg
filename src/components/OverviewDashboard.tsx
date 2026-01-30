@@ -500,16 +500,16 @@ function WorkersSummary({ windows, onExpandPane }: WorkersSummaryProps) {
                 >
                   {/* Status dot */}
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDotClass(status)}`} />
-                  {/* Name */}
-                  <span className="text-sm text-rpg-text font-medium truncate w-16 flex-shrink-0">
+                  {/* Name - more space for full names */}
+                  <span className="text-sm text-rpg-text font-medium truncate min-w-[80px] max-w-[120px] flex-shrink-0">
                     {session.name}
                   </span>
-                  {/* Repo */}
-                  <span className="text-xs text-rpg-accent truncate max-w-[120px] flex-shrink-0">
+                  {/* Repo - responsive width */}
+                  <span className="text-xs text-rpg-accent truncate max-w-[100px] sm:max-w-[120px] flex-shrink-0">
                     {repoLabel}
                   </span>
-                  {/* Activity */}
-                  <span className="text-xs text-rpg-text-dim truncate flex-1 min-w-0">
+                  {/* Activity - more space on desktop */}
+                  <span className="text-xs text-rpg-text-dim truncate flex-1 min-w-0 max-w-[200px] sm:max-w-none">
                     {activity || STATUS_LABELS[status] || 'Ready'}
                   </span>
                   {/* Subagent badge */}
