@@ -20,15 +20,26 @@ import type { Persona, PersonaStatus, PersonaHealth } from './types'
 const log = createLogger('persona-service')
 
 /**
+ * Find persona by session ID (does NOT create if not found)
+ */
+export function findPersonaBySessionId(sessionId: string): Persona | null {
+  const existing = queries.getPersonaBySessionId.get(sessionId) as Record<string, unknown> | null
+  if (existing) {
+    log.debug('Found persona by sessionId', { sessionId, id: existing.id })
+    return mapDbToPersona(existing)
+  }
+  return null
+}
+
+/**
  * Get or create a persona for a session ID
+ * This should ONLY be called from hook event handlers with a stable Claude sessionId
  */
 export async function getOrCreatePersona(sessionId: string): Promise<Persona> {
   // Check if persona already exists
-  const existing = queries.getPersonaBySessionId.get(sessionId) as Record<string, unknown> | null
-
+  const existing = findPersonaBySessionId(sessionId)
   if (existing) {
-    log.debug('Found existing persona', { sessionId, id: existing.id })
-    return mapDbToPersona(existing)
+    return existing
   }
 
   // Get existing names to avoid duplicates
@@ -41,7 +52,7 @@ export async function getOrCreatePersona(sessionId: string): Promise<Persona> {
     name = generateUniqueName(existingNames)
   }
 
-  // Fetch avatar (non-blocking, UI will show initials if null)
+  // Fetch avatar in background (non-blocking)
   const avatarUrl = await fetchBitcoinFace(sessionId)
 
   const id = crypto.randomUUID()
@@ -59,7 +70,7 @@ export async function getOrCreatePersona(sessionId: string): Promise<Persona> {
     now  // last_seen_at
   )
 
-  log.info('Created new persona', { id, sessionId, name })
+  log.info('Created new persona (from hook event)', { id, sessionId, name })
 
   const tier = getTierForLevel(1)
 
