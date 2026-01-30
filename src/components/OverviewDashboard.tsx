@@ -2,7 +2,6 @@ import { useMemo, useState, useRef, useEffect, useCallback, memo } from 'react'
 import type { TmuxWindow, TmuxPane } from '@shared/types'
 import { PaneCard } from './PaneCard'
 import { ConnectionBanner } from './ConnectionStatus'
-import { StatusPill } from './StatusPill'
 import { usePaneActions } from '../contexts/PaneActionsContext'
 import { ActionButton } from './ActionButton'
 import { closeWindow } from '../lib/api'
@@ -21,8 +20,6 @@ interface OverviewDashboardProps {
   onNewPane: (windowId: string) => void
   onCreateWindow: (sessionName: string, windowName: string) => Promise<boolean>
   onRenameWindow: (windowId: string, windowName: string) => Promise<{ ok: boolean; error?: string }>
-  onNavigateToCompetitions: () => void
-  onNavigateToQuests?: () => void
 }
 
 interface WindowGroup {
@@ -74,10 +71,8 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   onNewPane,
   onCreateWindow,
   onRenameWindow,
-  onNavigateToCompetitions,
-  onNavigateToQuests,
 }: OverviewDashboardProps) {
-  const { rpgEnabled, onExpandPane } = usePaneActions()
+  const { onExpandPane } = usePaneActions()
   const [collapsedWindows, setCollapsedWindows] = useState<Set<string>>(new Set())
   const [showCreateWindow, setShowCreateWindow] = useState(false)
   const [newWindowName, setNewWindowName] = useState('')
@@ -233,13 +228,6 @@ export const OverviewDashboard = memo(function OverviewDashboard({
               onClick={toggleAllWindows}
             />
           )}
-          {rpgEnabled && onNavigateToQuests && (
-            <ActionButton icon="Q" label="Quests" shortLabel="Q" variant="ghost" onClick={onNavigateToQuests} className="hidden sm:flex" />
-          )}
-          {rpgEnabled && (
-            <ActionButton icon="🏆" label="Leaderboard" shortLabel="LB" variant="ghost" onClick={onNavigateToCompetitions} className="hidden sm:flex" />
-          )}
-          <StatusPill connected={connected} />
         </div>
       </div>
 

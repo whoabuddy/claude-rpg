@@ -90,8 +90,6 @@ export default function DashboardPage() {
         onNewPane={createPaneInWindow}
         onCreateWindow={handleCreateWindow}
         onRenameWindow={renameWindow}
-        onNavigateToCompetitions={() => navigate('/leaderboard')}
-        onNavigateToQuests={() => navigate('/quests')}
       />
 
       {fullscreenData && (
