@@ -21,9 +21,9 @@ import {
   initChallengeSystem,
 } from '../personas/challenges'
 import { incrementStat, updateStreak } from '../companions'
-import { getSession } from '../sessions/manager'
+import { getSession, updateFromHook } from '../sessions/manager'
 import { getProjectById } from '../projects'
-import type { PostToolUseEvent, UserPromptEvent, StopEvent } from './types'
+import type { PostToolUseEvent, UserPromptEvent, StopEvent, PreToolUseEvent } from './types'
 
 const log = createLogger('event-handlers')
 
@@ -34,10 +34,31 @@ export function initEventHandlers(): void {
   // Initialize challenge system with XP service
   initChallengeSystem(addXp)
 
+  // Handle pre-tool-use events (set status to working)
+  eventBus.on<PreToolUseEvent>('hook:pre_tool_use', async (event) => {
+    try {
+      // Update session status to working
+      await updateFromHook(event.paneId, 'working')
+
+      log.debug('Pre-tool-use processed', {
+        paneId: event.paneId,
+        toolName: event.toolName,
+      })
+    } catch (error) {
+      log.error('Failed to process pre-tool-use', {
+        paneId: event.paneId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  })
+
   // Handle user prompt events (energy replenishment + challenge tracking)
   eventBus.on<UserPromptEvent>('hook:user_prompt', async (event) => {
     try {
       const persona = await getOrCreatePersona(event.sessionId)
+
+      // Update session status to typing
+      await updateFromHook(event.paneId, 'typing')
 
       // Replenish energy and auto-assign challenges if needed
       updateHealth(persona.id, ENERGY_GAIN_PROMPT, 0)
@@ -192,6 +213,9 @@ export function initEventHandlers(): void {
   // Handle stop events (session completed)
   eventBus.on<StopEvent>('hook:stop', async (event) => {
     try {
+      // Update session status to idle
+      await updateFromHook(event.paneId, 'idle')
+
       const session = getSession(event.paneId)
       const projectId = session?.projectId || null
 
