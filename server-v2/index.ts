@@ -18,6 +18,7 @@ import { hasClientBuild, serveStatic, serveSpaFallback } from './api/static'
 import { startHeartbeat, stopHeartbeat } from './api/heartbeat'
 import { getAllCompanions } from './companions'
 import { updateFromTerminal } from './sessions/manager'
+import { startWatcher as startMoltbookWatcher, stopWatcher as stopMoltbookWatcher } from './moltbook'
 import type { WsData } from './api'
 import type { PaneDiscoveredEvent, PaneRemovedEvent } from './events/types'
 
@@ -140,6 +141,15 @@ async function main() {
     log.info('Stopping tmux poller')
     stopPolling()
   }, 60)
+
+  // Start moltbook watcher for real-time activity feed
+  startMoltbookWatcher()
+  log.info('Moltbook watcher started')
+
+  onShutdown('moltbook-watcher', () => {
+    log.info('Stopping moltbook watcher')
+    stopMoltbookWatcher()
+  }, 65)
 
   // Check for client build
   const serveClient = hasClientBuild()

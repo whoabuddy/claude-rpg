@@ -104,6 +104,28 @@ export interface ErrorMessage {
   message: string
 }
 
+// Moltbook message types
+export interface MoltbookActivityMessage {
+  type: 'moltbook_activity'
+  payload: {
+    type: string
+    ts: string
+    data: unknown
+  }
+}
+
+export interface MoltbookHealthMessage {
+  type: 'moltbook_health'
+  payload: {
+    status: string
+    timestamp: string
+    orchestrator: unknown
+    agents: unknown
+    rate_limits: unknown
+    api: unknown
+  }
+}
+
 export type ServerMessage =
   | ConnectedMessage
   | WindowsMessage
@@ -121,6 +143,8 @@ export type ServerMessage =
   | EventMessage
   | TerminalOutputMessage
   | ErrorMessage
+  | MoltbookActivityMessage
+  | MoltbookHealthMessage
 
 /**
  * Get priority for a message type
@@ -150,6 +174,8 @@ export function getPriority(message: ServerMessage): MessagePriority {
     // Low priority - drop when buffered
     case 'event':
     case 'terminal_output':
+    case 'moltbook_activity':
+    case 'moltbook_health':
       return 'low'
 
     default:

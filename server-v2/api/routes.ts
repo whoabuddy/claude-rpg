@@ -76,6 +76,12 @@ export const ROUTES: Route[] = [
   // Admin (stubs for v2 - no dev proxy mode)
   { method: 'GET', pattern: '/api/admin/backends', handler: 'adminBackends' },
   { method: 'POST', pattern: '/api/admin/backend', handler: 'adminSwitchBackend' },
+
+  // Moltbook
+  { method: 'GET', pattern: '/api/moltbook/activity', handler: 'getMoltbookActivity' },
+  { method: 'GET', pattern: '/api/moltbook/health', handler: 'getMoltbookHealth' },
+  { method: 'GET', pattern: '/api/moltbook/relationships', handler: 'getMoltbookRelationships' },
+  { method: 'GET', pattern: '/api/moltbook/state', handler: 'getMoltbookState' },
 ]
 
 export interface MatchedRoute {

@@ -68,7 +68,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     const hasParams = Object.keys(params).length > 0
 
     // Handlers that need query params (check first, before generic cases)
-    if (route.handler.includes('xp') || route.handler === 'listNotes' || route.handler === 'getReport') {
+    if (route.handler.includes('xp') || route.handler === 'listNotes' || route.handler === 'getReport' || route.handler === 'getMoltbookActivity') {
       result = await handler(url.searchParams)
     } else if (route.handler === 'getProjectNarrative') {
       // Handler needs both params and query
