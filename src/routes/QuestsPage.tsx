@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
 import { useConnectionStatus } from '../hooks/useConnection'
 import { useQuests } from '../hooks/useQuests'
 import { useStore } from '../store'
@@ -161,14 +160,9 @@ function ProjectsSection({ companions }: ProjectsSectionProps) {
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-medium text-rpg-text-muted">
-          Recent Projects
-        </h2>
-        <Link to="/projects" className="text-xs text-rpg-accent hover:text-rpg-accent-bright transition-colors">
-          View all
-        </Link>
-      </div>
+      <h2 className="text-sm font-medium text-rpg-text-muted mb-3">
+        Recent Projects
+      </h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {companions.map(c => (
           <ProjectMiniCard key={c.id} companion={c} />

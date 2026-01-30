@@ -5,8 +5,6 @@ import { Layout } from './components/Layout'
 
 // Lazy load route components for code splitting
 const DashboardPage = lazy(() => import('./routes/DashboardPage'))
-const PersonasPage = lazy(() => import('./routes/PersonasPage'))
-const ProjectsPage = lazy(() => import('./routes/ProjectsPage'))
 const ProjectDetailPage = lazy(() => import('./routes/ProjectDetailPage'))
 const QuestsPage = lazy(() => import('./routes/QuestsPage'))
 const LeaderboardPage = lazy(() => import('./routes/LeaderboardPage'))
@@ -33,8 +31,6 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<DashboardPage />} />
-            <Route path="personas" element={<PersonasPage />} />
-            <Route path="projects" element={<ProjectsPage />} />
             <Route path="projects/:id" element={<ProjectDetailPage />} />
             <Route path="quests" element={<QuestsPage />} />
             <Route path="leaderboard" element={<LeaderboardPage />} />

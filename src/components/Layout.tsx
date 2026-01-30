@@ -126,7 +126,7 @@ export function Layout() {
                 <NavItem to="/quests" icon="scroll" label="Quests" />
                 <NavItem to="/leaderboard" icon="trophy" label="Scores" />
                 <NavItem to="/scratchpad" icon="note" label="Notes" />
-                <NavItem to="/settings" icon="settings" label="Settings" />
+                <NavItem to="/settings" icon="settings" label="More" />
               </div>
             </nav>
             {/* FAB - shown when nav hidden */}
