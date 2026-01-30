@@ -44,6 +44,9 @@ export const ROUTES: Route[] = [
   { method: 'GET', pattern: '/api/companions', handler: 'listCompanions' },
   { method: 'GET', pattern: '/api/companions/:id', handler: 'getCompanion' },
 
+  // Competitions (Leaderboards)
+  { method: 'GET', pattern: '/api/competitions', handler: 'listCompetitions' },
+
   // Quests
   { method: 'GET', pattern: '/api/quests', handler: 'listQuests' },
   { method: 'GET', pattern: '/api/quests/:id', handler: 'getQuest' },
