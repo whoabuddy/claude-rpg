@@ -91,8 +91,11 @@ async function main() {
           // Content changed, broadcast it
           broadcast({
             type: 'terminal_output',
-            paneId: pane.id,
-            content: pane.terminalContent,
+            payload: {
+              paneId: pane.id,
+              target: pane.id,
+              content: pane.terminalContent,
+            },
           })
           terminalHashes.set(pane.id, contentHash)
           terminalBroadcasts++
