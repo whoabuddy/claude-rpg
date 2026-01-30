@@ -158,9 +158,10 @@ export interface ClaudeSessionInfo {
 
 export interface TmuxPane {
   id: string              // "%51" (unique pane ID)
-  target: string          // "work:2.0"
-  paneIndex: number       // 0
-  isActive: boolean       // active pane in window
+  index: number           // 0 (pane index within window)
+  active: boolean         // active pane in window
+  width: number
+  height: number
   process: PaneProcess
   cwd: string
   repo?: RepoInfo         // git detection
