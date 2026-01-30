@@ -496,13 +496,26 @@ export function mapQuestToShared(serverQuest: ServerQuest): SharedQuest {
     completedAt: p.completedAt ? new Date(p.completedAt).getTime() : undefined,
   }))
 
+  // Map server quest status to shared quest status
+  // Server 'planned' and 'active' both map to shared 'active'
+  // Server 'failed' maps to shared 'archived' (no 'failed' in shared types)
+  let sharedStatus: SharedQuest['status']
+  if (serverQuest.status === 'planned' || serverQuest.status === 'active') {
+    sharedStatus = 'active'
+  } else if (serverQuest.status === 'failed') {
+    sharedStatus = 'archived'
+  } else {
+    // 'completed', 'paused', 'archived' map directly
+    sharedStatus = serverQuest.status as SharedQuest['status']
+  }
+
   return {
     id: serverQuest.id,
     name: serverQuest.title, // Map title -> name
     description: serverQuest.description || '',
     repos: [repoName], // Map projectId -> repos array
     phases,
-    status: serverQuest.status,
+    status: sharedStatus,
     createdAt: new Date(serverQuest.createdAt).getTime(),
     completedAt: serverQuest.completedAt ? new Date(serverQuest.completedAt).getTime() : undefined,
     xpEarned: serverQuest.xpAwarded || undefined,
