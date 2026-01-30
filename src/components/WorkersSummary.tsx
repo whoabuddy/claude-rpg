@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useCallback, memo } from 'react'
 import type { TmuxWindow, TmuxPane } from '@shared/types'
 import { STATUS_LABELS, getStatusDotClass } from '../constants/status'
 
@@ -13,7 +13,7 @@ interface WorkersSummaryProps {
   defaultCollapsed?: boolean
 }
 
-export function WorkersSummary({
+export const WorkersSummary = memo(function WorkersSummary({
   windows,
   onExpandPane,
   minWorkers = 2,
@@ -35,13 +35,15 @@ export function WorkersSummary({
     return result
   }, [windows])
 
+  const handleToggle = useCallback(() => setCollapsed(prev => !prev), [])
+
   if (workers.length < minWorkers) return null
 
   return (
     <div className="rounded-lg border border-rpg-border bg-rpg-card/50 p-3">
       {collapsible ? (
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={handleToggle}
           className="w-full flex items-center gap-2 text-left hover:bg-rpg-card-hover transition-colors rounded px-1 -mx-1 py-1"
         >
           <span className="text-xs text-rpg-text-dim">
@@ -122,4 +124,4 @@ export function WorkersSummary({
       )}
     </div>
   )
-}
+})

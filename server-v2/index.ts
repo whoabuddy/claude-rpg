@@ -20,7 +20,6 @@ import { getAllCompanions } from './companions'
 import { updateFromTerminal, removeSession } from './sessions/manager'
 import { startWatcher as startMoltbookWatcher, stopWatcher as stopMoltbookWatcher } from './moltbook'
 import type { WsData } from './api'
-import type { PaneDiscoveredEvent, PaneRemovedEvent } from './events/types'
 
 const log = createLogger('main')
 
@@ -132,7 +131,7 @@ async function main() {
 
     for (const paneId of previousPaneIds) {
       if (!currentPaneIds.has(paneId)) {
-        // Pane was removed - clean up session and notify clients
+        // Pane was removed - clean up session, hash, and notify clients
         removeSession(paneId)
         terminalHashes.delete(paneId)
         broadcast({
@@ -140,13 +139,6 @@ async function main() {
           paneId,
         })
         log.debug('Pane removed', { paneId })
-      }
-    }
-
-    // Also clean up any orphaned hashes
-    for (const paneId of terminalHashes.keys()) {
-      if (!currentPaneIds.has(paneId)) {
-        terminalHashes.delete(paneId)
       }
     }
 

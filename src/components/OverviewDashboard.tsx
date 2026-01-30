@@ -153,25 +153,26 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   }, [])
 
   const allCollapsed = windowGroups.length > 0 && collapsedWindows.size === windowGroups.length
-  const toggleAllWindows = () => {
-    if (allCollapsed) {
-      setCollapsedWindows(new Set())
-    } else {
-      setCollapsedWindows(new Set(windowGroups.map(g => g.window.id)))
-    }
-  }
 
-  const handleOpenCreateWindow = () => {
+  const toggleAllWindows = useCallback(() => {
+    setCollapsedWindows(prev =>
+      prev.size === windowGroups.length
+        ? new Set()
+        : new Set(windowGroups.map(g => g.window.id))
+    )
+  }, [windowGroups])
+
+  const handleOpenCreateWindow = useCallback(() => {
     setShowCreateWindow(true)
     setNewWindowName('')
     setCreateError(null)
     // Default to first session if available
-    if (sessions.length > 0 && !selectedSession) {
-      setSelectedSession(sessions[0])
+    if (sessions.length > 0) {
+      setSelectedSession(prev => prev || sessions[0])
     }
-  }
+  }, [sessions])
 
-  const handleCreateWindow = async () => {
+  const handleCreateWindow = useCallback(async () => {
     if (!selectedSession || !newWindowName.trim()) {
       setCreateError('Session and window name are required')
       return
@@ -190,13 +191,13 @@ export const OverviewDashboard = memo(function OverviewDashboard({
     } else {
       setCreateError('Failed to create window')
     }
-  }
+  }, [selectedSession, newWindowName, onCreateWindow])
 
-  const handleCancelCreate = () => {
+  const handleCancelCreate = useCallback(() => {
     setShowCreateWindow(false)
     setNewWindowName('')
     setCreateError(null)
-  }
+  }, [])
 
   return (
     <div className="p-4 space-y-4">
@@ -360,7 +361,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
                 group={group}
                 collapsed={collapsedWindows.has(group.window.id)}
                 maxPanes={MAX_PANES_PER_WINDOW}
-                onToggleWindow={() => toggleWindow(group.window.id)}
+                onToggleWindow={toggleWindow}
                 onNewPane={onNewPane}
                 onRenameWindow={onRenameWindow}
               />
@@ -396,7 +397,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
                         group={group}
                         collapsed={collapsedWindows.has(group.window.id)}
                         maxPanes={MAX_PANES_PER_WINDOW}
-                        onToggleWindow={() => toggleWindow(group.window.id)}
+                        onToggleWindow={toggleWindow}
                         onNewPane={onNewPane}
                         onRenameWindow={onRenameWindow}
                       />
@@ -418,7 +419,7 @@ interface WindowSectionProps {
   group: WindowGroup
   collapsed: boolean
   maxPanes: number
-  onToggleWindow: () => void
+  onToggleWindow: (windowId: string) => void
   onNewPane: (windowId: string) => void
   onRenameWindow: (windowId: string, windowName: string) => Promise<{ ok: boolean; error?: string }>
 }
@@ -431,6 +432,8 @@ const WindowSection = memo(function WindowSection({
   onNewPane,
   onRenameWindow,
 }: WindowSectionProps) {
+  const windowId = group.window.id
+  const handleToggle = useCallback(() => onToggleWindow(windowId), [onToggleWindow, windowId])
   const hasAttention = group.attentionCount > 0
   const canAddPane = group.panes.length < maxPanes
 
@@ -453,13 +456,13 @@ const WindowSection = memo(function WindowSection({
     }
   }, [isRenaming])
 
-  const handleStartRename = () => {
+  const handleStartRename = useCallback(() => {
     setRenameValue(group.window.windowName)
     setRenameError(null)
     setIsRenaming(true)
-  }
+  }, [group.window.windowName])
 
-  const handleConfirmRename = async () => {
+  const handleConfirmRename = useCallback(async () => {
     const trimmed = renameValue.trim()
     if (!trimmed) {
       setRenameError('Name is required')
@@ -469,36 +472,36 @@ const WindowSection = memo(function WindowSection({
       setIsRenaming(false)
       return
     }
-    const result = await onRenameWindow(group.window.id, trimmed)
+    const result = await onRenameWindow(windowId, trimmed)
     if (result.ok) {
       setIsRenaming(false)
       setRenameError(null)
     } else {
       setRenameError(result.error || 'Failed to rename')
     }
-  }
+  }, [renameValue, group.window.windowName, onRenameWindow, windowId])
 
-  const handleCancelRename = () => {
+  const handleCancelRename = useCallback(() => {
     setIsRenaming(false)
     setRenameError(null)
-  }
+  }, [])
 
   const handleNewPane = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    onNewPane(group.window.id)
-  }, [onNewPane, group.window.id])
+    onNewPane(windowId)
+  }, [onNewPane, windowId])
 
   const handleStartRenameClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     handleStartRename()
-  }, [])
+  }, [handleStartRename])
 
   return (
     <div className={`rounded-lg border ${hasAttention ? 'border-rpg-waiting status-bg-waiting' : 'border-rpg-border'}`}>
       {/* Window header */}
       <div className="flex items-center gap-2 px-3 py-2 rounded-t-lg">
         <button
-          onClick={onToggleWindow}
+          onClick={handleToggle}
           className="flex-1 flex items-center gap-2 text-left transition-colors hover:bg-rpg-card-hover rounded px-1 -ml-1"
         >
           <span className="w-6 h-6 flex items-center justify-center text-xs rounded bg-rpg-card text-rpg-text-muted font-mono">

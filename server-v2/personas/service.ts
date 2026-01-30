@@ -151,10 +151,11 @@ export function getPersonaById(id: string): Persona | null {
 export function addXp(personaId: string, amount: number): void {
   queries.addPersonaXp.run(amount, personaId)
 
-  // Check for level up
+  // Fetch updated persona (totalXp already includes the added amount)
   const persona = getPersonaById(personaId)
   if (persona) {
-    const newLevel = calculateLevel(persona.totalXp + amount)
+    // Check for level up using the updated totalXp
+    const newLevel = calculateLevel(persona.totalXp)
     if (newLevel > persona.level) {
       queries.updatePersonaLevel.run(newLevel, personaId)
       log.info('Persona leveled up', { personaId, oldLevel: persona.level, newLevel })

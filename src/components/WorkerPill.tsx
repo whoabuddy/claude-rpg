@@ -1,4 +1,6 @@
+import { memo } from 'react'
 import { PaneAvatar } from './PaneAvatar'
+import { STATUS_LABELS, getStatusDotClass } from '../constants/status'
 import type { TmuxPane, SessionStatus } from '../../shared/types'
 
 interface WorkerPillProps {
@@ -6,7 +8,7 @@ interface WorkerPillProps {
   onClick?: () => void
 }
 
-export function WorkerPill({ pane, onClick }: WorkerPillProps) {
+export const WorkerPill = memo(function WorkerPill({ pane, onClick }: WorkerPillProps) {
   const session = pane.process.claudeSession
   if (!session) return null
 
@@ -27,33 +29,17 @@ export function WorkerPill({ pane, onClick }: WorkerPillProps) {
       )}
     </Component>
   )
-}
+})
 
 interface StatusDotProps {
   status: SessionStatus
 }
 
 function StatusDot({ status }: StatusDotProps) {
-  const dotClass = {
-    idle: 'bg-rpg-success',
-    typing: 'bg-blue-400',
-    working: 'bg-yellow-400 animate-pulse',
-    waiting: 'bg-orange-400 animate-pulse',
-    error: 'bg-rpg-error animate-pulse',
-  }[status]
-
-  const title = {
-    idle: 'Ready',
-    typing: 'Active',
-    working: 'Working',
-    waiting: 'Waiting for input',
-    error: 'Error',
-  }[status]
-
   return (
     <div
-      className={`w-2 h-2 rounded-full ${dotClass}`}
-      title={title}
+      className={`w-2 h-2 rounded-full ${getStatusDotClass(status)}`}
+      title={STATUS_LABELS[status] || status}
     />
   )
 }

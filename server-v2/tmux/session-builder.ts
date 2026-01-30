@@ -7,8 +7,30 @@ import { getOrCreatePersona, getPersonaById } from '../personas/service'
 import { getSession, getOrCreateSession } from '../sessions/manager'
 import { getOrCreateProject } from '../projects/service'
 import type { ClaudeSessionInfo } from './types'
+import type { Persona } from '../personas/types'
+import type { ClaudeSession } from '../sessions/types'
 
 const log = createLogger('session-builder')
+
+/**
+ * Build ClaudeSessionInfo from persona and session data
+ */
+function buildSessionInfo(persona: Persona, session: ClaudeSession): ClaudeSessionInfo {
+  const now = Date.now()
+  return {
+    id: persona.sessionId,
+    name: persona.name,
+    avatarSvg: persona.avatarUrl || undefined,
+    status: session.status || 'idle',
+    tier: persona.tier,
+    badges: persona.badges,
+    personality: persona.personality,
+    health: persona.health,
+    lastError: session.lastError,
+    createdAt: now,
+    lastActivity: now,
+  }
+}
 
 /**
  * Build ClaudeSessionInfo for a pane with a Claude process
@@ -51,21 +73,7 @@ export async function buildClaudeSessionInfo(
     if (session.personaId) {
       const persona = getPersonaById(session.personaId)
       if (persona) {
-        const now = Date.now()
-        const sessionInfo: ClaudeSessionInfo = {
-          id: persona.sessionId,
-          name: persona.name,
-          avatarSvg: persona.avatarUrl || undefined,
-          status: session.status || 'idle',
-          tier: persona.tier,
-          badges: persona.badges,
-          personality: persona.personality,
-          health: persona.health,
-          lastError: session.lastError,
-          createdAt: now,
-          lastActivity: now,
-        }
-        return sessionInfo
+        return buildSessionInfo(persona, session)
       }
     }
 
@@ -78,22 +86,7 @@ export async function buildClaudeSessionInfo(
     session.personaId = persona.id
     log.debug('Auto-created persona for Claude pane', { paneId, personaId: persona.id, name: persona.name })
 
-    const now = Date.now()
-    const sessionInfo: ClaudeSessionInfo = {
-      id: persona.sessionId,
-      name: persona.name,
-      avatarSvg: persona.avatarUrl || undefined,
-      status: session.status || 'idle',
-      tier: persona.tier,
-      badges: persona.badges,
-      personality: persona.personality,
-      health: persona.health,
-      lastError: session.lastError,
-      createdAt: now,
-      lastActivity: now,
-    }
-
-    return sessionInfo
+    return buildSessionInfo(persona, session)
   } catch (error) {
     log.error('Failed to build ClaudeSessionInfo', {
       paneId,
