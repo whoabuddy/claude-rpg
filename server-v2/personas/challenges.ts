@@ -302,16 +302,20 @@ export function updateChallengeProgress(
       })
 
       // Award XP for challenge completion
-      if (addXp) {
-        addXp(personaId, challenge.xpReward)
-        log.debug('Awarded XP for challenge completion', {
+      if (!addXp) {
+        log.error('Challenge XP service not initialized - this should never happen', {
           personaId,
           challengeId: challenge.challengeId,
-          xpReward: challenge.xpReward,
         })
-      } else {
-        log.warn('Challenge XP service not initialized, skipping XP award')
+        throw new Error('Challenge system not properly initialized')
       }
+
+      addXp(personaId, challenge.xpReward)
+      log.debug('Awarded XP for challenge completion', {
+        personaId,
+        challengeId: challenge.challengeId,
+        xpReward: challenge.xpReward,
+      })
 
       // Return the completed challenge (refresh from DB to get updated status)
       const updated = queries.getChallengeById.get(challenge.id) as Record<string, unknown> | null
