@@ -243,12 +243,9 @@ export const OverviewDashboard = memo(function OverviewDashboard({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Filter windows by name, repo, or session..."
-            className="w-full px-3 py-2 pl-8 text-sm rounded bg-rpg-bg border border-rpg-border text-rpg-text placeholder:text-rpg-text-dim focus:outline-none focus:border-rpg-accent"
+            placeholder="Search windows..."
+            className="w-full px-3 py-2 text-sm rounded bg-rpg-bg border border-rpg-border text-rpg-text placeholder:text-rpg-text-dim focus:outline-none focus:border-rpg-accent"
           />
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-rpg-text-dim text-xs">
-            /
-          </span>
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
@@ -329,12 +326,6 @@ export const OverviewDashboard = memo(function OverviewDashboard({
 
       {/* Main content - dimmed when disconnected */}
       <div className={!connected ? 'opacity-60 pointer-events-none' : undefined}>
-        {/* Keyboard shortcuts hint - visible on desktop */}
-        <div className="hidden sm:flex items-center gap-4 text-xs text-rpg-text-dim px-1">
-          <span><kbd className="px-1 py-0.5 bg-rpg-card rounded border border-rpg-border">/</kbd> Search</span>
-          <span><kbd className="px-1 py-0.5 bg-rpg-card rounded border border-rpg-border">Esc</kbd> Clear/Cancel</span>
-        </div>
-
         {/* Empty state */}
         {windowGroups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-rpg-text-muted">
