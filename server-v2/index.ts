@@ -13,6 +13,7 @@ import { eventBus, initEventHandlers } from './events'
 import { startPolling, stopPolling } from './tmux'
 import { handleRequest, handleCors, isWebSocketUpgrade, wsHandlers, broadcast } from './api'
 import { hasClientBuild, serveStatic, serveSpaFallback } from './api/static'
+import { startHeartbeat, stopHeartbeat } from './api/heartbeat'
 import { getAllCompanions } from './companions'
 import type { WsData } from './api'
 import type { PaneDiscoveredEvent, PaneRemovedEvent } from './events/types'
@@ -193,6 +194,16 @@ async function main() {
     log.info('Stopping HTTP server')
     server.stop()
   }, 50)
+
+  // Start WebSocket heartbeat
+  startHeartbeat()
+  log.info('Heartbeat started')
+
+  // Register heartbeat shutdown (after http-server at 50, before tmux-poller at 60)
+  onShutdown('heartbeat', () => {
+    log.info('Stopping heartbeat')
+    stopHeartbeat()
+  }, 55)
 
   log.info('Server ready', {
     url: `http://localhost:${config.port}`,
