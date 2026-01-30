@@ -154,6 +154,7 @@ export function getPriority(message: ServerMessage): MessagePriority {
     // High priority - always send
     case 'pane_update':
     case 'pane_removed':
+    case 'terminal_output': // Terminal monitoring is critical
     case 'error':
       return 'high'
 
@@ -173,7 +174,6 @@ export function getPriority(message: ServerMessage): MessagePriority {
 
     // Low priority - drop when buffered
     case 'event':
-    case 'terminal_output':
     case 'moltbook_activity':
     case 'moltbook_health':
       return 'low'

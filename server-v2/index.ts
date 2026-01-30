@@ -17,7 +17,7 @@ import { handleRequest, handleCors, isWebSocketUpgrade, wsHandlers, broadcast } 
 import { hasClientBuild, serveStatic, serveSpaFallback } from './api/static'
 import { startHeartbeat, stopHeartbeat } from './api/heartbeat'
 import { getAllCompanions } from './companions'
-import { updateFromTerminal } from './sessions/manager'
+import { updateFromTerminal, removeSession } from './sessions/manager'
 import { startWatcher as startMoltbookWatcher, stopWatcher as stopMoltbookWatcher } from './moltbook'
 import type { WsData } from './api'
 import type { PaneDiscoveredEvent, PaneRemovedEvent } from './events/types'
@@ -65,6 +65,9 @@ async function main() {
 
   // Track previous terminal content hashes to avoid redundant broadcasts
   const terminalHashes = new Map<string, string>()
+
+  // Track previous pane IDs to detect removals
+  let previousPaneIds = new Set<string>()
 
   // Simple hash function for terminal content
   function hashContent(content: string): string {
@@ -124,17 +127,31 @@ async function main() {
       log.debug('Broadcast terminal updates', { count: terminalBroadcasts })
     }
 
-    // Clean up hashes for panes that no longer exist
+    // Detect removed panes and clean up
     const currentPaneIds = new Set(state.panes.map(p => p.id))
+
+    for (const paneId of previousPaneIds) {
+      if (!currentPaneIds.has(paneId)) {
+        // Pane was removed - clean up session and notify clients
+        removeSession(paneId)
+        terminalHashes.delete(paneId)
+        broadcast({
+          type: 'pane_removed',
+          paneId,
+        })
+        log.debug('Pane removed', { paneId })
+      }
+    }
+
+    // Also clean up any orphaned hashes
     for (const paneId of terminalHashes.keys()) {
       if (!currentPaneIds.has(paneId)) {
         terminalHashes.delete(paneId)
       }
     }
 
-    // Emit pane events
-    // Note: In a full implementation, we'd track previous state
-    // and emit discovered/removed events. For now, we just broadcast windows.
+    // Update previous pane IDs for next cycle
+    previousPaneIds = currentPaneIds
   }, config.pollInterval)
 
   onShutdown('tmux-poller', () => {
