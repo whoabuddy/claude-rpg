@@ -30,8 +30,11 @@ export const PaneAvatar = memo(function PaneAvatar({ pane, size = 'md', activity
     // Show initials fallback if no avatar or load error
     if (!session.avatarSvg || loadError) {
       return (
-        <div className={`${dimension} rounded-full bg-rpg-accent/30 flex items-center justify-center ${fontSize} font-bold flex-shrink-0`}>
-          {session.name[0]}
+        <div className={`relative ${wrapperSize} flex-shrink-0`}>
+          <ActivityPulse activity={activity} />
+          <div className={`relative ${dimension} rounded-full bg-rpg-accent/30 flex items-center justify-center ${fontSize} font-bold`}>
+            {session.name[0]}
+          </div>
         </div>
       )
     }
@@ -40,19 +43,25 @@ export const PaneAvatar = memo(function PaneAvatar({ pane, size = 'md', activity
     const isUrl = session.avatarSvg.startsWith('http') || session.avatarSvg.startsWith('/api')
     if (isUrl) {
       return (
-        <img
-          src={session.avatarSvg}
-          alt={session.name}
-          className={`${dimension} rounded-full bg-rpg-bg flex-shrink-0`}
-          onError={() => setLoadError(true)}
-        />
+        <div className={`relative ${wrapperSize} flex-shrink-0`}>
+          <ActivityPulse activity={activity} />
+          <img
+            src={session.avatarSvg}
+            alt={session.name}
+            className={`relative ${dimension} rounded-full bg-rpg-bg`}
+            onError={() => setLoadError(true)}
+          />
+        </div>
       )
     }
     return (
-      <div
-        className={`${dimension} rounded-full overflow-hidden bg-rpg-bg flex-shrink-0`}
-        dangerouslySetInnerHTML={{ __html: session.avatarSvg }}
-      />
+      <div className={`relative ${wrapperSize} flex-shrink-0`}>
+        <ActivityPulse activity={activity} />
+        <div
+          className={`relative ${dimension} rounded-full overflow-hidden bg-rpg-bg`}
+          dangerouslySetInnerHTML={{ __html: session.avatarSvg }}
+        />
+      </div>
     )
   }
 
