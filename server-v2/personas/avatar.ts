@@ -56,7 +56,7 @@ export async function fetchBitcoinFace(sessionId: string): Promise<string | null
   }
 
   // Fetch from bitcoinfaces.xyz API
-  const url = `${BITCOIN_FACES_URL}/${seed}`
+  const url = `${BITCOIN_FACES_URL}?name=${seed}`
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
