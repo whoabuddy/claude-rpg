@@ -115,9 +115,9 @@ function matchPattern(pattern: string, pathname: string): Record<string, string>
     const pathPart = pathParts[i]
 
     if (patternPart.startsWith(':')) {
-      // Param capture
+      // Param capture (decode URL-encoded values like %250 -> %0)
       const paramName = patternPart.slice(1)
-      params[paramName] = pathPart
+      params[paramName] = decodeURIComponent(pathPart)
     } else if (patternPart !== pathPart) {
       // Literal mismatch
       return null
