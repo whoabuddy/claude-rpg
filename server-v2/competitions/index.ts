@@ -3,6 +3,7 @@
  */
 
 import { getAllCompanions } from '../companions'
+import { getDatabase } from '../db'
 import type {
   Competition,
   CompetitionCategory,
@@ -18,6 +19,79 @@ import type {
 
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toISOString().slice(0, 10) // YYYY-MM-DD
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Date Range Helpers for Period Filtering
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Get start of today in UTC as ISO string
+ */
+function getStartOfDayUTC(): string {
+  const now = new Date()
+  const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  return startOfDay.toISOString()
+}
+
+/**
+ * Get start of 7 days ago in UTC as ISO string
+ */
+function getStartOfWeekUTC(): string {
+  const now = new Date()
+  const startOfWeek = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 7))
+  return startOfWeek.toISOString()
+}
+
+/**
+ * Get the start date for a time period, or null for 'all'
+ */
+function getDateRangeForPeriod(period: TimePeriod): string | null {
+  switch (period) {
+    case 'today':
+      return getStartOfDayUTC()
+    case 'week':
+      return getStartOfWeekUTC()
+    case 'all':
+      return null
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Database Queries for Period Filtering
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Get total XP for a project within a date range
+ */
+function getProjectXpInRange(projectId: string, startDate: string): number {
+  const db = getDatabase()
+  const result = db.prepare<{ total: number | null }, [string, string]>(
+    'SELECT SUM(xp_amount) as total FROM xp_events WHERE project_id = ? AND created_at >= ?'
+  ).get(projectId, startDate)
+  return result?.total ?? 0
+}
+
+/**
+ * Count events of a specific type for a project within a date range
+ */
+function countEventsInRange(projectId: string, startDate: string, eventType: string): number {
+  const db = getDatabase()
+  const result = db.prepare<{ count: number }, [string, string, string]>(
+    'SELECT COUNT(*) as count FROM xp_events WHERE project_id = ? AND created_at >= ? AND event_type = ?'
+  ).get(projectId, startDate, eventType)
+  return result?.count ?? 0
+}
+
+/**
+ * Count tool events for a project within a date range (event_type starts with 'tool:')
+ */
+function countToolEventsInRange(projectId: string, startDate: string): number {
+  const db = getDatabase()
+  const result = db.prepare<{ count: number }, [string, string]>(
+    "SELECT COUNT(*) as count FROM xp_events WHERE project_id = ? AND created_at >= ? AND event_type LIKE 'tool:%'"
+  ).get(projectId, startDate)
+  return result?.count ?? 0
 }
 
 function isConsecutiveDay(date1: string, date2: string): boolean {
@@ -59,30 +133,44 @@ function getValidatedStreak(streak: StreakInfo): StreakInfo {
 function getCategoryValue(
   companion: Companion,
   category: CompetitionCategory,
-  _period: TimePeriod
+  period: TimePeriod
 ): number {
-  // NOTE: For now, all periods use all-time stats
-  // TODO: Implement period filtering by querying xp_events table with date ranges
+  const startDate = getDateRangeForPeriod(period)
 
+  // For 'all' period, use cached stats from companion object
+  if (!startDate) {
+    switch (category) {
+      case 'xp':
+        return companion.totalExperience
+      case 'commits':
+        return companion.stats.git.commits
+      case 'tests':
+        return companion.stats.commands.testsRun
+      case 'tools':
+        return Object.values(companion.stats.toolsUsed).reduce((a, b) => a + b, 0)
+      case 'prompts':
+        return companion.stats.promptsReceived
+      case 'quests':
+        return companion.stats.quests?.questsCompleted ?? 0
+      default:
+        return 0
+    }
+  }
+
+  // For 'today' and 'week' periods, query xp_events table with date range
   switch (category) {
     case 'xp':
-      return companion.totalExperience
-
+      return getProjectXpInRange(companion.id, startDate)
     case 'commits':
-      return companion.stats.git.commits
-
+      return countEventsInRange(companion.id, startDate, 'commit')
     case 'tests':
-      return companion.stats.commands.testsRun
-
+      return countEventsInRange(companion.id, startDate, 'test_run')
     case 'tools':
-      return Object.values(companion.stats.toolsUsed).reduce((a, b) => a + b, 0)
-
+      return countToolEventsInRange(companion.id, startDate)
     case 'prompts':
-      return companion.stats.promptsReceived
-
+      return countEventsInRange(companion.id, startDate, 'prompt')
     case 'quests':
-      return companion.stats.quests?.questsCompleted ?? 0
-
+      return countEventsInRange(companion.id, startDate, 'quest_completed')
     default:
       return 0
   }
