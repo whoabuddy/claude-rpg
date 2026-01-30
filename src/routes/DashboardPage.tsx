@@ -1,8 +1,7 @@
-import { useMemo, useState, useCallback, useEffect } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
 import { useConnectionStatus } from '../hooks/useConnection'
-import { initTerminalCache } from '../hooks/usePaneTerminal'
 import { useNotifications, usePaneNotifications } from '../hooks/useNotifications'
 import { PaneActionsProvider, type PaneActionsContextValue } from '../contexts/PaneActionsContext'
 import { OverviewDashboard } from '../components/OverviewDashboard'
@@ -35,12 +34,6 @@ export default function DashboardPage() {
 
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
   const [rpgEnabled] = useState(true)
-
-  // Initialize terminal cache
-  useEffect(() => {
-    const cleanup = initTerminalCache()
-    return cleanup
-  }, [])
 
   // Notifications
   const { permission, notify } = useNotifications()
