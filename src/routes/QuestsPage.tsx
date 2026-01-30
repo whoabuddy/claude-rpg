@@ -20,8 +20,12 @@ export default function QuestsPage() {
     [windows]
   )
 
-  const completedQuests = quests.filter(q => q.status === 'completed')
-  const pausedQuests = quests.filter(q => q.status === 'paused')
+  // Memoize quest filtering to prevent recalculation on unrelated re-renders
+  const completedQuests = useMemo(() => quests.filter(q => q.status === 'completed'), [quests])
+  const pausedQuests = useMemo(() => quests.filter(q => q.status === 'paused'), [quests])
+
+  // Memoize sliced companions to prevent re-render of ProjectsSection
+  const recentCompanions = useMemo(() => companions.slice(0, 6), [companions])
 
   return (
     <div className="flex flex-col h-full">
@@ -45,7 +49,7 @@ export default function QuestsPage() {
         />
 
         {/* Recent Projects section */}
-        <ProjectsSection companions={companions.slice(0, 6)} />
+        <ProjectsSection companions={recentCompanions} />
       </div>
     </div>
   )
@@ -97,7 +101,7 @@ function QuestsSection({ quests, activeQuests, pausedQuests, completedQuests, lo
         <div className="text-center py-8 space-y-2">
           <p className="text-rpg-text-dim">No quests yet</p>
           <p className="text-xs text-rpg-text-muted">
-            Run <code className="px-1 py-0.5 bg-rpg-border rounded">/quest "Goal"</code> in Claude Code to create one
+            Run <code className="px-1 py-0.5 bg-rpg-border rounded">/quest-create "Goal"</code> in Claude Code to create one
           </p>
         </div>
       </section>
@@ -106,48 +110,32 @@ function QuestsSection({ quests, activeQuests, pausedQuests, completedQuests, lo
 
   return (
     <>
-      {/* Active quests */}
-      {activeQuests.length > 0 && (
-        <section>
-          <h2 className="text-sm font-medium text-rpg-text-muted mb-3">
-            Active Quests ({activeQuests.length})
-          </h2>
-          <div className="space-y-3">
-            {activeQuests.map(quest => (
-              <QuestCard key={quest.id} quest={quest} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Paused quests */}
-      {pausedQuests.length > 0 && (
-        <section>
-          <h2 className="text-sm font-medium text-rpg-text-muted mb-3">
-            Paused ({pausedQuests.length})
-          </h2>
-          <div className="space-y-3">
-            {pausedQuests.map(quest => (
-              <QuestCard key={quest.id} quest={quest} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Completed quests */}
-      {completedQuests.length > 0 && (
-        <section>
-          <h2 className="text-sm font-medium text-rpg-text-muted mb-3">
-            Completed ({completedQuests.length})
-          </h2>
-          <div className="space-y-3">
-            {completedQuests.map(quest => (
-              <QuestCard key={quest.id} quest={quest} />
-            ))}
-          </div>
-        </section>
-      )}
+      <QuestListSection title="Active Quests" quests={activeQuests} />
+      <QuestListSection title="Paused" quests={pausedQuests} />
+      <QuestListSection title="Completed" quests={completedQuests} />
     </>
+  )
+}
+
+interface QuestListSectionProps {
+  title: string
+  quests: Quest[]
+}
+
+function QuestListSection({ title, quests }: QuestListSectionProps) {
+  if (quests.length === 0) return null
+
+  return (
+    <section>
+      <h2 className="text-sm font-medium text-rpg-text-muted mb-3">
+        {title} ({quests.length})
+      </h2>
+      <div className="space-y-3">
+        {quests.map(quest => (
+          <QuestCard key={quest.id} quest={quest} />
+        ))}
+      </div>
+    </section>
   )
 }
 

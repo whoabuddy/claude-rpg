@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useMemo } from 'react'
 import { useStore } from '../store'
 import { fetchInitialData } from '../lib/api'
 import type { Quest, QuestStatus } from '@shared/types'
@@ -50,8 +50,8 @@ export function useQuests() {
     fetchInitialData<Quest[]>('quests', setQuests)
   }, [setQuests])
 
-  // Active quests
-  const activeQuests = quests.filter(q => q.status === 'active')
+  // Active quests - memoized to prevent array recreation on every render
+  const activeQuests = useMemo(() => quests.filter(q => q.status === 'active'), [quests])
 
   // Get quest for a specific repo
   const questForRepo = useCallback((repoName: string): Quest | undefined => {
