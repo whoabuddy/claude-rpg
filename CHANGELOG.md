@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.0.0](https://github.com/whoabuddy/claude-rpg/compare/v1.11.1...v2.0.0) (2026-01-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* Complete rewrite of server and client architecture
+
+### Features
+
+* v2.0.0 architecture rewrite ([#175](https://github.com/whoabuddy/claude-rpg/issues/175)) ([9b34d87](https://github.com/whoabuddy/claude-rpg/commit/9b34d87767abb80e9b1eefb54882be7937e4169b))
+* v2.0.0 stability and reliability improvements ([#162](https://github.com/whoabuddy/claude-rpg/issues/162)) ([57f5424](https://github.com/whoabuddy/claude-rpg/commit/57f5424fb27dbfbeae4ad82b35f1771d47775ed8))
+
+
+### Bug Fixes
+
+* **server:** capture terminal content to actual bottom of scrollback ([#174](https://github.com/whoabuddy/claude-rpg/issues/174)) ([af77c5e](https://github.com/whoabuddy/claude-rpg/commit/af77c5e36b66e1d65878a240924abbb5512d9832))
+
 ## [2.0.0] - 2026-01-30
 
 ### Major Release: Stability and Reliability Improvements
