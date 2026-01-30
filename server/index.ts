@@ -1107,8 +1107,9 @@ async function captureTerminal(target: string, fullScrollback = false): Promise<
     // Flags:
     // -p: print to stdout
     // -J: join wrapped lines (cleaner parsing)
-    // -S -50: capture last 50 lines (default) or -S - -E - for full scrollback
-    const scrollFlags = fullScrollback ? '-S - -E -' : '-S -150'
+    // -e: include escape sequences (ANSI colors)
+    // -S -150 -E -: capture last 150 lines to end of scrollback (ensures we get the bottom)
+    const scrollFlags = fullScrollback ? '-S - -E -' : '-S -150 -E -'
     const { stdout } = await execAsync(
       `tmux capture-pane -p -J -e -t "${target}" ${scrollFlags}`,
       { timeout: 1000 }
