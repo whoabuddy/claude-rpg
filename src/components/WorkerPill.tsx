@@ -3,21 +3,29 @@ import type { TmuxPane, SessionStatus } from '../../shared/types'
 
 interface WorkerPillProps {
   pane: TmuxPane
+  onClick?: () => void
 }
 
-export function WorkerPill({ pane }: WorkerPillProps) {
+export function WorkerPill({ pane, onClick }: WorkerPillProps) {
   const session = pane.process.claudeSession
   if (!session) return null
 
+  const Component = onClick ? 'button' : 'div'
+
   return (
-    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-rpg-card border border-rpg-border rounded-full text-sm hover:border-rpg-accent/50 transition-colors">
+    <Component
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 px-3 py-1.5 bg-rpg-card border border-rpg-border rounded-full text-sm transition-colors ${
+        onClick ? 'cursor-pointer hover:border-rpg-accent hover:bg-rpg-card/80' : 'hover:border-rpg-accent/50'
+      }`}
+    >
       <PaneAvatar pane={pane} size="sm" />
       <span className="font-medium text-rpg-text">{session.name}</span>
       <StatusDot status={session.status} />
       {pane.repo && (
         <span className="text-rpg-text-dim text-xs">{pane.repo.name}</span>
       )}
-    </div>
+    </Component>
   )
 }
 
