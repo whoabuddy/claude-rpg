@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.12.0](https://github.com/whoabuddy/claude-rpg/compare/v1.11.1...v1.12.0) (2026-01-30)
+
+
+### Features
+
+* v2.0.0 stability and reliability improvements ([#162](https://github.com/whoabuddy/claude-rpg/issues/162)) ([57f5424](https://github.com/whoabuddy/claude-rpg/commit/57f5424fb27dbfbeae4ad82b35f1771d47775ed8))
+
+
+### Bug Fixes
+
+* **server:** capture terminal content to actual bottom of scrollback ([#174](https://github.com/whoabuddy/claude-rpg/issues/174)) ([af77c5e](https://github.com/whoabuddy/claude-rpg/commit/af77c5e36b66e1d65878a240924abbb5512d9832))
+
 ## [2.0.0] - 2026-01-30
 
 ### Major Release: Stability and Reliability Improvements
