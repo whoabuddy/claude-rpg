@@ -58,7 +58,7 @@ export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavig
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="text-lg font-medium text-rpg-text">Competitions</h1>
+          <h1 className="text-lg font-medium text-rpg-text">Leaderboard</h1>
         </div>
         <ConnectionDot connected={connected} />
       </div>
