@@ -34,6 +34,12 @@ export interface PersonaHealth {
   lastUpdated: string
 }
 
+export interface SessionError {
+  tool: string
+  message?: string
+  timestamp: number
+}
+
 export interface ClaudeSessionInfo {
   id: string
   name: string
@@ -43,6 +49,7 @@ export interface ClaudeSessionInfo {
   badges: string[]
   personality: PersonaPersonality
   health?: PersonaHealth
+  lastError?: SessionError
   createdAt: number
   lastActivity: number
 }

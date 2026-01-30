@@ -4,6 +4,12 @@
 
 export type SessionStatus = 'idle' | 'typing' | 'working' | 'waiting' | 'error'
 
+export interface SessionError {
+  tool: string
+  message?: string
+  timestamp: number
+}
+
 export interface ClaudeSession {
   id: string
   paneId: string
@@ -15,6 +21,7 @@ export interface ClaudeSession {
   lastActivityAt: string
   terminalContent?: string
   terminalConfidence?: number
+  lastError?: SessionError
 }
 
 export interface SessionUpdate {

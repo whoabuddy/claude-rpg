@@ -60,6 +60,7 @@ export async function buildClaudeSessionInfo(
           badges: persona.badges,
           personality: persona.personality,
           health: persona.health,
+          lastError: session.lastError,
           createdAt: now,
           lastActivity: now,
         }

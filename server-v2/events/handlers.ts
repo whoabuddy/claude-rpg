@@ -155,8 +155,19 @@ export function initEventHandlers(): void {
       // Update persona XP (this also checks for level ups and badges)
       addXp(persona.id, xpAmount)
 
-      // Clear error state on successful tool use
-      if (event.success !== false) {
+      // Handle error state: set on failure, clear on success
+      if (event.success === false) {
+        // Set error state
+        if (session) {
+          session.lastError = {
+            tool: event.toolName,
+            message: typeof event.output === 'string' ? event.output : undefined,
+            timestamp: Date.now(),
+          }
+        }
+        await updateFromHook(event.paneId, 'error')
+      } else {
+        // Clear error state on successful tool use
         clearError(event.paneId)
       }
 
