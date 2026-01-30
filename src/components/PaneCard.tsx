@@ -4,6 +4,7 @@ import { sendPromptToPane, sendArrowKey } from '../lib/api'
 import { usePaneTerminal } from '../hooks/usePaneTerminal'
 import { useConfirmAction } from '../hooks/useConfirmAction'
 import { useQuests } from '../hooks/useQuests'
+import { usePaneActivity } from '../store'
 import { getPaneStatus, paneEqual } from '../utils/pane-status'
 import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
 import { usePaneActions } from '../contexts/PaneActionsContext'
@@ -53,6 +54,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
   const [visibleError, setVisibleError] = useState<SessionError | null>(null)
   const [fadingOut, setFadingOut] = useState(false)
   const terminalContent = usePaneTerminal(pane.id)
+  const activity = usePaneActivity(pane.id)
   const inputAreaRef = useRef<HTMLDivElement>(null)
 
   // After copying from terminal, refocus the input (#62)

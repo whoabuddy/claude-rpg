@@ -85,62 +85,49 @@ export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavig
           </div>
         )}
 
-        {/* Leaderboards */}
+        {/* Category Tabs */}
+        {!loading && (
+          <div className="flex gap-1 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-thin">
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setCategory(cat.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg
+                          whitespace-nowrap transition-colors flex-shrink-0 ${
+                  category === cat.id
+                    ? 'bg-rpg-accent/15 text-rpg-accent border border-rpg-accent/30'
+                    : 'text-rpg-text-muted hover:bg-rpg-card border border-transparent'
+                }`}
+              >
+                <span>{cat.icon}</span>
+                <span>{cat.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Selected Leaderboard */}
         {!loading && (
           <div className="space-y-4">
-            {/* XP Leaders - always show first, full width */}
-            <LeaderboardCard
-              competition={getByCategory('xp')}
-              title={CATEGORY_CONFIG.xp.title}
-              unit={CATEGORY_CONFIG.xp.unit}
-              emptyMessage="No XP earned yet"
-              onSelectEntry={onNavigateToProject}
-            />
+            {selectedCompetition ? (
+              <LeaderboardCard
+                competition={selectedCompetition}
+                title={`${selectedCategoryConfig?.icon || ''} ${selectedCategoryConfig?.label || 'Leaderboard'}`}
+                unit={selectedCategoryConfig?.unit || ''}
+                emptyMessage={`No ${selectedCategoryConfig?.label.toLowerCase()} data yet`}
+                onSelectEntry={onNavigateToProject}
+              />
+            ) : (
+              <p className="text-rpg-text-dim text-center py-8">
+                No data for this category
+              </p>
+            )}
 
-            {/* Streaks - always visible (#82) */}
+            {/* Streaks - always visible below main leaderboard (#82) */}
             <StreakCard entries={streakEntries} onSelectEntry={onNavigateToProject} />
 
             {/* Achievements showcase (#37) */}
             <AchievementsCard achievements={allAchievements} />
-
-            {/* Other leaderboards in 2-column grid on md+ */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Git Activity */}
-              <LeaderboardCard
-                competition={getByCategory('commits')}
-                title={CATEGORY_CONFIG.commits.title}
-                unit={CATEGORY_CONFIG.commits.unit}
-                emptyMessage="No commits yet"
-                onSelectEntry={onNavigateToProject}
-              />
-
-              {/* Tests */}
-              <LeaderboardCard
-                competition={getByCategory('tests')}
-                title={CATEGORY_CONFIG.tests.title}
-                unit={CATEGORY_CONFIG.tests.unit}
-                emptyMessage="No tests run yet"
-                onSelectEntry={onNavigateToProject}
-              />
-
-              {/* Tools */}
-              <LeaderboardCard
-                competition={getByCategory('tools')}
-                title={CATEGORY_CONFIG.tools.title}
-                unit={CATEGORY_CONFIG.tools.unit}
-                emptyMessage="No tools used yet"
-                onSelectEntry={onNavigateToProject}
-              />
-
-              {/* Prompts */}
-              <LeaderboardCard
-                competition={getByCategory('prompts')}
-                title={CATEGORY_CONFIG.prompts.title}
-                unit={CATEGORY_CONFIG.prompts.unit}
-                emptyMessage="No prompts sent yet"
-                onSelectEntry={onNavigateToProject}
-              />
-            </div>
           </div>
         )}
 

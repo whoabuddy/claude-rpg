@@ -21,6 +21,7 @@ import { createNote, getNoteById, getAllNotes, updateNote, deleteNote } from '..
 import { createGitHubIssue } from '../notes/github'
 import { getAllChallenges, getChallengeDefinition } from '../personas/challenges'
 import { serveAvatar } from './avatars'
+import { generateReport, reportToMarkdown } from '../report'
 import type { Note, NoteStatus } from '../notes'
 import type {
   ApiResponse,
@@ -603,6 +604,49 @@ export function xpTimeline(query: URLSearchParams): ApiResponse<unknown> {
 
   const timeline = getXpTimeline(entityType, entityId, days)
   return { success: true, data: { timeline } }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REPORT ENDPOINT
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Get daily report
+ */
+export function getReport(query: URLSearchParams): ApiResponse<unknown> | Response {
+  try {
+    // Parse query params
+    const days = parseInt(query.get('days') || '1', 10)
+    const format = query.get('format') || 'json'
+
+    // Validate days parameter
+    if (isNaN(days) || days < 1 || days > 30) {
+      return {
+        success: false,
+        error: { code: 'INVALID_PARAM', message: 'days must be 1-30' },
+      }
+    }
+
+    const report = generateReport(days)
+
+    // Return markdown if requested
+    if (format === 'markdown') {
+      return new Response(reportToMarkdown(report), {
+        headers: { 'Content-Type': 'text/markdown' },
+      })
+    }
+
+    // Default: return JSON
+    return { success: true, data: report }
+  } catch (error) {
+    log.error('Failed to generate report', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: { code: 'GENERATION_FAILED', message: 'Failed to generate report' },
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
