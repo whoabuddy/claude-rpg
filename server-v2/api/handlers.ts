@@ -459,7 +459,7 @@ export function listCompanions(): ApiResponse<unknown> {
  */
 export function listCompetitions(): ApiResponse<unknown> {
   const competitions = getAllCompetitions()
-  return { success: true, data: { competitions } }
+  return { success: true, data: competitions }
 }
 
 /**
@@ -515,7 +515,7 @@ function mapQuestToShared(serverQuest: ServerQuest): SharedQuest {
 export function listQuests(): ApiResponse<unknown> {
   const serverQuests = getActiveQuests()
   const quests = serverQuests.map(mapQuestToShared)
-  return { success: true, data: { quests } }
+  return { success: true, data: quests }
 }
 
 /**
