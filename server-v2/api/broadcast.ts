@@ -41,6 +41,13 @@ export function getClientCount(): number {
 }
 
 /**
+ * Get clients Set (for health checks and monitoring)
+ */
+export function getClients(): Set<ServerWebSocket<unknown>> {
+  return clients
+}
+
+/**
  * Broadcast a message to all clients
  */
 export function broadcast(message: ServerMessage): void {

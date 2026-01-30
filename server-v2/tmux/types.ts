@@ -64,6 +64,7 @@ export interface TmuxPane {
   process: PaneProcess  // Now an object, not a string
   cwd: string
   repo?: RepoInfo
+  terminalContent?: string  // Captured terminal output (Claude panes only)
 }
 
 export interface TmuxWindow {

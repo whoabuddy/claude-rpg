@@ -13,11 +13,14 @@ import { getProjectTeamStats } from '../projects/aggregation'
 import { generateNarrative } from '../projects/narrative'
 import { getActiveQuests, getQuestById, updateQuestStatus } from '../quests'
 import { getXpByCategory, getXpTimeline } from '../xp'
+import { getAllCompetitions } from '../competitions'
+import { getProjectById } from '../projects/service'
 import { isWhisperAvailable, transcribeAudio as whisperTranscribe } from '../lib/whisper'
 import { cloneRepo } from '../projects/clone'
 import { createNote, getNoteById, getAllNotes, updateNote, deleteNote } from '../notes'
 import { createGitHubIssue } from '../notes/github'
 import { getAllChallenges, getChallengeDefinition } from '../personas/challenges'
+import { serveAvatar } from './avatars'
 import type { Note, NoteStatus } from '../notes'
 import type {
   ApiResponse,
@@ -35,6 +38,8 @@ import type {
 } from './types'
 import type { QuestStatus } from '../quests/types'
 import type { CloneResult } from '../projects/clone'
+import type { Quest as ServerQuest } from '../quests/types'
+import type { Quest as SharedQuest, QuestPhase as SharedQuestPhase } from '../../shared/types'
 
 const log = createLogger('api-handlers')
 
@@ -450,6 +455,14 @@ export function listCompanions(): ApiResponse<unknown> {
 }
 
 /**
+ * List all competitions (leaderboards)
+ */
+export function listCompetitions(): ApiResponse<unknown> {
+  const competitions = getAllCompetitions()
+  return { success: true, data: competitions }
+}
+
+/**
  * Get companion by ID
  */
 export function getCompanion(params: Record<string, string>): ApiResponse<unknown> {
@@ -464,24 +477,59 @@ export function getCompanion(params: Record<string, string>): ApiResponse<unknow
 }
 
 /**
+ * Map server-v2 Quest to shared Quest format (for client compatibility)
+ */
+function mapQuestToShared(serverQuest: ServerQuest): SharedQuest {
+  // Get project to extract repo name
+  const project = serverQuest.projectId ? getProjectById(serverQuest.projectId) : null
+  const repoName = project?.name || 'unknown'
+
+  // Map phases
+  const phases: SharedQuestPhase[] = serverQuest.phases.map((p, index) => ({
+    id: p.id,
+    name: p.name,
+    order: index + 1,
+    status: p.status,
+    retryCount: p.retryCount,
+    maxRetries: 3, // Default value
+    startedAt: p.startedAt ? new Date(p.startedAt).getTime() : undefined,
+    completedAt: p.completedAt ? new Date(p.completedAt).getTime() : undefined,
+  }))
+
+  return {
+    id: serverQuest.id,
+    name: serverQuest.title, // Map title -> name
+    description: serverQuest.description || '',
+    repos: [repoName], // Map projectId -> repos array
+    phases,
+    status: serverQuest.status,
+    createdAt: new Date(serverQuest.createdAt).getTime(),
+    completedAt: serverQuest.completedAt ? new Date(serverQuest.completedAt).getTime() : undefined,
+    xpEarned: serverQuest.xpAwarded || undefined,
+  }
+}
+
+/**
  * List all active quests
  */
 export function listQuests(): ApiResponse<unknown> {
-  const quests = getActiveQuests()
-  return { success: true, data: { quests } }
+  const serverQuests = getActiveQuests()
+  const quests = serverQuests.map(mapQuestToShared)
+  return { success: true, data: quests }
 }
 
 /**
  * Get quest by ID
  */
 export function getQuest(params: Record<string, string>): ApiResponse<unknown> {
-  const quest = getQuestById(params.id)
-  if (!quest) {
+  const serverQuest = getQuestById(params.id)
+  if (!serverQuest) {
     return {
       success: false,
       error: { code: 'NOT_FOUND', message: 'Quest not found' },
     }
   }
+  const quest = mapQuestToShared(serverQuest)
   return { success: true, data: { quest } }
 }
 
@@ -493,7 +541,8 @@ export async function updateQuest(
   body: UpdateQuestRequest
 ): Promise<ApiResponse<unknown>> {
   try {
-    const quest = await updateQuestStatus(params.id, body.status as QuestStatus)
+    const serverQuest = await updateQuestStatus(params.id, body.status as QuestStatus)
+    const quest = mapQuestToShared(serverQuest)
     return { success: true, data: { quest } }
   } catch (error) {
     return {
@@ -795,6 +844,18 @@ export async function createIssueFromNote(
       error: { code: 'CREATE_FAILED', message: 'Failed to create GitHub issue' },
     }
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AVATARS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Serve cached avatar SVG
+ * Note: Returns raw Response, not ApiResponse (serves SVG directly)
+ */
+export async function getAvatar(params: Record<string, string>): Promise<Response> {
+  return serveAvatar(params.seed)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -4,7 +4,7 @@
 
 import { createLogger } from '../lib/logger'
 import { queries } from '../db'
-import { fetchBitcoinFace, getFallbackAvatarUrl } from './avatar'
+import { fetchBitcoinFace } from './avatar'
 import { generateNameFromSessionId, generateUniqueName } from './names'
 import { getTierForLevel } from './tiers'
 import { checkBadges } from './badges'
@@ -41,11 +41,8 @@ export async function getOrCreatePersona(sessionId: string): Promise<Persona> {
     name = generateUniqueName(existingNames)
   }
 
-  // Fetch avatar (non-blocking, will use fallback if fails)
-  let avatarUrl = await fetchBitcoinFace(sessionId)
-  if (!avatarUrl) {
-    avatarUrl = getFallbackAvatarUrl(sessionId)
-  }
+  // Fetch avatar (non-blocking, UI will show initials if null)
+  const avatarUrl = await fetchBitcoinFace(sessionId)
 
   const id = crypto.randomUUID()
   const now = new Date().toISOString()

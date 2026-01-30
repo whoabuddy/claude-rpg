@@ -5,6 +5,8 @@
  * and real-time WebSocket updates.
  */
 
+import { existsSync, mkdirSync } from 'fs'
+import { join } from 'path'
 import { getConfig } from './lib/config'
 import { logger, createLogger } from './lib/logger'
 import { initShutdown, onShutdown } from './lib/shutdown'
@@ -13,7 +15,9 @@ import { eventBus, initEventHandlers } from './events'
 import { startPolling, stopPolling } from './tmux'
 import { handleRequest, handleCors, isWebSocketUpgrade, wsHandlers, broadcast } from './api'
 import { hasClientBuild, serveStatic, serveSpaFallback } from './api/static'
+import { startHeartbeat, stopHeartbeat } from './api/heartbeat'
 import { getAllCompanions } from './companions'
+import { updateFromTerminal } from './sessions/manager'
 import type { WsData } from './api'
 import type { PaneDiscoveredEvent, PaneRemovedEvent } from './events/types'
 
@@ -34,6 +38,13 @@ async function main() {
   const db = initDatabase()
   log.info('Database ready')
 
+  // Initialize avatars directory
+  const avatarsDir = join(config.dataDir, 'avatars')
+  if (!existsSync(avatarsDir)) {
+    mkdirSync(avatarsDir, { recursive: true })
+    log.info('Created avatars directory', { path: avatarsDir })
+  }
+
   // Initialize event handlers (persona XP, etc.)
   initEventHandlers()
   log.info('Event handlers ready')
@@ -51,6 +62,20 @@ async function main() {
     })
   })
 
+  // Track previous terminal content hashes to avoid redundant broadcasts
+  const terminalHashes = new Map<string, string>()
+
+  // Simple hash function for terminal content
+  function hashContent(content: string): string {
+    let hash = 0
+    for (let i = 0; i < content.length; i++) {
+      const char = content.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash // Convert to 32bit integer
+    }
+    return hash.toString(36)
+  }
+
   // Start tmux poller
   startPolling(async (state) => {
     // Broadcast windows state (client expects TmuxWindow[] in payload)
@@ -65,6 +90,46 @@ async function main() {
       type: 'companions',
       payload: companions,
     })
+
+    // Broadcast terminal content for Claude panes (only when changed)
+    // Also update session status based on terminal content
+    let terminalBroadcasts = 0
+    for (const pane of state.panes) {
+      if (pane.process.type === 'claude' && pane.terminalContent) {
+        // Update session status from terminal content
+        await updateFromTerminal(pane.id, pane.terminalContent)
+
+        const contentHash = hashContent(pane.terminalContent)
+        const previousHash = terminalHashes.get(pane.id)
+
+        if (contentHash !== previousHash) {
+          // Content changed, broadcast it
+          broadcast({
+            type: 'terminal_output',
+            payload: {
+              paneId: pane.id,
+              target: pane.id,
+              content: pane.terminalContent,
+            },
+          })
+          terminalHashes.set(pane.id, contentHash)
+          terminalBroadcasts++
+        }
+      }
+    }
+
+    // Log terminal broadcasts if any occurred
+    if (terminalBroadcasts > 0) {
+      log.debug('Broadcast terminal updates', { count: terminalBroadcasts })
+    }
+
+    // Clean up hashes for panes that no longer exist
+    const currentPaneIds = new Set(state.panes.map(p => p.id))
+    for (const paneId of terminalHashes.keys()) {
+      if (!currentPaneIds.has(paneId)) {
+        terminalHashes.delete(paneId)
+      }
+    }
 
     // Emit pane events
     // Note: In a full implementation, we'd track previous state
@@ -94,7 +159,7 @@ async function main() {
 
       // Handle CORS preflight
       if (req.method === 'OPTIONS') {
-        return handleCors()
+        return handleCors(req)
       }
 
       // Handle WebSocket upgrade
@@ -143,6 +208,16 @@ async function main() {
     log.info('Stopping HTTP server')
     server.stop()
   }, 50)
+
+  // Start WebSocket heartbeat
+  startHeartbeat()
+  log.info('Heartbeat started')
+
+  // Register heartbeat shutdown (after http-server at 50, before tmux-poller at 60)
+  onShutdown('heartbeat', () => {
+    log.info('Stopping heartbeat')
+    stopHeartbeat()
+  }, 55)
 
   log.info('Server ready', {
     url: `http://localhost:${config.port}`,

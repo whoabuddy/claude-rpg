@@ -5,9 +5,10 @@ import type { TmuxPane } from '@shared/types'
 function makePane(overrides: Partial<TmuxPane> = {}): TmuxPane {
   return {
     id: '%1',
-    target: 'work:1.0',
-    paneIndex: 0,
-    isActive: true,
+    index: 0,
+    active: true,
+    width: 80,
+    height: 24,
     cwd: '/home/user/project',
     process: {
       type: 'shell',

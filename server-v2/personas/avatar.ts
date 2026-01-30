@@ -1,29 +1,62 @@
 /**
- * Avatar generation using Bitcoin faces
+ * Avatar generation using Bitcoin faces with local caching
  */
 
+import { existsSync, mkdirSync } from 'fs'
+import { join } from 'path'
 import { createLogger } from '../lib/logger'
+import { getConfig } from '../lib/config'
 
 const log = createLogger('avatar')
 
-const BITCOIN_FACES_URL = 'https://bitcoinfaces.xyz/api/face'
+const BITCOIN_FACES_URL = 'https://bitcoinfaces.xyz/api/get-image'
 const FETCH_TIMEOUT = 5000
 const MAX_RETRIES = 2
 
 /**
- * Fetch a Bitcoin face avatar for a session
- * Returns URL or null if unavailable
+ * Ensure avatars directory exists
  */
-export async function fetchBitcoinFace(sessionId: string): Promise<string | null> {
-  // Generate a deterministic seed from session ID
+function ensureAvatarsDir(): string {
+  const config = getConfig()
+  const avatarsDir = join(config.dataDir, 'avatars')
+
+  if (!existsSync(avatarsDir)) {
+    mkdirSync(avatarsDir, { recursive: true })
+    log.info('Created avatars directory', { path: avatarsDir })
+  }
+
+  return avatarsDir
+}
+
+/**
+ * Generate a deterministic seed string from session ID
+ */
+function generateSeed(sessionId: string): string {
   let hash = 0
   for (let i = 0; i < sessionId.length; i++) {
     hash = ((hash << 5) - hash) + sessionId.charCodeAt(i)
     hash = hash & hash
   }
-  const seed = Math.abs(hash)
+  return Math.abs(hash).toString()
+}
 
-  const url = `${BITCOIN_FACES_URL}?seed=${seed}`
+/**
+ * Fetch a Bitcoin face avatar for a session
+ * Returns local API URL or null if unavailable
+ */
+export async function fetchBitcoinFace(sessionId: string): Promise<string | null> {
+  const seed = generateSeed(sessionId)
+  const avatarsDir = ensureAvatarsDir()
+  const cachePath = join(avatarsDir, `${seed}.svg`)
+
+  // Check if avatar is already cached
+  if (existsSync(cachePath)) {
+    log.debug('Avatar found in cache', { sessionId, seed })
+    return `/api/avatars/${seed}`
+  }
+
+  // Fetch from bitcoinfaces.xyz API
+  const url = `${BITCOIN_FACES_URL}?name=${seed}`
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -31,15 +64,20 @@ export async function fetchBitcoinFace(sessionId: string): Promise<string | null
       const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
 
       const response = await fetch(url, {
-        method: 'HEAD', // Just check if URL is valid
         signal: controller.signal,
       })
 
       clearTimeout(timeoutId)
 
       if (response.ok) {
-        log.debug('Avatar URL generated', { sessionId, url })
-        return url
+        // Read SVG content
+        const svgContent = await response.text()
+
+        // Save to cache
+        await Bun.write(cachePath, svgContent)
+
+        log.debug('Avatar fetched and cached', { sessionId, seed })
+        return `/api/avatars/${seed}`
       }
 
       if (response.status >= 400 && response.status < 500) {
@@ -75,13 +113,4 @@ export async function fetchBitcoinFace(sessionId: string): Promise<string | null
 
   log.warn('Avatar fetch exhausted retries', { sessionId })
   return null
-}
-
-/**
- * Generate a fallback avatar URL (identicon-style)
- */
-export function getFallbackAvatarUrl(sessionId: string): string {
-  // Use a simple identicon service as fallback
-  const hash = sessionId.substring(0, 8)
-  return `https://api.dicebear.com/7.x/identicon/svg?seed=${hash}`
 }

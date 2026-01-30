@@ -12,6 +12,7 @@ const log = createLogger('websocket')
 export interface WsData {
   sessionId: string
   connectedAt: string
+  lastPong: number
 }
 
 /**
@@ -25,7 +26,7 @@ export const wsHandlers = {
     const sessionId = crypto.randomUUID()
     const connectedAt = new Date().toISOString()
 
-    ws.data = { sessionId, connectedAt }
+    ws.data = { sessionId, connectedAt, lastPong: Date.now() }
 
     addClient(ws)
 
@@ -70,6 +71,13 @@ export const wsHandlers = {
    */
   drain(ws: ServerWebSocket<WsData>): void {
     onDrain(ws)
+  },
+
+  /**
+   * Called when a pong is received from the client
+   */
+  pong(ws: ServerWebSocket<WsData>, data: Buffer): void {
+    ws.data.lastPong = Date.now()
   },
 }
 

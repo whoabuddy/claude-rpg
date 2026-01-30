@@ -44,6 +44,9 @@ export const ROUTES: Route[] = [
   { method: 'GET', pattern: '/api/companions', handler: 'listCompanions' },
   { method: 'GET', pattern: '/api/companions/:id', handler: 'getCompanion' },
 
+  // Competitions (Leaderboards)
+  { method: 'GET', pattern: '/api/competitions', handler: 'listCompetitions' },
+
   // Quests
   { method: 'GET', pattern: '/api/quests', handler: 'listQuests' },
   { method: 'GET', pattern: '/api/quests/:id', handler: 'getQuest' },
@@ -60,6 +63,9 @@ export const ROUTES: Route[] = [
   // XP
   { method: 'GET', pattern: '/api/xp/summary', handler: 'xpSummary' },
   { method: 'GET', pattern: '/api/xp/timeline', handler: 'xpTimeline' },
+
+  // Avatars
+  { method: 'GET', pattern: '/api/avatars/:seed', handler: 'getAvatar' },
 
   // Transcription
   { method: 'POST', pattern: '/api/transcribe', handler: 'transcribeAudio' },
@@ -109,9 +115,9 @@ function matchPattern(pattern: string, pathname: string): Record<string, string>
     const pathPart = pathParts[i]
 
     if (patternPart.startsWith(':')) {
-      // Param capture
+      // Param capture (decode URL-encoded values like %250 -> %0)
       const paramName = patternPart.slice(1)
-      params[paramName] = pathPart
+      params[paramName] = decodeURIComponent(pathPart)
     } else if (patternPart !== pathPart) {
       // Literal mismatch
       return null

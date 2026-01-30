@@ -17,8 +17,9 @@ export async function handleRequest(request: Request): Promise<Response> {
   const url = new URL(request.url)
   const method = request.method
   const pathname = url.pathname
+  const origin = request.headers.get('Origin') || undefined
 
-  log.debug('Request received', { method, pathname })
+  log.debug('Request received', { method, pathname, origin })
 
   // Match route
   const matched = matchRoute(method, pathname)
@@ -27,7 +28,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     return jsonResponse({
       success: false,
       error: { code: 'NOT_FOUND', message: `Route not found: ${method} ${pathname}` },
-    }, 404)
+    }, 404, origin)
   }
 
   const { route, params } = matched
@@ -59,11 +60,11 @@ export async function handleRequest(request: Request): Promise<Response> {
       return jsonResponse({
         success: false,
         error: { code: 'INTERNAL_ERROR', message: 'Handler not found' },
-      }, 500)
+      }, 500, origin)
     }
 
     // Call handler with appropriate args based on handler name and available data
-    let result: ApiResponse<unknown>
+    let result: ApiResponse<unknown> | Response
     const hasParams = Object.keys(params).length > 0
 
     // Handlers that need query params (check first, before generic cases)
@@ -86,8 +87,13 @@ export async function handleRequest(request: Request): Promise<Response> {
       result = await handler(params)
     }
 
+    // Some handlers return raw Response (e.g., getAvatar for SVG content)
+    if (result instanceof Response) {
+      return result
+    }
+
     const status = result.success ? 200 : (result.error?.code === 'NOT_FOUND' ? 404 : 400)
-    return jsonResponse(result, status)
+    return jsonResponse(result, status, origin)
   } catch (error) {
     log.error('Handler error', {
       handler: route.handler,
@@ -97,19 +103,22 @@ export async function handleRequest(request: Request): Promise<Response> {
     return jsonResponse({
       success: false,
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
-    }, 500)
+    }, 500, origin)
   }
 }
 
 /**
- * Create JSON response
+ * Create JSON response with CORS headers
  */
-function jsonResponse(data: unknown, status = 200): Response {
+function jsonResponse(data: unknown, status = 200, origin?: string): Response {
+  // Use request origin if provided, otherwise allow all (for local dev)
+  const allowOrigin = origin || '*'
+
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': allowOrigin,
       'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },
@@ -119,11 +128,14 @@ function jsonResponse(data: unknown, status = 200): Response {
 /**
  * Handle CORS preflight
  */
-export function handleCors(): Response {
+export function handleCors(request: Request): Response {
+  // Use request origin if provided, otherwise allow all (for local dev)
+  const origin = request.headers.get('Origin') || '*'
+
   return new Response(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Max-Age': '86400',

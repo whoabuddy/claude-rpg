@@ -32,12 +32,15 @@ beforeEach(() => {
 function createPane(overrides: Partial<TmuxPane> = {}): TmuxPane {
   return {
     id: 'pane-1',
-    paneIndex: 0,
+    index: 0,
     active: true,
+    width: 80,
+    height: 24,
     cwd: '/home/user/project',
     process: {
       type: 'shell',
       command: 'bash',
+      pid: 1234,
     },
     ...overrides,
   } as TmuxPane

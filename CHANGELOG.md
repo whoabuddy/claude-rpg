@@ -1,5 +1,80 @@
 # Changelog
 
+## [2.0.0] - 2026-01-30
+
+### Major Release: Stability and Reliability Improvements
+
+This release focuses on fixing critical issues identified in v1.x, ensuring stable operation through Cloudflare tunnels, and completing unimplemented features. All core data flows are now working correctly with comprehensive test coverage.
+
+### Added
+
+#### WebSocket Heartbeat System
+- **feat(server):** add heartbeat tracking to WebSocket handlers ([10d35a5](https://github.com/whoabuddy/claude-rpg/commit/10d35a5))
+- **feat(server):** create heartbeat module for connection keepalive ([f894384](https://github.com/whoabuddy/claude-rpg/commit/f894384))
+- **feat(server):** wire heartbeat into server lifecycle ([eeea877](https://github.com/whoabuddy/claude-rpg/commit/eeea877))
+
+Implements ping/pong mechanism to keep WebSocket connections alive through reverse proxies and tunnels. Prevents silent connection timeouts after ~100s of inactivity.
+
+#### Avatar System Improvements
+- **feat(server):** add /api/avatars/:seed endpoint to serve cached avatars ([d6d13a6](https://github.com/whoabuddy/claude-rpg/commit/d6d13a6))
+
+Local caching endpoint for Bitcoin faces avatars, reducing external API calls and improving reliability.
+
+### Fixed
+
+#### Terminal Content Data Flow
+- **fix(client):** update usePaneTerminal hook to use Zustand store ([04d60ff](https://github.com/whoabuddy/claude-rpg/commit/04d60ff))
+- **feat(server):** add terminal capture and broadcast to polling loop ([b9f1bb8](https://github.com/whoabuddy/claude-rpg/commit/b9f1bb8))
+- **fix(server):** correct terminal_output broadcast message structure ([b657506](https://github.com/whoabuddy/claude-rpg/commit/b657506))
+- **fix(server):** update TerminalOutputMessage type to use payload wrapper ([13bf89d](https://github.com/whoabuddy/claude-rpg/commit/13bf89d))
+
+Restored terminal content visibility by fixing broken data pipeline. Terminal content now flows from tmux poller → WebSocket → Zustand store → React components correctly.
+
+#### Avatar Loading
+- **fix(server):** use correct bitcoinfaces API and add local caching ([1e99495](https://github.com/whoabuddy/claude-rpg/commit/1e99495))
+- **fix(client):** add error handling to PaneAvatar component ([c01ef70](https://github.com/whoabuddy/claude-rpg/commit/c01ef70))
+- **fix(server):** remove unused getFallbackAvatarUrl export ([09ae644](https://github.com/whoabuddy/claude-rpg/commit/09ae644))
+
+Fixed avatar API endpoint (now uses `/api/get-image/<seed>`), added local disk caching, removed dicebear fallback. UI now shows initials gracefully when avatars fail to load.
+
+#### Security and Configuration
+- **fix(server):** use request origin for CORS instead of wildcard ([8158c04](https://github.com/whoabuddy/claude-rpg/commit/8158c04))
+
+Replaced overly permissive `*` CORS with request origin validation for better security.
+
+#### Feature Completion
+- **fix(server):** enforce challenge XP service initialization ([e453020](https://github.com/whoabuddy/claude-rpg/commit/e453020))
+
+Properly initialized challenge XP service that was previously unimplemented, enabling challenge tracking.
+
+### Documentation
+
+- **docs(server):** document why tmux session attached status is hardcoded ([fdc14dd](https://github.com/whoabuddy/claude-rpg/commit/fdc14dd))
+
+Added explanation for tmux attachment status implementation decision.
+
+### Chore
+
+- **chore(server):** replace console.error with logger in whisper module ([971efc2](https://github.com/whoabuddy/claude-rpg/commit/971efc2))
+
+Standardized logging across all modules for consistency.
+
+### Breaking Changes
+
+None. This release maintains full backward compatibility with v1.x databases and configurations.
+
+### Testing
+
+- All 185 tests passing
+- Full build verification completed
+- Manual testing through Cloudflare tunnel confirmed stable
+
+### Migration Notes
+
+No migration required. Existing installations will work without changes.
+
+---
+
 ## [1.11.1](https://github.com/whoabuddy/claude-rpg/compare/v1.11.0...v1.11.1) (2026-01-29)
 
 

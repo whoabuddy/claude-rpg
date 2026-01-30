@@ -196,6 +196,7 @@ To audit: compare Claude Code release notes (focus on hooks, terminal UI, and pr
 | `/api/quests` | POST | Create quest (internal, from skill events) |
 | `/api/quests/:id` | PATCH | Update quest status (body: `{ status }`) |
 | `/api/transcribe` | POST | Transcribe audio via whisper.cpp |
+| `/api/avatars/:seed` | GET | Serve cached Bitcoin face avatar SVG |
 | `/api/admin/backends` | GET | Probe production (:4011) and dev (:4012) backends |
 | `/api/admin/backend` | POST | Switch active backend (`{ mode: "production" \| "dev" }`) |
 
@@ -241,3 +242,12 @@ When a client's send buffer exceeds 64KB, the server pauses non-critical message
 - **Low priority** (dropped when buffered): `terminal_output`, `event`
 
 Resumes when buffer drops below 16KB.
+
+### WebSocket Heartbeat
+
+The server implements a ping/pong heartbeat mechanism to keep connections alive through reverse proxies and Cloudflare tunnels:
+
+- Server sends ping every 30s (configurable via `wsHeartbeatInterval`)
+- Tracks last pong time from each client
+- Closes stale connections after 90s of no response
+- Prevents silent connection timeouts (especially through tunnels which timeout after ~100s of inactivity)

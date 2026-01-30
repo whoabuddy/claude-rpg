@@ -4,7 +4,7 @@
 
 import { createLogger } from '../lib/logger'
 import { classifyProcess, getProcessCwd } from './process'
-import { isTmuxRunning } from './commands'
+import { isTmuxRunning, capturePane } from './commands'
 import { buildClaudeSessionInfo } from './session-builder'
 import type { TmuxWindow, TmuxPane, TmuxState, PaneProcessType, RepoInfo } from './types'
 
@@ -132,6 +132,19 @@ export async function pollTmux(): Promise<TmuxState> {
           claudeSession = await buildClaudeSessionInfo(p.paneId, undefined, cwd)
         }
 
+        // Capture terminal content for Claude panes
+        let terminalContent: string | undefined
+        if (processType === 'claude') {
+          try {
+            terminalContent = await capturePane(p.paneId, 50)
+          } catch (error) {
+            log.debug('Failed to capture terminal content', {
+              paneId: p.paneId,
+              error: error instanceof Error ? error.message : String(error),
+            })
+          }
+        }
+
         return {
           id: p.paneId,
           windowId: p.windowId,  // Keep for internal grouping
@@ -147,6 +160,7 @@ export async function pollTmux(): Promise<TmuxState> {
           },
           cwd,
           repo,
+          terminalContent,
         }
       })
     )
@@ -172,7 +186,9 @@ export async function pollTmux(): Promise<TmuxState> {
 
     const sessions = Array.from(sessionMap.entries()).map(([name, wins]) => ({
       name,
-      attached: true, // TODO: Check actual attachment status
+      // Attached status is not used by client or server logic, so hardcoded true is acceptable.
+      // Could be retrieved with: tmux list-sessions -F '#{session_name}:#{session_attached}'
+      attached: true,
       windows: wins,
     }))
 

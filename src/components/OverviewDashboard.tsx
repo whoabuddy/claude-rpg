@@ -2,7 +2,6 @@ import { useMemo, useState, useRef, useEffect, useCallback, memo } from 'react'
 import type { TmuxWindow, TmuxPane } from '@shared/types'
 import { PaneCard } from './PaneCard'
 import { ConnectionBanner } from './ConnectionStatus'
-import { StatusPill } from './StatusPill'
 import { usePaneActions } from '../contexts/PaneActionsContext'
 import { ActionButton } from './ActionButton'
 import { closeWindow } from '../lib/api'
@@ -21,8 +20,6 @@ interface OverviewDashboardProps {
   onNewPane: (windowId: string) => void
   onCreateWindow: (sessionName: string, windowName: string) => Promise<boolean>
   onRenameWindow: (windowId: string, windowName: string) => Promise<{ ok: boolean; error?: string }>
-  onNavigateToCompetitions: () => void
-  onNavigateToQuests?: () => void
 }
 
 interface WindowGroup {
@@ -74,10 +71,8 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   onNewPane,
   onCreateWindow,
   onRenameWindow,
-  onNavigateToCompetitions,
-  onNavigateToQuests,
 }: OverviewDashboardProps) {
-  const { rpgEnabled, onExpandPane } = usePaneActions()
+  const { onExpandPane } = usePaneActions()
   const [collapsedWindows, setCollapsedWindows] = useState<Set<string>>(new Set())
   const [showCreateWindow, setShowCreateWindow] = useState(false)
   const [newWindowName, setNewWindowName] = useState('')
@@ -233,13 +228,6 @@ export const OverviewDashboard = memo(function OverviewDashboard({
               onClick={toggleAllWindows}
             />
           )}
-          {rpgEnabled && onNavigateToQuests && (
-            <ActionButton icon="Q" label="Quests" shortLabel="Q" variant="ghost" onClick={onNavigateToQuests} className="hidden sm:flex" />
-          )}
-          {rpgEnabled && (
-            <ActionButton icon="🏆" label="Leaderboard" shortLabel="LB" variant="ghost" onClick={onNavigateToCompetitions} className="hidden sm:flex" />
-          )}
-          <StatusPill connected={connected} />
         </div>
       </div>
 
@@ -512,16 +500,16 @@ function WorkersSummary({ windows, onExpandPane }: WorkersSummaryProps) {
                 >
                   {/* Status dot */}
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDotClass(status)}`} />
-                  {/* Name */}
-                  <span className="text-sm text-rpg-text font-medium truncate w-16 flex-shrink-0">
+                  {/* Name - more space for full names */}
+                  <span className="text-sm text-rpg-text font-medium truncate min-w-[80px] max-w-[120px] flex-shrink-0">
                     {session.name}
                   </span>
-                  {/* Repo */}
-                  <span className="text-xs text-rpg-accent truncate max-w-[120px] flex-shrink-0">
+                  {/* Repo - responsive width */}
+                  <span className="text-xs text-rpg-accent truncate max-w-[100px] sm:max-w-[120px] flex-shrink-0">
                     {repoLabel}
                   </span>
-                  {/* Activity */}
-                  <span className="text-xs text-rpg-text-dim truncate flex-1 min-w-0">
+                  {/* Activity - more space on desktop */}
+                  <span className="text-xs text-rpg-text-dim truncate flex-1 min-w-0 max-w-[200px] sm:max-w-none">
                     {activity || STATUS_LABELS[status] || 'Ready'}
                   </span>
                   {/* Subagent badge */}

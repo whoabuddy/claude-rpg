@@ -169,7 +169,18 @@ export const useStore = create<AppState>()(
       // PANE ACTIONS
       // ═════════════════════════════════════════════════════════════════════
 
-      setWindows: (windows) => set({ windows }),
+      setWindows: (windows) => set((state) => {
+        // Also populate terminalCache from panes that have terminalContent
+        const terminalCache = new Map(state.terminalCache)
+        for (const window of windows) {
+          for (const pane of window.panes) {
+            if (pane.terminalContent) {
+              terminalCache.set(pane.id, pane.terminalContent)
+            }
+          }
+        }
+        return { windows, terminalCache }
+      }),
 
       updatePane: (pane) => set((state) => {
         const windows = state.windows.map(window => ({
