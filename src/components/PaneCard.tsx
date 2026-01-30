@@ -174,7 +174,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
         onClick={toggleExpanded}
       >
         <div className="px-3 py-2 flex items-center gap-2">
-          <PaneAvatar pane={pane} size="sm" />
+          <PaneAvatar pane={pane} size="sm" activity={activity} />
           {pane.repo ? (
             <>
               <span className="text-sm text-rpg-accent truncate">
@@ -207,7 +207,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
       {/* Header - always visible */}
       <div className="p-3 cursor-pointer" onClick={toggleExpanded}>
         <div className="flex items-center gap-3">
-          <PaneAvatar pane={pane} />
+          <PaneAvatar pane={pane} activity={activity} />
 
           {/* Info */}
           <div className="flex-1 min-w-0">

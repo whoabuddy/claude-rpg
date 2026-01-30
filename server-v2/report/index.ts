@@ -148,6 +148,8 @@ export function generateReport(sinceDaysAgo: number = 1): DailyReport {
 
 /**
  * Get XP events since a timestamp
+ * Note: We fetch all XP events and filter in memory since there's no single
+ * "since" query. For production, would add getXpEventsSince to db/queries.
  */
 function getXpEventsSince(since: string): Array<{
   persona_id: string | null
@@ -155,23 +157,49 @@ function getXpEventsSince(since: string): Array<{
   xp_amount: number
   created_at: string
 }> {
-  const allEvents = queries.getRecentEvents.all(10000) as Array<{
+  // Get all personas and projects
+  const personas = getAllPersonas()
+  const projects = getAllProjects()
+
+  const events: Array<{
     persona_id: string | null
     project_id: string | null
-    event_type: string
-    xp_amount?: number
+    xp_amount: number
     created_at: string
-  }>
+  }> = []
 
-  // Filter XP events since timestamp
-  return allEvents
-    .filter(e => e.created_at >= since)
-    .map(e => ({
-      persona_id: e.persona_id,
-      project_id: e.project_id,
-      xp_amount: e.xp_amount || 0,
-      created_at: e.created_at,
-    }))
+  // Collect XP events from all personas
+  for (const persona of personas) {
+    const personaEvents = queries.getXpEventsByPersona.all(persona.id) as Array<{
+      persona_id: string | null
+      project_id: string | null
+      xp_amount: number
+      created_at: string
+    }>
+
+    events.push(...personaEvents.filter(e => e.created_at >= since))
+  }
+
+  // Collect XP events from all projects
+  for (const project of projects) {
+    const projectEvents = queries.getXpEventsByProject.all(project.id) as Array<{
+      persona_id: string | null
+      project_id: string | null
+      xp_amount: number
+      created_at: string
+    }>
+
+    events.push(...projectEvents.filter(e => e.created_at >= since))
+  }
+
+  // Deduplicate by event ID if present (events may be in both persona and project queries)
+  const seen = new Set<string>()
+  return events.filter(e => {
+    const key = `${e.persona_id}:${e.project_id}:${e.created_at}:${e.xp_amount}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 /**

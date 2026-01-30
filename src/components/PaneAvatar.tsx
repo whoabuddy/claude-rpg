@@ -1,22 +1,25 @@
 import { memo, useState, useEffect } from 'react'
 import type { TmuxPane } from '@shared/types'
+import { ActivityPulse } from './ActivityPulse'
+import type { PaneActivity } from '../store'
 
 interface PaneAvatarProps {
   pane: TmuxPane
   size?: 'sm' | 'md' | 'lg'
+  activity?: PaneActivity
 }
 
-export const PaneAvatar = memo(function PaneAvatar({ pane, size = 'md' }: PaneAvatarProps) {
+export const PaneAvatar = memo(function PaneAvatar({ pane, size = 'md', activity }: PaneAvatarProps) {
   const isClaudePane = pane.process.type === 'claude'
   const session = pane.process.claudeSession
   const [loadError, setLoadError] = useState(false)
 
   const dimensions = {
-    sm: { avatar: 'w-6 h-6', font: 'text-xs', shell: 'w-6 h-6 text-xs' },
-    md: { avatar: 'w-10 h-10', font: 'text-base', shell: 'w-8 h-8 text-sm' },
-    lg: { avatar: 'w-12 h-12', font: 'text-lg', shell: 'w-10 h-10 text-base' },
+    sm: { avatar: 'w-6 h-6', font: 'text-xs', shell: 'w-6 h-6 text-xs', wrapper: 'w-6 h-6' },
+    md: { avatar: 'w-10 h-10', font: 'text-base', shell: 'w-8 h-8 text-sm', wrapper: 'w-10 h-10' },
+    lg: { avatar: 'w-12 h-12', font: 'text-lg', shell: 'w-10 h-10 text-base', wrapper: 'w-12 h-12' },
   }
-  const { avatar: dimension, font: fontSize, shell: shellSize } = dimensions[size]
+  const { avatar: dimension, font: fontSize, shell: shellSize, wrapper: wrapperSize } = dimensions[size]
 
   // Reset error state when avatar changes
   useEffect(() => {
