@@ -1,5 +1,8 @@
 import { existsSync, unlinkSync } from 'fs'
 import { DEFAULTS } from '../../shared/defaults.js'
+import { createLogger } from './logger'
+
+const log = createLogger('whisper')
 
 /**
  * Check if whisper.cpp and the model are available
@@ -71,7 +74,7 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
     // Parse output - whisper outputs text directly
     const text = stdout.trim()
     if (!text && stderr) {
-      console.error('[whisper] stderr:', stderr)
+      log.error('Whisper stderr output', { stderr })
     }
 
     return text
