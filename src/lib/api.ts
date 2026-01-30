@@ -16,7 +16,7 @@ export function fetchInitialData<T>(
   fetch(`${API_URL}/api/${endpoint}`)
     .then(res => res.json())
     .then(data => {
-      if (data.ok && data.data) {
+      if (data.success && data.data) {
         setter(data.data)
       }
     })
