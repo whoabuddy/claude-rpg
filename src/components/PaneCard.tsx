@@ -238,6 +238,13 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
               )}
             </div>
 
+            {/* Last prompt */}
+            {isClaudePane && session?.lastPrompt && (
+              <p className="text-xs text-rpg-text-dim mt-1 truncate">
+                <span className="text-rpg-text-muted">Last:</span> {session.lastPrompt}
+              </p>
+            )}
+
             {/* Quest badge */}
             {activeQuest && questCurrentPhase && (
               <div className="text-xs text-rpg-accent/80 truncate mt-0.5">
@@ -267,14 +274,20 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
               </div>
             ) : (
               <>
+                {(status === 'working' || status === 'waiting') && (
+                  <ActionButton
+                    icon="⏹"
+                    label="Interrupt (Ctrl+C)"
+                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); onSendSignal(pane.id, 'SIGINT') }}
+                    variant="danger"
+                    iconOnly
+                  />
+                )}
                 <ActionButton icon="×" label="Close" onClick={handleCloseClick} variant="danger" iconOnly />
                 <ActionButton icon="↻" label="Refresh" onClick={handleRefresh} iconOnly />
                 <ActionButton icon="⛶" label="Expand" onClick={handleExpand} iconOnly />
               </>
             )}
-            <span className="text-rpg-text-dim text-xs w-4 text-center">
-              {expanded ? '▲' : '▼'}
-            </span>
           </div>
         </div>
       </div>
