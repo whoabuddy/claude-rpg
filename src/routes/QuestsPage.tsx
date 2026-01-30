@@ -97,7 +97,7 @@ function QuestsSection({ quests, activeQuests, pausedQuests, completedQuests, lo
         <div className="text-center py-8 space-y-2">
           <p className="text-rpg-text-dim">No quests yet</p>
           <p className="text-xs text-rpg-text-muted">
-            Run <code className="px-1 py-0.5 bg-rpg-border rounded">/quest "Goal"</code> in Claude Code to create one
+            Run <code className="px-1 py-0.5 bg-rpg-border rounded">/quest-create "Goal"</code> in Claude Code to create one
           </p>
         </div>
       </section>
