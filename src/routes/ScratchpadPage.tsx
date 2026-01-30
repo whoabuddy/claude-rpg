@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { VoiceButton } from '../components/VoiceButton'
 import { NoteCard } from '../components/NoteCard'
 import { CreateIssueModal } from '../components/CreateIssueModal'
 import { PageHeader } from '../components/PageHeader'
+import { TagSuggestions } from '../components/TagSuggestions'
 import type { Note, NoteStatus } from '../../shared/types'
 
 type FilterType = 'all' | NoteStatus
@@ -10,10 +11,23 @@ type FilterType = 'all' | NoteStatus
 /**
  * Quick capture component for fast note entry
  */
-function QuickCapture({ onCapture }: { onCapture: (text: string) => void }) {
+function QuickCapture({
+  onCapture,
+  existingTags,
+}: {
+  onCapture: (text: string) => void
+  existingTags: string[]
+}) {
   const [text, setText] = useState('')
   const [isCapturing, setIsCapturing] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-focus on desktop only (not mobile - keyboard would pop up)
+  useEffect(() => {
+    if (window.innerWidth >= 640) {
+      inputRef.current?.focus()
+    }
+  }, [])
 
   const handleSubmit = async () => {
     if (text.trim() && !isCapturing) {
@@ -37,6 +51,11 @@ function QuickCapture({ onCapture }: { onCapture: (text: string) => void }) {
     setText(prev => prev ? `${prev} ${transcript}` : transcript)
   }
 
+  const handleTagSelect = (tag: string) => {
+    setText(prev => `${prev} #${tag}`)
+    inputRef.current?.focus()
+  }
+
   return (
     <div className="bg-rpg-card border border-rpg-border rounded-lg p-3">
       <textarea
@@ -45,11 +64,25 @@ function QuickCapture({ onCapture }: { onCapture: (text: string) => void }) {
         onChange={e => setText(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Quick thought... (Cmd+Enter to save)"
+        inputMode="text"
+        enterKeyHint="send"
+        autoComplete="off"
+        autoCorrect="on"
+        spellCheck={true}
         className="w-full bg-transparent text-rpg-text placeholder-rpg-text-dim
                    resize-none outline-none text-sm"
         rows={2}
         disabled={isCapturing}
       />
+
+      {/* Tag suggestions */}
+      {existingTags.length > 0 && (
+        <div className="mt-2">
+          <TagSuggestions existingTags={existingTags} onSelect={handleTagSelect} />
+        </div>
+      )}
+
+      {/* Actions */}
       <div className="flex items-center justify-between mt-2">
         <span className="text-xs text-rpg-text-dim">
           {text.length > 0 && `${text.length} chars`}
@@ -64,7 +97,7 @@ function QuickCapture({ onCapture }: { onCapture: (text: string) => void }) {
             onClick={handleSubmit}
             disabled={!text.trim() || isCapturing}
             className="px-3 py-1.5 text-sm bg-rpg-accent text-rpg-bg rounded-lg
-                     disabled:opacity-50 disabled:cursor-not-allowed"
+                     disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-0"
           >
             {isCapturing ? 'Saving...' : 'Save'}
           </button>
@@ -202,6 +235,15 @@ export default function ScratchpadPage() {
     await fetchNotes()
   }, [fetchNotes])
 
+  // Extract unique tags from all notes for suggestions
+  const uniqueTags = useMemo(() => {
+    const tagSet = new Set<string>()
+    notes.forEach(note => {
+      note.tags.forEach(tag => tagSet.add(tag))
+    })
+    return Array.from(tagSet)
+  }, [notes])
+
   return (
     <div className="flex flex-col h-full">
       <PageHeader title="Scratchpad">
@@ -211,7 +253,7 @@ export default function ScratchpadPage() {
       </PageHeader>
       <div className="p-4 space-y-6 flex-1 overflow-y-auto">
       {/* Quick capture */}
-      <QuickCapture onCapture={handleQuickCapture} />
+      <QuickCapture onCapture={handleQuickCapture} existingTags={uniqueTags} />
 
       {/* Filter tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
