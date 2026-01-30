@@ -479,7 +479,7 @@ export function getCompanion(params: Record<string, string>): ApiResponse<unknow
 /**
  * Map server-v2 Quest to shared Quest format (for client compatibility)
  */
-function mapQuestToShared(serverQuest: ServerQuest): SharedQuest {
+export function mapQuestToShared(serverQuest: ServerQuest): SharedQuest {
   // Get project to extract repo name
   const project = serverQuest.projectId ? getProjectById(serverQuest.projectId) : null
   const repoName = project?.name || 'unknown'

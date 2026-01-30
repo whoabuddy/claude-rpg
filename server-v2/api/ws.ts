@@ -5,6 +5,9 @@
 import type { ServerWebSocket } from 'bun'
 import { createLogger } from '../lib/logger'
 import { addClient, removeClient, sendTo, onDrain } from './broadcast'
+import { getAllCompanions } from '../companions'
+import { getActiveQuests } from '../quests'
+import { mapQuestToShared } from './handlers'
 import type { ConnectedMessage } from './messages'
 
 const log = createLogger('websocket')
@@ -37,6 +40,21 @@ export const wsHandlers = {
       timestamp: connectedAt,
     }
     sendTo(ws, message)
+
+    // Send initial companions
+    const companions = getAllCompanions()
+    sendTo(ws, {
+      type: 'companions',
+      payload: companions,
+    })
+
+    // Send initial quests (convert to shared format)
+    const serverQuests = getActiveQuests()
+    const quests = serverQuests.map(mapQuestToShared)
+    sendTo(ws, {
+      type: 'quests_init',
+      payload: quests,
+    })
 
     log.info('WebSocket client connected', { sessionId })
   },
