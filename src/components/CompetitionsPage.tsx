@@ -32,6 +32,7 @@ const CATEGORIES: { id: CompetitionCategory; label: string; icon: string; unit: 
 
 export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavigateBack, onNavigateToProject }: CompetitionsPageProps) {
   const [period, setPeriod] = useState<TimePeriod>('today')
+  const [category, setCategory] = useState<CompetitionCategory>('xp')
   const { competitions, loading, getByCategory } = useCompetitions(period)
 
   // Get companions from store for achievements display
@@ -40,6 +41,10 @@ export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavig
   // Get streak entries from XP competition (all have streak info)
   const xpCompetition = getByCategory('xp')
   const streakEntries: LeaderboardEntry[] = xpCompetition?.entries ?? []
+
+  // Get selected competition
+  const selectedCompetition = getByCategory(category)
+  const selectedCategoryConfig = CATEGORIES.find(c => c.id === category)
 
   // Aggregate all achievements across companions (#37)
   const allAchievements = companions.flatMap(c =>
