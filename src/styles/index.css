@@ -263,3 +263,20 @@ a:focus-visible,
 .error-fade-out {
   animation: fadeOut 0.5s ease-out forwards;
 }
+
+/* Activity pulse ring animation */
+@keyframes pulse-ring {
+  0% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.5s ease-out forwards;
+  pointer-events: none;
+}

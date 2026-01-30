@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { TimePeriod, LeaderboardEntry, Achievement } from '@shared/types'
+import type { TimePeriod, LeaderboardEntry, Achievement, CompetitionCategory } from '@shared/types'
 import { ACHIEVEMENT_CATALOG, getAchievementInfo, RARITY_COLORS, RARITY_BG } from '@shared/achievement-defs'
 import { useStore } from '../store'
 import { useCompetitions } from '../hooks/useCompetitions'
@@ -21,13 +21,14 @@ const PERIOD_LABELS: Record<TimePeriod, string> = {
   all: 'All Time',
 }
 
-const CATEGORY_CONFIG = {
-  xp: { title: 'XP Leaders', unit: 'XP' },
-  commits: { title: 'Commit Champions', unit: '' },
-  tests: { title: 'Test Warriors', unit: '' },
-  tools: { title: 'Tool Masters', unit: '' },
-  prompts: { title: 'Prompt Pioneers', unit: '' },
-}
+const CATEGORIES: { id: CompetitionCategory; label: string; icon: string; unit: string }[] = [
+  { id: 'xp', label: 'XP', icon: '⚡', unit: 'XP' },
+  { id: 'commits', label: 'Commits', icon: '📝', unit: '' },
+  { id: 'tests', label: 'Tests', icon: '✓', unit: '' },
+  { id: 'tools', label: 'Tools', icon: '🔧', unit: '' },
+  { id: 'prompts', label: 'Prompts', icon: '💬', unit: '' },
+  { id: 'quests', label: 'Quests', icon: '📜', unit: '' },
+]
 
 export function CompetitionsPage({ connected, reconnectAttempt, onRetry, onNavigateBack, onNavigateToProject }: CompetitionsPageProps) {
   const [period, setPeriod] = useState<TimePeriod>('today')
