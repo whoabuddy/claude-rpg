@@ -25,6 +25,9 @@ data/
 
 # Quest planning and state (LLM coordination, not source code)
 .planning/
+.quest/
+.quests/
+.claude/quests/
 /quests/
 !server-v2/quests/
 
