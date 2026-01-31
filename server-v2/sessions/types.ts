@@ -10,6 +10,16 @@ export interface SessionError {
   timestamp: number
 }
 
+/**
+ * Subagent info for tracking active subagents
+ */
+export interface SubagentInfo {
+  id: string
+  description?: string
+  startedAt: number
+  isCurrentContext?: boolean
+}
+
 export interface ClaudeSession {
   id: string
   paneId: string
@@ -23,6 +33,7 @@ export interface ClaudeSession {
   terminalContent?: string
   terminalConfidence?: number
   lastError?: SessionError
+  activeSubagents?: SubagentInfo[] // Running subagents (guard against premature idle)
 }
 
 export interface SessionUpdate {
@@ -30,3 +41,4 @@ export interface SessionUpdate {
   source: 'hook' | 'terminal' | 'reconciler'
   reason?: string
 }
+

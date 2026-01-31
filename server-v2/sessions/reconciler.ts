@@ -21,6 +21,7 @@ export interface ReconciliationInput {
   timeSinceHookChange: number // ms since last hook status change
   timeSinceTerminalChange: number // ms since terminal content changed
   timeSinceHookEvent?: number // ms since last hook event (for precedence lock)
+  hasActiveSubagents?: boolean // Guard: don't idle if subagents are still running
 }
 
 export interface ReconciliationResult {
@@ -34,7 +35,7 @@ export interface ReconciliationResult {
  * Reconcile hook state with terminal state
  */
 export function reconcile(input: ReconciliationInput): ReconciliationResult {
-  const { hookStatus, terminalDetection, timeSinceHookChange, timeSinceTerminalChange, timeSinceHookEvent } = input
+  const { hookStatus, terminalDetection, timeSinceHookChange, timeSinceTerminalChange, timeSinceHookEvent, hasActiveSubagents } = input
 
   log.debug('Reconciling session state', {
     hookStatus,
@@ -43,6 +44,7 @@ export function reconcile(input: ReconciliationInput): ReconciliationResult {
     timeSinceHookChange,
     timeSinceTerminalChange,
     timeSinceHookEvent,
+    hasActiveSubagents,
   })
 
   // Rule 1: Terminal shows prompt while hook says working → trust terminal (waiting)
@@ -89,12 +91,14 @@ export function reconcile(input: ReconciliationInput): ReconciliationResult {
 
   // Rule 4: Hook says working, terminal idle for 10s+ → missed stop hook
   // Respect hook precedence: don't override if hook event was recent
+  // Guard: don't idle if subagents are still running
   if (
     hookStatus === 'working' &&
     terminalDetection.status === 'idle' &&
     terminalDetection.confidence > 0.6 &&
     timeSinceTerminalChange > IDLE_TIMEOUT_MS &&
-    (timeSinceHookEvent === undefined || timeSinceHookEvent > HOOK_PRECEDENCE_MS)
+    (timeSinceHookEvent === undefined || timeSinceHookEvent > HOOK_PRECEDENCE_MS) &&
+    !hasActiveSubagents
   ) {
     return {
       status: 'idle',
@@ -106,11 +110,13 @@ export function reconcile(input: ReconciliationInput): ReconciliationResult {
 
   // Rule 5: Hook says working, terminal unknown for 15s+ → assume done
   // Respect hook precedence: don't override if hook event was recent
+  // Guard: don't idle if subagents are still running
   if (
     hookStatus === 'working' &&
     terminalDetection.status === 'unknown' &&
     timeSinceHookChange > UNKNOWN_TIMEOUT_MS &&
-    (timeSinceHookEvent === undefined || timeSinceHookEvent > HOOK_PRECEDENCE_MS)
+    (timeSinceHookEvent === undefined || timeSinceHookEvent > HOOK_PRECEDENCE_MS) &&
+    !hasActiveSubagents
   ) {
     return {
       status: 'idle',

@@ -116,6 +116,9 @@ export async function updateFromTerminal(paneId: string, content: string): Promi
   const hookChangeTime = new Date(session.statusChangedAt).getTime()
   const terminalChangeTime = terminalChangeTimestamps.get(paneId) || Date.now()
 
+  // Calculate hasActiveSubagents guard
+  const hasActiveSubagents = (session.activeSubagents?.length ?? 0) > 0
+
   // Reconcile
   const result = reconcile({
     hookStatus: session.status,
@@ -123,6 +126,7 @@ export async function updateFromTerminal(paneId: string, content: string): Promi
     timeSinceHookChange: Date.now() - hookChangeTime,
     timeSinceTerminalChange: Date.now() - terminalChangeTime,
     timeSinceHookEvent: session.lastHookUpdateAt ? Date.now() - session.lastHookUpdateAt : Infinity,
+    hasActiveSubagents,
   })
 
   if (result.status !== session.status) {
