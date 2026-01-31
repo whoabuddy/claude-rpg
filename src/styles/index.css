@@ -280,3 +280,19 @@ a:focus-visible,
   animation: pulse-ring 1.5s ease-out forwards;
   pointer-events: none;
 }
+
+/* Slide panel animation */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 200ms ease-out;
+}
