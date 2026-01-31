@@ -17,7 +17,6 @@ import { TerminalPromptUI } from './TerminalPromptUI'
 import { PaneInput } from './PaneInput'
 import { ClaudeActivity } from './ClaudeActivity'
 import { GitHubLinks } from './GitHubLinks'
-import { SessionStatsBar } from './SessionStatsBar'
 import { ActionButton } from './ActionButton'
 
 interface PaneCardProps {
@@ -49,7 +48,7 @@ function truncate(text: string, maxLength: number): string {
 }
 
 export const PaneCard = memo(function PaneCard({ pane, window, compact = false }: PaneCardProps) {
-  const { onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onClosePane, rpgEnabled } = usePaneActions()
+  const { onSendPrompt, onSendSignal, onDismissWaiting, onExpandPane, onRefreshPane, onClosePane } = usePaneActions()
   const [expanded, setExpanded] = useState(false)
   const [visibleError, setVisibleError] = useState<SessionError | null>(null)
   const [fadingOut, setFadingOut] = useState(false)
@@ -183,44 +182,40 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
     sendArrowKey(pane.id, direction)
   }, [pane.id])
 
-  // Compact mode: simpler display for idle panes
+  // Compact mode: minimal display for idle panes
   if (compact && !expanded) {
     return (
       <div
-        className={`rounded-lg border ${theme.border} bg-rpg-card card-interactive cursor-pointer hover:border-rpg-accent`}
+        className={`rounded border ${theme.border} bg-rpg-card card-interactive cursor-pointer hover:border-rpg-accent`}
         onClick={toggleExpanded}
       >
-        <div className="px-3 py-2 flex items-center gap-2">
-          <PaneAvatar pane={pane} size="sm" activity={activity} />
+        <div className="px-2 py-1.5 flex items-center gap-2 min-h-[36px]">
           {pane.repo ? (
             <>
-              <span className="text-sm text-rpg-accent truncate">
+              <span className="text-xs text-rpg-accent truncate">
                 {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
-                {pane.repo.branch && `:${pane.repo.branch}`}
               </span>
               {isClaudePane && session && (
-                <span className="text-xs text-rpg-text-dim truncate">&middot; {session.name}</span>
+                <span className="text-xs text-rpg-text-dim truncate">{session.name}</span>
               )}
             </>
           ) : (
-            <span className="text-sm text-rpg-text-muted truncate">
+            <span className="text-xs text-rpg-text-muted truncate">
               {isClaudePane && session ? session.name : pane.process.command}
             </span>
           )}
-          <div className="flex items-center gap-1.5 ml-auto">
-            <span className={`text-xs font-medium ${theme.text} ${
-              status === 'working' || status === 'typing' || status === 'process' ? 'animate-pulse' : ''
-            }`}>{statusLabel}</span>
-          </div>
+          <span className={`text-xs font-medium ml-auto ${theme.text} ${
+            status === 'working' || status === 'typing' || status === 'process' ? 'animate-pulse' : ''
+          }`}>{statusLabel}</span>
         </div>
       </div>
     )
   }
 
   return (
-    <div className={`rounded-lg border-2 ${theme.border} ${theme.bg} ${theme.glow} transition-all`}>
+    <div className={`rounded border-2 ${theme.border} ${theme.bg} ${theme.glow} transition-all`}>
       {/* Header - always visible */}
-      <div className="p-3 cursor-pointer" onClick={toggleExpanded}>
+      <div className="px-2 py-1.5 cursor-pointer" onClick={toggleExpanded}>
         <div className="flex items-center gap-3">
           <PaneAvatar pane={pane} activity={activity} />
 
@@ -311,7 +306,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
 
       {/* Error details (Claude only) - improved UX with dismiss and fade */}
       {isClaudePane && visibleError && !session?.pendingQuestion && (
-        <div className={`px-3 pb-3 ${fadingOut ? 'error-fade-out' : ''}`}>
+        <div className={`px-2 pb-2 ${fadingOut ? 'error-fade-out' : ''}`}>
           <div className="relative p-2 bg-rpg-error/10 rounded border border-rpg-error/30">
             <button
               onClick={handleDismissError}
@@ -334,12 +329,8 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
 
       {/* Expanded Content */}
       {expanded && (
-        <div className="px-3 pb-3 space-y-2">
+        <div className="px-2 pb-2 space-y-1.5">
           {pane.repo?.org && <GitHubLinks repo={pane.repo} />}
-
-          {rpgEnabled && isClaudePane && session && (
-            <SessionStatsBar stats={session.stats} />
-          )}
 
           {/* Subagent list (#32) */}
           {isClaudePane && session?.activeSubagents && session.activeSubagents.length > 0 && (
