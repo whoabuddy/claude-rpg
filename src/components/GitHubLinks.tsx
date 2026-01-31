@@ -55,7 +55,7 @@ export const GitHubLinks = memo(function GitHubLinks({ repo, iconOnly = false }:
             onClick={e => e.stopPropagation()}
             className={`flex items-center rounded transition-colors min-h-[44px] ${
               iconOnly
-                ? 'min-w-[44px] justify-center bg-rpg-bg-elevated hover:bg-rpg-border'
+                ? 'min-w-[44px] justify-center text-rpg-text-dim hover:text-rpg-text hover:bg-rpg-card-hover'
                 : 'gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border'
             }`}
             title={link.label}

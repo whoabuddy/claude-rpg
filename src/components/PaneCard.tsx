@@ -6,7 +6,7 @@ import { useConfirmAction } from '../hooks/useConfirmAction'
 import { useQuests } from '../hooks/useQuests'
 import { usePaneActivity } from '../store'
 import { getPaneStatus, paneEqual } from '../utils/pane-status'
-import { STATUS_LABELS, STATUS_THEME, getStatusDotClass } from '../constants/status'
+import { STATUS_THEME } from '../constants/status'
 import { usePaneActions } from '../contexts/PaneActionsContext'
 import { QuestionInput } from './QuestionInput'
 import { TerminalDisplay } from './TerminalDisplay'
@@ -138,7 +138,6 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
     || activeQuest?.phases.find(p => p.status === 'pending')
 
   const theme = STATUS_THEME[status as keyof typeof STATUS_THEME] || STATUS_THEME.idle
-  const statusLabel = STATUS_LABELS[status] || status
 
   const toggleExpanded = useCallback(() => setExpanded(prev => !prev), [])
 
@@ -184,38 +183,33 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
     sendArrowKey(pane.id, direction)
   }, [pane.id])
 
-  // Compact mode: game-UI inspired - clear identity, status bar, readable
+  // Compact mode: CWD is primary context, Claude persona is secondary enhancement
   if (compact && !expanded) {
-    const isPulsing = status === 'working' || status === 'typing' || status === 'process'
-    const name = isClaudePane && session ? session.name : pane.process.command
+    // CWD display - most important context
+    const cwdDisplay = pane.repo
+      ? pane.repo.name
+      : pane.cwd.split('/').slice(-2).join('/')
 
     return (
       <div
         className={`rounded-lg border-2 ${theme.border} bg-rpg-card cursor-pointer hover:bg-rpg-card-hover active:scale-[0.98] transition-all`}
         onClick={toggleExpanded}
       >
-        {/* Status bar at top - like a health bar */}
-        <div className={`h-1.5 rounded-t-md ${theme.bg}`} />
-
         <div className="px-3 py-2 flex items-center gap-2 min-h-[48px]">
-          {/* Status dot */}
-          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${getStatusDotClass(status)}`} />
+          {/* CWD/Repo - primary info */}
+          <span className="font-medium text-rpg-text truncate min-w-0 flex-1">
+            {cwdDisplay}
+          </span>
 
-          {/* Name - always visible */}
-          <span className="font-medium text-rpg-text truncate max-w-[100px] flex-shrink-0">{name}</span>
-
-          {/* Repo - responsive, fills remaining space */}
-          {pane.repo && (
-            <span className="text-sm text-rpg-accent truncate min-w-0 flex-1">
-              <span className="sm:hidden">{pane.repo.name}</span>
-              <span className="hidden sm:inline">{pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}</span>
+          {/* Claude persona name - secondary, only for Claude panes */}
+          {isClaudePane && session && (
+            <span className="text-sm text-rpg-accent flex-shrink-0">
+              {session.name}
             </span>
           )}
 
-          {/* Last activity */}
-          {session?.lastActivity && (
-            <span className="text-xs text-rpg-text-dim flex-shrink-0">{formatRelativeTime(session.lastActivity)}</span>
-          )}
+          {/* Status badge - always on right */}
+          <StatusIndicator status={status} onDismiss={status === 'waiting' ? handleDismiss : undefined} />
         </div>
       </div>
     )
@@ -223,33 +217,30 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
 
   return (
     <div className={`rounded-lg border-2 ${theme.border} ${theme.glow} transition-all overflow-hidden`}>
-      {/* Status bar at top - like a health/mana bar */}
-      <div className={`h-2 ${theme.bg} ${
-        status === 'working' || status === 'typing' ? 'animate-pulse' : ''
-      }`} />
-
       {/* Header - tap to collapse */}
       <div className="px-3 py-3 cursor-pointer bg-rpg-card hover:bg-rpg-card-hover transition-colors" onClick={toggleExpanded}>
         <div className="flex items-start gap-3">
           <PaneAvatar pane={pane} activity={activity} size="md" />
 
-          {/* Info column */}
+          {/* Info column - CWD first, then Claude-specific info */}
           <div className="flex-1 min-w-0">
-            {/* Name - prominent */}
-            <div className="font-semibold text-base text-rpg-text mb-0.5">
-              {isClaudePane && session ? session.name : pane.process.command}
-            </div>
-
-            {/* Repo - secondary */}
+            {/* CWD/Repo - primary context */}
             {pane.repo ? (
-              <RepoStatusBar repo={pane.repo} compact />
+              <RepoStatusBar repo={pane.repo} compact={false} />
             ) : (
-              <span className="text-sm text-rpg-text-dim">
+              <div className="font-semibold text-base text-rpg-text mb-0.5">
                 {pane.cwd.split('/').slice(-2).join('/')}
-              </span>
+              </div>
             )}
 
-            {/* Activity line */}
+            {/* Claude persona name - secondary, only for Claude panes */}
+            {isClaudePane && session && (
+              <div className="text-sm text-rpg-accent mt-0.5">
+                {session.name}
+              </div>
+            )}
+
+            {/* Activity line - Claude only */}
             {isClaudePane && session && (
               <>
                 <div className="text-sm text-rpg-text-muted mt-1">
@@ -263,7 +254,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
 
             {/* Quest badge */}
             {activeQuest && questCurrentPhase && (
-              <div className="text-sm text-rpg-accent mt-1">
+              <div className="text-sm text-rpg-text-muted mt-1">
                 {activeQuest.name} · Phase {questCurrentPhase.order}/{activeQuest.phases.length}
               </div>
             )}
