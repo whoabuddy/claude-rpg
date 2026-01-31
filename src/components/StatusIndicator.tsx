@@ -28,7 +28,7 @@ export const StatusIndicator = memo(function StatusIndicator({ status, onDismiss
     return (
       <button
         onClick={handleDismiss}
-        className={`px-3 py-2 rounded-lg text-sm font-semibold ${theme.bg} ${theme.text} ${theme.glow} min-w-[72px] min-h-[40px] active:scale-95 transition-all`}
+        className={`px-3 py-2 rounded-lg text-sm font-semibold ${theme.bg} ${theme.text} ${theme.glow} min-w-[72px] min-h-[44px] active:scale-95 transition-all`}
         title="Tap to dismiss"
       >
         {statusLabel}
