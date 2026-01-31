@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Flame } from 'lucide-react'
 import type { Companion } from '@shared/types'
 import { levelFromTotalXP } from '@shared/types'
 import { useStore } from '../store'
-import { RadarChart, calculateStatsRadar } from './RadarChart'
 import { TeamStats } from './TeamStats'
 import { NarrativeSummary } from './NarrativeSummary'
 import { PageHeader } from './PageHeader'
@@ -18,19 +18,7 @@ interface ProjectDetailPageProps {
 
 // Fire icon for streak indicator
 function FireIcon() {
-  return (
-    <svg className="w-4 h-4 inline-block" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M12 2c0 4-3 6-3 10 0 3.31 2.69 6 6 6 1.66 0 3.16-.67 4.24-1.76C18.16 17.33 17 18.99 15 20c-4 2-8 0-9-4-.5-2 0-4 1-6 .5-1 1.5-3 2-4 1-2 3-4 3-4z"
-        className="fill-rpg-streak stroke-rpg-error"
-        strokeWidth="1"
-      />
-      <path
-        d="M12 22c-2.21 0-4-1.79-4-4 0-2 2-4 2-4s2 2 2 4c0 2.21-0 4 0 4z"
-        className="fill-rpg-streak-inner"
-      />
-    </svg>
-  )
+  return <Flame className="w-4 h-4 inline-block text-rpg-streak" />
 }
 
 // Achievement rarity badge colors
@@ -200,19 +188,6 @@ export function ProjectDetailPage({ companionId, connected, onNavigateBack }: Pr
           />
         </div>
       </div>
-
-      {/* Stat Distribution Chart */}
-      {companion.stats.sessionsCompleted > 0 && (
-        <div className="rounded-lg border border-rpg-border bg-rpg-bg-elevated p-4">
-          <h2 className="text-sm font-medium text-rpg-text mb-2">Stat Distribution</h2>
-          <div className="flex justify-center">
-            <RadarChart
-              data={calculateStatsRadar(companion.stats)}
-              size={220}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Stats Overview Grid */}
       <div className="grid grid-cols-2 gap-3">

@@ -7,7 +7,7 @@ import { Layout } from './components/Layout'
 const DashboardPage = lazy(() => import('./routes/DashboardPage'))
 const ProjectDetailPage = lazy(() => import('./routes/ProjectDetailPage'))
 const QuestsPage = lazy(() => import('./routes/QuestsPage'))
-const LeaderboardPage = lazy(() => import('./routes/LeaderboardPage'))
+const MoltbookPage = lazy(() => import('./routes/MoltbookPage'))
 const SettingsPage = lazy(() => import('./routes/SettingsPage'))
 const TranscribePage = lazy(() => import('./routes/TranscribePage'))
 const ScratchpadPage = lazy(() => import('./routes/ScratchpadPage'))
@@ -33,7 +33,7 @@ export default function App() {
             <Route index element={<DashboardPage />} />
             <Route path="projects/:id" element={<ProjectDetailPage />} />
             <Route path="quests" element={<QuestsPage />} />
-            <Route path="leaderboard" element={<LeaderboardPage />} />
+            <Route path="moltbook" element={<MoltbookPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="transcribe" element={<TranscribePage />} />
             <Route path="scratchpad" element={<ScratchpadPage />} />

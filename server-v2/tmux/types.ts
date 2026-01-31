@@ -23,11 +23,6 @@ export interface PaneProcess {
 // ClaudeSessionInfo for v2 (matches shared/types.ts for client compatibility)
 export type PersonaTier = 'novice' | 'apprentice' | 'journeyman' | 'expert' | 'master'
 
-export interface PersonaPersonality {
-  backstory: string | null
-  quirk: string | null
-}
-
 export interface PersonaHealth {
   energy: number
   morale: number
@@ -47,7 +42,6 @@ export interface ClaudeSessionInfo {
   avatarSvg?: string
   tier: PersonaTier
   badges: string[]
-  personality: PersonaPersonality
   health?: PersonaHealth
   lastError?: SessionError
   createdAt: number

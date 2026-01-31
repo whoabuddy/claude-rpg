@@ -85,7 +85,7 @@ export const TerminalDisplay = memo(function TerminalDisplay({ content, onTermin
     <div
       ref={terminalRef}
       onClick={handleClick}
-      className={className || "bg-rpg-bg rounded p-3 text-xs font-mono text-rpg-working overflow-auto max-h-64 whitespace-pre-wrap border border-rpg-border-dim cursor-text"}
+      className={className || "bg-rpg-bg rounded p-2 text-xs font-mono text-rpg-working overflow-auto max-h-48 whitespace-pre-wrap cursor-text"}
     >
       {htmlContent ? (
         <pre className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: htmlContent }} />

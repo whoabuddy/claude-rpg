@@ -219,42 +219,6 @@ a:focus-visible,
   animation: slide-in 200ms ease-out;
 }
 
-/* Celebration overlay animations */
-@keyframes celebration {
-  0% { opacity: 0; transform: scale(0.5); }
-  50% { transform: scale(1.1); }
-  100% { opacity: 1; transform: scale(1); }
-}
-.animate-celebration {
-  animation: celebration 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes celebration-exit {
-  from { opacity: 1; transform: scale(1); }
-  to { opacity: 0; transform: scale(0.8); }
-}
-.animate-celebration-exit {
-  animation: celebration-exit 0.3s ease-out forwards;
-}
-
-@keyframes bounce-once {
-  0%, 100% { transform: translateY(0); }
-  25% { transform: translateY(-15px); }
-  50% { transform: translateY(0); }
-  75% { transform: translateY(-8px); }
-}
-.animate-bounce-once {
-  animation: bounce-once 0.8s ease-out;
-}
-
-@keyframes particle {
-  0% { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(-100px) scale(0.5); }
-}
-.animate-particle {
-  animation: particle 1s ease-out forwards;
-}
-
 /* Error panel fade out */
 @keyframes fadeOut {
   from { opacity: 1; }
@@ -279,4 +243,20 @@ a:focus-visible,
 .animate-pulse-ring {
   animation: pulse-ring 1.5s ease-out forwards;
   pointer-events: none;
+}
+
+/* Slide panel animation */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 200ms ease-out;
 }

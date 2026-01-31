@@ -315,7 +315,7 @@ export function QuestCard({ quest }: QuestCardProps) {
                         {i > 0 && ', '}
                         <span className="text-rpg-accent">{repo}</span>
                       </span>
-                    ))} leaderboard
+                    ))}
                   </div>
                 </div>
               )}

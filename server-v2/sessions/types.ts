@@ -4,10 +4,23 @@
 
 export type SessionStatus = 'idle' | 'typing' | 'working' | 'waiting' | 'error'
 
+export type ErrorClass = 'actionable' | 'expected' | 'transient'
+
 export interface SessionError {
   tool: string
   message?: string
   timestamp: number
+  errorClass: ErrorClass
+}
+
+/**
+ * Subagent info for tracking active subagents
+ */
+export interface SubagentInfo {
+  id: string
+  description?: string
+  startedAt: number
+  isCurrentContext?: boolean
 }
 
 export interface ClaudeSession {
@@ -19,9 +32,11 @@ export interface ClaudeSession {
   statusSource: 'hook' | 'terminal' | 'reconciler'
   statusChangedAt: string
   lastActivityAt: string
+  lastHookUpdateAt?: number // Timestamp of last hook event, for precedence lock
   terminalContent?: string
   terminalConfidence?: number
   lastError?: SessionError
+  activeSubagents?: SubagentInfo[] // Running subagents (guard against premature idle)
 }
 
 export interface SessionUpdate {
@@ -29,3 +44,4 @@ export interface SessionUpdate {
   source: 'hook' | 'terminal' | 'reconciler'
   reason?: string
 }
+

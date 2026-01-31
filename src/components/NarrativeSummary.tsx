@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import type { NarrativeSummary } from '../types/project'
 
 interface NarrativeSummaryProps {
@@ -67,16 +68,11 @@ export function NarrativeSummary({ narrative, loading, onExport }: NarrativeSumm
                 className="w-full flex items-center justify-between p-3 hover:bg-rpg-card transition-colors"
               >
                 <span className="text-sm font-medium text-rpg-text">{section.title}</span>
-                <svg
+                <ChevronDown
                   className={`w-4 h-4 text-rpg-text-muted transition-transform ${
                     isExpanded ? 'rotate-180' : ''
                   }`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                />
               </button>
               {isExpanded && (
                 <div className="px-3 pb-3 space-y-2">

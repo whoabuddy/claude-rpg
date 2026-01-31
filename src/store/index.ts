@@ -7,10 +7,15 @@ import type {
   Quest,
   ClaudeEvent,
   XPGain,
-  Competition,
   ClaudeSessionInfo,
   TerminalOutput,
 } from '../../shared/types'
+import type {
+  ActivityEvent,
+  HealthState,
+  OrchestratorState,
+  RelationshipsData,
+} from '../types/moltbook'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STATE SHAPE
@@ -33,10 +38,6 @@ export interface CompanionsState {
 
 export interface QuestsState {
   quests: Quest[]
-}
-
-export interface CompetitionsState {
-  competitions: Competition[]
 }
 
 export interface WorkersState {
@@ -70,21 +71,31 @@ export interface ConnectionState {
 export interface UIState {
   selectedPaneId: string | null
   fullScreenPaneId: string | null
-  activePage: 'overview' | 'competitions' | 'quests' | 'workers' | 'project'
+  activePage: 'overview' | 'competitions' | 'quests' | 'workers' | 'project' | 'moltbook'
   selectedProjectId: string | null
   sidebarOpen: boolean
+}
+
+// Moltbook state
+export interface MoltbookState {
+  moltbookActivity: ActivityEvent[]
+  moltbookHealth: HealthState | null
+  moltbookOrchestratorState: OrchestratorState | null
+  moltbookRelationships: RelationshipsData | null
+  moltbookLoading: boolean
+  moltbookError: string | null
 }
 
 export interface AppState extends
   PanesState,
   CompanionsState,
   QuestsState,
-  CompetitionsState,
   WorkersState,
   EventsState,
   ToastsState,
   ConnectionState,
-  UIState {
+  UIState,
+  MoltbookState {
   // Actions - Panes
   setWindows: (windows: TmuxWindow[]) => void
   updatePane: (pane: TmuxPane) => void
@@ -99,9 +110,6 @@ export interface AppState extends
   // Actions - Quests
   setQuests: (quests: Quest[]) => void
   updateQuest: (quest: Quest) => void
-
-  // Actions - Competitions
-  setCompetitions: (competitions: Competition[]) => void
 
   // Actions - Workers
   setWorkers: (workers: ClaudeSessionInfo[]) => void
@@ -126,6 +134,15 @@ export interface AppState extends
   setActivePage: (page: UIState['activePage']) => void
   setSelectedProject: (projectId: string | null) => void
   toggleSidebar: () => void
+
+  // Actions - Moltbook
+  setMoltbookActivity: (events: ActivityEvent[]) => void
+  addMoltbookActivity: (event: ActivityEvent) => void
+  setMoltbookHealth: (health: HealthState) => void
+  setMoltbookOrchestratorState: (state: OrchestratorState) => void
+  setMoltbookRelationships: (data: RelationshipsData) => void
+  setMoltbookLoading: (loading: boolean) => void
+  setMoltbookError: (error: string | null) => void
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -148,9 +165,6 @@ export const useStore = create<AppState>()(
       // Initial state - Quests
       quests: [],
 
-      // Initial state - Competitions
-      competitions: [],
-
       // Initial state - Workers
       workers: [],
 
@@ -172,6 +186,14 @@ export const useStore = create<AppState>()(
       activePage: 'overview',
       selectedProjectId: null,
       sidebarOpen: false,
+
+      // Initial state - Moltbook
+      moltbookActivity: [],
+      moltbookHealth: null,
+      moltbookOrchestratorState: null,
+      moltbookRelationships: null,
+      moltbookLoading: false,
+      moltbookError: null,
 
       // ═════════════════════════════════════════════════════════════════════
       // PANE ACTIONS
@@ -262,12 +284,6 @@ export const useStore = create<AppState>()(
       }),
 
       // ═════════════════════════════════════════════════════════════════════
-      // COMPETITION ACTIONS
-      // ═════════════════════════════════════════════════════════════════════
-
-      setCompetitions: (competitions) => set({ competitions }),
-
-      // ═════════════════════════════════════════════════════════════════════
       // WORKER ACTIONS
       // ═════════════════════════════════════════════════════════════════════
 
@@ -336,6 +352,26 @@ export const useStore = create<AppState>()(
       setSelectedProject: (projectId) => set({ selectedProjectId: projectId }),
 
     toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
+      // ═════════════════════════════════════════════════════════════════════
+      // MOLTBOOK ACTIONS
+      // ═════════════════════════════════════════════════════════════════════
+
+      setMoltbookActivity: (events) => set({ moltbookActivity: events }),
+
+      addMoltbookActivity: (event) => set((state) => ({
+        moltbookActivity: [event, ...state.moltbookActivity].slice(0, 100)
+      })),
+
+      setMoltbookHealth: (health) => set({ moltbookHealth: health }),
+
+      setMoltbookOrchestratorState: (state) => set({ moltbookOrchestratorState: state }),
+
+      setMoltbookRelationships: (data) => set({ moltbookRelationships: data }),
+
+      setMoltbookLoading: (loading) => set({ moltbookLoading: loading }),
+
+      setMoltbookError: (error) => set({ moltbookError: error }),
   }))
 )
 
@@ -394,11 +430,6 @@ export const useTerminalContent = (paneId: string) => useStore((state) =>
   state.terminalCache.get(paneId)
 )
 
-// Get competition by category and period
-export const useCompetition = (category: string, period: string) => useStore((state) =>
-  state.competitions.find(c => c.category === category && c.period === period)
-)
-
 // Check if connected
 export const useIsConnected = () => useStore((state) => state.status === 'connected')
 
@@ -406,3 +437,11 @@ export const useIsConnected = () => useStore((state) => state.status === 'connec
 export const usePaneActivity = (paneId: string) => useStore((state) =>
   state.paneActivity[paneId]
 )
+
+// Moltbook selectors
+export const useMoltbookActivity = () => useStore((state) => state.moltbookActivity)
+export const useMoltbookHealth = () => useStore((state) => state.moltbookHealth)
+export const useMoltbookOrchestratorState = () => useStore((state) => state.moltbookOrchestratorState)
+export const useMoltbookRelationships = () => useStore((state) => state.moltbookRelationships)
+export const useMoltbookLoading = () => useStore((state) => state.moltbookLoading)
+export const useMoltbookError = () => useStore((state) => state.moltbookError)

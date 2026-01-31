@@ -113,7 +113,6 @@ WebSocket Message → src/lib/websocket.ts → Zustand Store → React Component
 - `windows` - Tmux windows and panes (from WebSocket)
 - `companions` - Projects with XP/stats (from WebSocket)
 - `quests` - Active and completed quests
-- `competitions` - Leaderboards by category/period
 - `workers` - Claude session metadata
 - `recentEvents` / `recentXPGains` - Event history
 - `status` / `reconnectAttempt` - Connection state
@@ -125,6 +124,68 @@ WebSocket Message → src/lib/websocket.ts → Zustand Store → React Component
 - `useCompanion(id)` - Single companion by ID
 - `useActiveQuests()` - Quests with status='active'
 - `useTerminalContent(paneId)` - Cached terminal output
+
+## Narrative System
+
+The narrative system transforms project statistics into story-like summaries for the Project Detail page. It provides a human-readable view of project history and team contributions.
+
+### Data Flow
+
+```
+XP Events (DB) → aggregation.ts → TeamStats → narrative.ts → NarrativeSummary
+                 getProjectTeamStats()         generateNarrative()
+                        ↓                             ↓
+                 Persona contributions         Story paragraphs
+                 Tool usage counts             Markdown document
+                 Git/Quest stats
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `server-v2/projects/aggregation.ts` | Queries xp_events table, computes TeamStats |
+| `server-v2/projects/narrative.ts` | Pure functions to generate story text |
+| `server-v2/api/handlers.ts` | getProjectNarrative handler (line 348) |
+| `src/components/NarrativeSummary.tsx` | Collapsible sections UI component |
+| `src/components/ProjectDetailPage.tsx` | Fetches and displays narrative |
+
+### TeamStats Structure
+
+The `getProjectTeamStats()` function aggregates XP events into:
+
+- **personaContributions**: Each contributor's XP, percentage, commits, and top tools
+- **topTools**: Global tool usage counts (Edit, Bash, Read, etc.)
+- **gitStats**: Total commits, pushes, PRs
+- **questStats**: Quests created, completed, phases executed
+- **activityByDay**: XP distribution by day of week (for peak day detection)
+- **firstActivity/lastActivity**: Timeline boundaries
+
+### Narrative Generation
+
+The `generateNarrative()` function is pure (no side effects) and produces:
+
+1. **Title**: `"{projectName}: A Story of Code"`
+2. **Tagline**: `"Level {N} {projectClass} project"`
+3. **Team Section**: Contributor highlights, solo vs team narrative
+4. **Activity Section**: Work summary, peak days, duration, git rhythm
+5. **Milestones Section**: Level achievements, quest mastery, tool expertise
+6. **Markdown**: Full formatted document for export
+
+### API Usage
+
+```
+GET /api/projects/:id/narrative?format=json   # Full structure with teamStats
+GET /api/projects/:id/narrative?format=markdown  # Plain markdown text
+```
+
+### Testing
+
+Tests in `server-v2/__tests__/narrative.test.ts` cover:
+- Empty project (no activity)
+- Single contributor scenario
+- Multiple contributors with percentages
+- Various edge cases (no commits, level 1, etc.)
 
 ## Claude Code Integration
 
@@ -222,7 +283,7 @@ Model location: `~/.claude-rpg/models/ggml-base.en.bin`
 | `/api/panes/:id/close` | POST | Close/kill pane |
 | `/api/companions` | GET | List all companions (XP/stats/achievements) |
 | `/api/companions/:id/prompt` | POST | Send prompt to companion's active Claude pane |
-| `/api/competitions` | GET | All categories, all time periods |
+| `/api/projects/:id/narrative` | GET | Get project narrative (query: `format=json\|markdown`) |
 | `/api/quests` | GET | List all quests |
 | `/api/quests` | POST | Create quest (internal, from skill events) |
 | `/api/quests/:id` | PATCH | Update quest status (body: `{ status }`) |
@@ -259,7 +320,6 @@ Cloudflare tunnel without needing a second route.
 - `pane_removed` - Pane closed (high priority, always sent)
 - `companions` - All companions on connect
 - `companion_update` - Single companion XP/stats changed
-- `competitions` - All competition leaderboards on connect
 - `event` - New Claude event (low priority, skipped under backpressure)
 - `xp_gain` - XP was awarded
 - `history` - Recent events on connect
@@ -269,7 +329,7 @@ Cloudflare tunnel without needing a second route.
 
 When a client's send buffer exceeds 64KB, the server pauses non-critical messages:
 - **High priority** (always sent): `pane_update`, `pane_removed`
-- **Normal priority** (paused when buffered): `windows`, `companions`, `competitions`, `xp_gain`
+- **Normal priority** (paused when buffered): `windows`, `companions`, `xp_gain`
 - **Low priority** (dropped when buffered): `terminal_output`, `event`
 
 Resumes when buffer drops below 16KB.

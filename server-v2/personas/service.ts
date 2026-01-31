@@ -8,7 +8,6 @@ import { fetchBitcoinFace } from './avatar'
 import { generateNameFromSessionId, generateUniqueName } from './names'
 import { getTierForLevel } from './tiers'
 import { checkBadges } from './badges'
-import { generatePersonality } from './personality'
 import {
   createInitialHealth,
   calculateEnergyDecay,
@@ -86,7 +85,6 @@ export async function getOrCreatePersona(sessionId: string): Promise<Persona> {
       level: 1,
       tier: tier.name,
       badges: [],
-      personality: { backstory: null, quirk: null },
       createdAt: now,
       lastSeenAt: now,
     }
@@ -312,10 +310,6 @@ function mapDbToPersona(row: Record<string, unknown>): Persona {
   const badgesJson = row.badges as string
   const badges = badgesJson ? JSON.parse(badgesJson) : []
 
-  // Get stats and generate personality
-  const stats = getPersonaStats(personaId)
-  const personality = generatePersonality(name, level, stats)
-
   // Get health
   const health = getHealth(personaId)
 
@@ -329,7 +323,6 @@ function mapDbToPersona(row: Record<string, unknown>): Persona {
     level,
     tier: tier.name,
     badges,
-    personality,
     health,
     createdAt: row.created_at as string,
     lastSeenAt: row.last_seen_at as string,

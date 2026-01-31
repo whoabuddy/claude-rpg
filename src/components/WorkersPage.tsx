@@ -1,3 +1,4 @@
+import { ChevronLeft } from 'lucide-react'
 import { useWorkers } from '../hooks/useWorkers'
 import { WorkerCard } from './WorkerCard'
 import { ConnectionBanner, ConnectionDot } from './ConnectionStatus'
@@ -22,9 +23,7 @@ export function WorkersPage({ connected, reconnectAttempt, onRetry, onNavigateBa
             className="p-2 -ml-2 text-rpg-text-muted hover:text-rpg-text transition-colors"
             title="Back to Dashboard"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+<ChevronLeft className="w-5 h-5" />
           </button>
           <h1 className="text-lg font-medium text-rpg-text">Workers</h1>
         </div>

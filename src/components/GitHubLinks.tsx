@@ -3,9 +3,10 @@ import type { RepoInfo } from '@shared/types'
 
 interface GitHubLinksProps {
   repo: RepoInfo
+  iconOnly?: boolean
 }
 
-export const GitHubLinks = memo(function GitHubLinks({ repo }: GitHubLinksProps) {
+export const GitHubLinks = memo(function GitHubLinks({ repo, iconOnly = false }: GitHubLinksProps) {
   if (!repo.org) return null
 
   const baseUrl = `https://github.com/${repo.org}/${repo.name}`
@@ -52,10 +53,15 @@ export const GitHubLinks = memo(function GitHubLinks({ repo }: GitHubLinksProps)
             target="_blank"
             rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border rounded transition-colors min-h-[44px]"
+            className={`flex items-center rounded transition-colors min-h-[44px] ${
+              iconOnly
+                ? 'min-w-[44px] justify-center text-rpg-text-dim hover:text-rpg-text hover:bg-rpg-card-hover'
+                : 'gap-1.5 px-3 py-2 text-sm bg-rpg-bg-elevated hover:bg-rpg-border'
+            }`}
+            title={link.label}
           >
             <span>{link.icon}</span>
-            <span>{link.label}</span>
+            {!iconOnly && <span>{link.label}</span>}
           </a>
         ))}
       </div>

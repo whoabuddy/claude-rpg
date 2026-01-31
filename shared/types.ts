@@ -107,10 +107,13 @@ export interface TerminalPrompt {
   contentHash: string        // For change detection
 }
 
+export type ErrorClass = 'actionable' | 'expected' | 'transient'
+
 export interface SessionError {
   tool: string
   message?: string
   timestamp: number
+  errorClass?: ErrorClass // Classification for display behavior (actionable/expected/transient)
 }
 
 /**
@@ -150,7 +153,6 @@ export interface ClaudeSessionInfo {
   stats?: SessionStats    // Stats for this session (in-memory only)
   tier?: PersonaTier      // Progression tier (based on XP)
   badges?: string[]       // Specialization badge IDs
-  personality?: PersonaPersonality  // Generated personality (backstory/quirk)
   health?: PersonaHealth  // Health meters (energy/morale) - computed by backend
   createdAt: number
   lastActivity: number
@@ -452,36 +454,6 @@ export type QuestEventType =
   | 'quest_completed'
 
 // ═══════════════════════════════════════════════════════════════════════════
-// COMPETITIONS / LEADERBOARDS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export type CompetitionCategory =
-  | 'xp'        // Total XP
-  | 'commits'   // Git commits
-  | 'tests'     // Tests run
-  | 'tools'     // Total tool uses
-  | 'prompts'   // Prompts received
-  | 'quests'    // Quests completed
-
-export type TimePeriod = 'today' | 'week' | 'all'
-
-export interface LeaderboardEntry {
-  companionId: string
-  companionName: string
-  rank: number
-  value: number        // XP, commits, etc.
-  streak: StreakInfo
-  change?: number      // Position change from previous period
-}
-
-export interface Competition {
-  category: CompetitionCategory
-  period: TimePeriod
-  entries: LeaderboardEntry[]
-  updatedAt: number
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 // WEBSOCKET MESSAGES
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -529,7 +501,6 @@ export type ServerMessage =
   | { type: 'xp_gain'; payload: XPGain }
   | { type: 'history'; payload: ClaudeEvent[] }
   | { type: 'terminal_output'; payload: TerminalOutput }
-  | { type: 'competitions'; payload: Competition[] }
   | { type: 'quest_update'; payload: Quest }
   | { type: 'quests_init'; payload: Quest[] }
   | { type: 'quest_xp'; payload: { questId: string; phaseId: string; xp: number; reason: string } }
@@ -556,11 +527,6 @@ export interface ApiResponse<T = unknown> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export type PersonaTier = 'novice' | 'apprentice' | 'journeyman' | 'expert' | 'master'
-
-export interface PersonaPersonality {
-  backstory: string | null
-  quirk: string | null
-}
 
 export interface BadgeDefinition {
   id: string

@@ -14,7 +14,6 @@ import { getProjectTeamStats } from '../projects/aggregation'
 import { generateNarrative } from '../projects/narrative'
 import { getActiveQuests, getQuestById, updateQuestStatus } from '../quests'
 import { getXpByCategory, getXpTimeline } from '../xp'
-import { getAllCompetitions } from '../competitions'
 import { isWhisperAvailable, transcribeAudio as whisperTranscribe } from '../lib/whisper'
 import { cloneRepo } from '../projects/clone'
 import { createNote, getNoteById, getAllNotes, updateNote, deleteNote } from '../notes'
@@ -58,10 +57,23 @@ export function health(): ApiResponse<{ status: string; timestamp: string }> {
 }
 
 /**
+ * Normalize event type to snake_case
+ * Claude Code sends PascalCase (e.g., "PreToolUse" -> "pre_tool_use")
+ */
+function normalizeEventType(raw: string): string {
+  // Already snake_case
+  if (raw.includes('_')) return raw.toLowerCase()
+  // Convert PascalCase to snake_case
+  return raw.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')
+}
+
+/**
  * Handle Claude hook event
  */
 export async function handleEvent(body: HookEventRequest): Promise<ApiResponse<{ received: boolean }>> {
-  const eventType = body.event_type || body.eventType || 'unknown'
+  // Check all possible field names for event type
+  const rawEventType = body.hook_event_name || body.hookType || body.event_type || body.eventType || 'unknown'
+  const eventType = normalizeEventType(rawEventType)
 
   try {
     await processHookEvent(eventType, body)
@@ -474,14 +486,6 @@ export async function cloneGitHubRepo(body: CloneRequest): Promise<ApiResponse<C
 export function listCompanions(): ApiResponse<unknown> {
   const companions = getAllCompanions()
   return { success: true, data: { companions } }
-}
-
-/**
- * List all competitions (leaderboards)
- */
-export function listCompetitions(): ApiResponse<unknown> {
-  const competitions = getAllCompetitions()
-  return { success: true, data: competitions }
 }
 
 /**

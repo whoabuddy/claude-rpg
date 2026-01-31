@@ -6,11 +6,6 @@ import type { PersonaTier } from './tiers'
 
 export type PersonaStatus = 'active' | 'idle' | 'offline'
 
-export interface PersonaPersonality {
-  backstory: string | null
-  quirk: string | null
-}
-
 export interface PersonaHealth {
   energy: number      // 0-100, drains on idle, fills on activity
   morale: number      // 0-100, boosts on success, drops on errors
@@ -27,7 +22,6 @@ export interface Persona {
   level: number
   tier: PersonaTier
   badges: string[]
-  personality: PersonaPersonality
   health: PersonaHealth
   createdAt: string
   lastSeenAt: string

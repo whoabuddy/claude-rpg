@@ -100,25 +100,29 @@ export const WORKING_PATTERNS: Pattern[] = [
 
 /**
  * Patterns indicating idle/ready state
+ *
+ * NOTE: Confidence values intentionally lowered (Phase 4 of v2.6 state machine fixes)
+ * to reduce false positive idle detections from terminal content.
+ * These patterns can match mid-output (test checkmarks, "Done" in tool output).
  */
 export const IDLE_PATTERNS: Pattern[] = [
-  // Completion indicators
+  // Completion indicators (lowered to reduce false positives)
   {
     name: 'task_complete',
     regex: /Task complete|Done|Finished|Complete!/i,
-    confidence: 0.7,
+    confidence: 0.5, // was 0.7 - "Done" appears in many contexts
   },
   {
     name: 'checkmark',
     regex: /[✓✔☑]/,
-    confidence: 0.6,
+    confidence: 0.4, // was 0.6 - very common in test output
   },
 
-  // Ready prompt
+  // Ready prompt (lowered to reduce false positives)
   {
     name: 'claude_prompt',
     regex: /Claude.*>\s*$/m,
-    confidence: 0.8,
+    confidence: 0.6, // was 0.8 - can match mid-output
   },
   {
     name: 'shell_prompt',
@@ -131,11 +135,11 @@ export const IDLE_PATTERNS: Pattern[] = [
  * Patterns indicating an error occurred
  */
 export const ERROR_PATTERNS: Pattern[] = [
-  // Error messages
+  // Error messages (lowered confidence to reduce false positives from tool output)
   {
     name: 'error_message',
     regex: /Error:|ERROR:|Failed:|FAILED:/i,
-    confidence: 0.8,
+    confidence: 0.6,
   },
   {
     name: 'tool_failed',

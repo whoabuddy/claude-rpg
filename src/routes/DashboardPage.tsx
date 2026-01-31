@@ -1,11 +1,13 @@
 import { useMemo, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
 import { useConnectionStatus } from '../hooks/useConnection'
 import { useNotifications, usePaneNotifications } from '../hooks/useNotifications'
 import { PaneActionsProvider, type PaneActionsContextValue } from '../contexts/PaneActionsContext'
 import { OverviewDashboard } from '../components/OverviewDashboard'
 import { FullScreenPane } from '../components/FullScreenPane'
+import { SlidePanel } from '../components/SlidePanel'
+import { QuestsPanel } from '../components/QuestsPanel'
+import { ScratchpadPanel } from '../components/ScratchpadPanel'
 import {
   sendPromptToPane,
   sendSignalToPane,
@@ -18,7 +20,6 @@ import {
 } from '../lib/api'
 
 export default function DashboardPage() {
-  const navigate = useNavigate()
   const { connected, reconnectAttempt, forceReconnect } = useConnectionStatus()
 
   const windows = useStore((state) => state.windows)
@@ -34,6 +35,10 @@ export default function DashboardPage() {
 
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
   const [rpgEnabled] = useState(true)
+
+  // Panel visibility state
+  const [questsPanelOpen, setQuestsPanelOpen] = useState(false)
+  const [scratchpadPanelOpen, setScratchpadPanelOpen] = useState(false)
 
   // Notifications
   const { permission, notify } = useNotifications()
@@ -54,6 +59,12 @@ export default function DashboardPage() {
 
   const handleExpandPane = useCallback((paneId: string) => setFullscreenPaneId(paneId), [])
   const handleCloseFullscreen = useCallback(() => setFullscreenPaneId(null), [])
+
+  // Panel toggle handlers
+  const handleOpenQuests = useCallback(() => setQuestsPanelOpen(true), [])
+  const handleCloseQuests = useCallback(() => setQuestsPanelOpen(false), [])
+  const handleOpenScratchpad = useCallback(() => setScratchpadPanelOpen(true), [])
+  const handleCloseScratchpad = useCallback(() => setScratchpadPanelOpen(false), [])
 
   const paneActions = useMemo<PaneActionsContextValue>(() => ({
     onSendPrompt: sendPromptToPane,
@@ -90,6 +101,8 @@ export default function DashboardPage() {
         onNewPane={createPaneInWindow}
         onCreateWindow={handleCreateWindow}
         onRenameWindow={renameWindow}
+        onOpenQuests={handleOpenQuests}
+        onOpenScratchpad={handleOpenScratchpad}
       />
 
       {fullscreenData && (
@@ -100,6 +113,24 @@ export default function DashboardPage() {
           onClose={handleCloseFullscreen}
         />
       )}
+
+      {/* Quests slide-out panel */}
+      <SlidePanel
+        open={questsPanelOpen}
+        onClose={handleCloseQuests}
+        title="Quests"
+      >
+        <QuestsPanel showProjects={false} />
+      </SlidePanel>
+
+      {/* Scratchpad slide-out panel */}
+      <SlidePanel
+        open={scratchpadPanelOpen}
+        onClose={handleCloseScratchpad}
+        title="Scratchpad"
+      >
+        <ScratchpadPanel autoFocus />
+      </SlidePanel>
     </PaneActionsProvider>
   )
 }

@@ -24,7 +24,6 @@ function buildSessionInfo(persona: Persona, session: ClaudeSession): ClaudeSessi
     status: session.status || 'idle',
     tier: persona.tier,
     badges: persona.badges,
-    personality: persona.personality,
     health: persona.health,
     lastError: session.lastError,
     createdAt: now,
@@ -112,7 +111,6 @@ export function updateClaudeSessionInfo(
         ...sessionInfo,
         tier: persona.tier,
         badges: persona.badges,
-        personality: persona.personality,
         health: persona.health,
         lastActivity: Date.now(),
       }

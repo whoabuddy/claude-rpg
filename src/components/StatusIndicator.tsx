@@ -7,29 +7,45 @@ interface StatusIndicatorProps {
   showLabel?: boolean
 }
 
+/**
+ * Game-UI inspired status badge.
+ * Large enough to tap, color-coded background, clear text.
+ * Like a buff/debuff icon in WoW.
+ */
 export const StatusIndicator = memo(function StatusIndicator({ status, onDismiss, showLabel = true }: StatusIndicatorProps) {
   const theme = STATUS_THEME[status as keyof typeof STATUS_THEME] || STATUS_THEME.idle
   const statusLabel = STATUS_LABELS[status] || status
   const isPulsing = status === 'working' || status === 'typing' || status === 'process'
+  const needsAction = status === 'waiting' || status === 'error'
 
   const handleDismiss = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     onDismiss?.(e)
   }, [onDismiss])
 
+  // Waiting status with dismiss action - larger interactive target
+  if (status === 'waiting' && onDismiss) {
+    return (
+      <button
+        onClick={handleDismiss}
+        className={`px-3 py-2 rounded-lg text-sm font-semibold ${theme.bg} ${theme.text} ${theme.glow} min-w-[72px] min-h-[44px] active:scale-95 transition-all`}
+        title="Tap to dismiss"
+      >
+        {statusLabel}
+      </button>
+    )
+  }
+
+  // Standard status badge
+  if (!showLabel) return null
+
   return (
-    <div className="flex items-center gap-1.5 ml-auto">
-      {status === 'waiting' && onDismiss && (
-        <button
-          onClick={handleDismiss}
-          className="px-1.5 py-0.5 text-xs bg-rpg-idle/30 hover:bg-rpg-idle/50 text-rpg-text-muted rounded transition-colors"
-          title="Dismiss - Claude is waiting for you to type"
-        >
-          ✓
-        </button>
-      )}
-      {showLabel && <span className="text-xs text-rpg-text-muted">{statusLabel}</span>}
-      <div className={`w-2 h-2 rounded-full ${theme.indicator} ${isPulsing ? 'animate-pulse' : ''}`} />
+    <div
+      className={`px-3 py-1.5 rounded-lg text-sm font-medium ${theme.bg} ${theme.text} ${
+        needsAction ? theme.glow : ''
+      } ${isPulsing ? 'animate-pulse' : ''} min-w-[60px] text-center`}
+    >
+      {statusLabel}
     </div>
   )
 })

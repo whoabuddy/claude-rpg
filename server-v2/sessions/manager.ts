@@ -81,6 +81,9 @@ export async function updateFromHook(paneId: string, status: SessionStatus): Pro
     return
   }
 
+  // Track hook event timestamp for precedence lock
+  session.lastHookUpdateAt = Date.now()
+
   await updateSessionStatus(session, {
     status,
     source: 'hook',
@@ -113,12 +116,23 @@ export async function updateFromTerminal(paneId: string, content: string): Promi
   const hookChangeTime = new Date(session.statusChangedAt).getTime()
   const terminalChangeTime = terminalChangeTimestamps.get(paneId) || Date.now()
 
+  // Calculate hasActiveSubagents guard
+  const hasActiveSubagents = (session.activeSubagents?.length ?? 0) > 0
+
+  // Calculate time since error (for error staleness rule)
+  const timeSinceError = session.lastError?.timestamp
+    ? Date.now() - session.lastError.timestamp
+    : undefined
+
   // Reconcile
   const result = reconcile({
     hookStatus: session.status,
     terminalDetection: detection,
     timeSinceHookChange: Date.now() - hookChangeTime,
     timeSinceTerminalChange: Date.now() - terminalChangeTime,
+    timeSinceHookEvent: session.lastHookUpdateAt ? Date.now() - session.lastHookUpdateAt : Infinity,
+    timeSinceError,
+    hasActiveSubagents,
   })
 
   if (result.status !== session.status) {

@@ -5,7 +5,21 @@
 
 import { useStore } from '../store'
 import type { ServerMessage } from '../../shared/types'
+import type { ActivityEvent, HealthState } from '../types/moltbook'
 import { playSoundIfEnabled } from './sounds'
+
+// Extended message types for moltbook
+interface MoltbookActivityMessage {
+  type: 'moltbook_activity'
+  payload: ActivityEvent
+}
+
+interface MoltbookHealthMessage {
+  type: 'moltbook_health'
+  payload: HealthState
+}
+
+type ExtendedServerMessage = ServerMessage | MoltbookActivityMessage | MoltbookHealthMessage
 
 // Use relative WebSocket URL to go through Vite proxy
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -84,7 +98,7 @@ function clearReconnect(): void {
  */
 function handleMessage(event: MessageEvent): void {
   try {
-    const message = JSON.parse(event.data) as ServerMessage
+    const message = JSON.parse(event.data) as ExtendedServerMessage
     const store = useStore.getState()
 
     switch (message.type) {
@@ -142,11 +156,6 @@ function handleMessage(event: MessageEvent): void {
       // XP
       case 'xp_gain':
         store.addXPGain(message.payload)
-        break
-
-      // Competitions
-      case 'competitions':
-        store.setCompetitions(message.payload)
         break
 
       // Quest messages
@@ -218,6 +227,16 @@ function handleMessage(event: MessageEvent): void {
         })
         break
       }
+
+      // Moltbook activity event
+      case 'moltbook_activity':
+        store.addMoltbookActivity(message.payload)
+        break
+
+      // Moltbook health update
+      case 'moltbook_health':
+        store.setMoltbookHealth(message.payload)
+        break
     }
   } catch (e) {
     console.error('[claude-rpg] Error parsing message:', e)
