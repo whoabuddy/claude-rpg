@@ -50,6 +50,9 @@ export interface HookEventRequest {
   toolUseId?: string
   event_type?: string
   eventType?: string
+  // Claude Code uses hook_event_name, our hook script adds hookType
+  hook_event_name?: string
+  hookType?: string
   success?: boolean
   output?: string
   reason?: string

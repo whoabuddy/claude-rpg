@@ -57,10 +57,23 @@ export function health(): ApiResponse<{ status: string; timestamp: string }> {
 }
 
 /**
+ * Normalize event type to snake_case
+ * Claude Code sends PascalCase (e.g., "PreToolUse" -> "pre_tool_use")
+ */
+function normalizeEventType(raw: string): string {
+  // Already snake_case
+  if (raw.includes('_')) return raw.toLowerCase()
+  // Convert PascalCase to snake_case
+  return raw.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')
+}
+
+/**
  * Handle Claude hook event
  */
 export async function handleEvent(body: HookEventRequest): Promise<ApiResponse<{ received: boolean }>> {
-  const eventType = body.event_type || body.eventType || 'unknown'
+  // Check all possible field names for event type
+  const rawEventType = body.hook_event_name || body.hookType || body.event_type || body.eventType || 'unknown'
+  const eventType = normalizeEventType(rawEventType)
 
   try {
     await processHookEvent(eventType, body)
