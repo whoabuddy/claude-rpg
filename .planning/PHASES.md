@@ -170,9 +170,11 @@
 
 ---
 
-## Phase 6: Events Table Retention Policy
+## Phase 6: Events Table Retention Policy [COMPLETED]
 
 **Goal:** Prevent unbounded database growth
+
+**Status:** Completed (2026-01-31)
 
 **Dependencies:** None (can run in parallel)
 
