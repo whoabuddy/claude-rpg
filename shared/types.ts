@@ -150,7 +150,6 @@ export interface ClaudeSessionInfo {
   stats?: SessionStats    // Stats for this session (in-memory only)
   tier?: PersonaTier      // Progression tier (based on XP)
   badges?: string[]       // Specialization badge IDs
-  personality?: PersonaPersonality  // Generated personality (backstory/quirk)
   health?: PersonaHealth  // Health meters (energy/morale) - computed by backend
   createdAt: number
   lastActivity: number
@@ -556,11 +555,6 @@ export interface ApiResponse<T = unknown> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export type PersonaTier = 'novice' | 'apprentice' | 'journeyman' | 'expert' | 'master'
-
-export interface PersonaPersonality {
-  backstory: string | null
-  quirk: string | null
-}
 
 export interface BadgeDefinition {
   id: string
