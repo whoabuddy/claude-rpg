@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { SessionStatus, TmuxWindow, TmuxPane } from '@shared/types'
 import { playSoundIfEnabled } from '../lib/sounds'
+import { notifyDiscordIfConfigured } from '../lib/discord'
 
 const DEFAULT_ICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👹</text></svg>"
 
@@ -96,33 +97,39 @@ function checkClaudeTransitions(
     // to avoid duplicates since both toast and notification may fire
     if (session.status === 'waiting' && prevStatus !== 'waiting' && session.pendingQuestion) {
       const question = session.pendingQuestion.questions[session.pendingQuestion.currentIndex]?.question || 'needs input'
+      const body = `${pane.repo?.name || 'Unknown'}: ${question}`
       notify(`${session.name} needs input`, {
-        body: `${pane.repo?.name || 'Unknown'}: ${question}`,
+        body,
         tag: `pane-${pane.id}`,
         requireInteraction: true,
         icon,
       })
+      notifyDiscordIfConfigured('waiting', `${session.name} needs input`, body)
     }
     // Needs attention: error
     // Note: sound handled by websocket pane_error handler
     else if (session.status === 'error' && prevStatus !== 'error') {
       const errorInfo = session.lastError ? `Error in ${session.lastError.tool}` : 'encountered an error'
+      const body = pane.repo?.name || 'Unknown'
       notify(`${session.name} ${errorInfo}`, {
-        body: pane.repo?.name || 'Unknown',
+        body,
         tag: `pane-${pane.id}`,
         requireInteraction: true,
         icon,
       })
+      notifyDiscordIfConfigured('error', `${session.name} ${errorInfo}`, body)
     }
 
     // Task complete: working → idle
     if (session.status === 'idle' && prevStatus === 'working') {
+      const body = `${pane.repo?.name || 'Task'} complete`
       notify(`${session.name} finished`, {
-        body: `${pane.repo?.name || 'Task'} complete`,
+        body,
         tag: `pane-${pane.id}-done`,
         icon,
       })
       playSoundIfEnabled('complete')
+      notifyDiscordIfConfigured('complete', `${session.name} finished`, body)
     }
 
     return { ...prev, lastStatus: session.status }
