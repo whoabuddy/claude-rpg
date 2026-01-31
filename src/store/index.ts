@@ -7,7 +7,6 @@ import type {
   Quest,
   ClaudeEvent,
   XPGain,
-  Competition,
   ClaudeSessionInfo,
   TerminalOutput,
 } from '../../shared/types'
@@ -33,10 +32,6 @@ export interface CompanionsState {
 
 export interface QuestsState {
   quests: Quest[]
-}
-
-export interface CompetitionsState {
-  competitions: Competition[]
 }
 
 export interface WorkersState {
@@ -79,7 +74,6 @@ export interface AppState extends
   PanesState,
   CompanionsState,
   QuestsState,
-  CompetitionsState,
   WorkersState,
   EventsState,
   ToastsState,
@@ -99,9 +93,6 @@ export interface AppState extends
   // Actions - Quests
   setQuests: (quests: Quest[]) => void
   updateQuest: (quest: Quest) => void
-
-  // Actions - Competitions
-  setCompetitions: (competitions: Competition[]) => void
 
   // Actions - Workers
   setWorkers: (workers: ClaudeSessionInfo[]) => void
@@ -147,9 +138,6 @@ export const useStore = create<AppState>()(
 
       // Initial state - Quests
       quests: [],
-
-      // Initial state - Competitions
-      competitions: [],
 
       // Initial state - Workers
       workers: [],
@@ -260,12 +248,6 @@ export const useStore = create<AppState>()(
           : [...state.quests, quest]
         return { quests }
       }),
-
-      // ═════════════════════════════════════════════════════════════════════
-      // COMPETITION ACTIONS
-      // ═════════════════════════════════════════════════════════════════════
-
-      setCompetitions: (competitions) => set({ competitions }),
 
       // ═════════════════════════════════════════════════════════════════════
       // WORKER ACTIONS
@@ -392,11 +374,6 @@ export const useActiveQuests = () => useStore((state) =>
 // Get terminal content for a pane
 export const useTerminalContent = (paneId: string) => useStore((state) =>
   state.terminalCache.get(paneId)
-)
-
-// Get competition by category and period
-export const useCompetition = (category: string, period: string) => useStore((state) =>
-  state.competitions.find(c => c.category === category && c.period === period)
 )
 
 // Check if connected

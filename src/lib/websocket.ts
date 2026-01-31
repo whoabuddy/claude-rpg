@@ -144,11 +144,6 @@ function handleMessage(event: MessageEvent): void {
         store.addXPGain(message.payload)
         break
 
-      // Competitions
-      case 'competitions':
-        store.setCompetitions(message.payload)
-        break
-
       // Quest messages
       case 'quests_init':
         store.setQuests(message.payload)
