@@ -6,7 +6,7 @@ import { useConfirmAction } from '../hooks/useConfirmAction'
 import { useQuests } from '../hooks/useQuests'
 import { usePaneActivity } from '../store'
 import { getPaneStatus, paneEqual } from '../utils/pane-status'
-import { STATUS_LABELS, STATUS_THEME } from '../constants/status'
+import { STATUS_LABELS, STATUS_THEME, getStatusDotClass } from '../constants/status'
 import { usePaneActions } from '../contexts/PaneActionsContext'
 import { QuestionInput } from './QuestionInput'
 import { TerminalDisplay } from './TerminalDisplay'
@@ -184,6 +184,9 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
 
   // Compact mode: game-UI inspired - clear identity, status bar, readable
   if (compact && !expanded) {
+    const isPulsing = status === 'working' || status === 'typing' || status === 'process'
+    const name = isClaudePane && session ? session.name : pane.process.command
+
     return (
       <div
         className={`rounded-lg border-2 ${theme.border} bg-rpg-card cursor-pointer hover:bg-rpg-card-hover active:scale-[0.98] transition-all`}
@@ -192,25 +195,25 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
         {/* Status bar at top - like a health bar */}
         <div className={`h-1.5 rounded-t-md ${theme.bg}`} />
 
-        <div className="px-3 py-2.5 flex items-center gap-3 min-h-[52px]">
-          {/* Identity: Name + Repo */}
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-rpg-text truncate">
-              {isClaudePane && session ? session.name : pane.process.command}
-            </div>
-            {pane.repo && (
-              <div className="text-sm text-rpg-accent truncate">
-                {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
-              </div>
-            )}
-          </div>
+        <div className="px-3 py-2 flex items-center gap-2 min-h-[48px]">
+          {/* Status dot */}
+          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${getStatusDotClass(status)}`} />
 
-          {/* Status badge - larger, clearer */}
-          <div className={`px-3 py-1.5 rounded-md text-sm font-medium ${theme.bg} ${theme.text} ${
-            status === 'working' || status === 'typing' || status === 'process' ? 'animate-pulse' : ''
-          }`}>
-            {statusLabel}
-          </div>
+          {/* Name - always visible */}
+          <span className="font-medium text-rpg-text truncate max-w-[100px] flex-shrink-0">{name}</span>
+
+          {/* Repo - responsive, fills remaining space */}
+          {pane.repo && (
+            <span className="text-sm text-rpg-accent truncate min-w-0 flex-1">
+              <span className="sm:hidden">{pane.repo.name}</span>
+              <span className="hidden sm:inline">{pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}</span>
+            </span>
+          )}
+
+          {/* Last activity */}
+          {session?.lastActivity && (
+            <span className="text-xs text-rpg-text-dim flex-shrink-0">{formatRelativeTime(session.lastActivity)}</span>
+          )}
         </div>
       </div>
     )
