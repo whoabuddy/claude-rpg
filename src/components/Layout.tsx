@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
-import { LayoutGrid, Settings } from 'lucide-react'
+import { LayoutGrid, Settings, Users } from 'lucide-react'
 import { useStore } from '../store'
 import { useConnectionStatus } from '../hooks/useConnection'
 import { ToastContainer } from './ToastContainer'
@@ -51,6 +51,7 @@ export function Layout() {
           {/* Navigation links - simplified */}
           <nav className="flex-1 p-2 space-y-1">
             <SidebarItem to="/" icon="grid" label="Dashboard" end badge={attentionCount} />
+            <SidebarItem to="/moltbook" icon="moltbook" label="Moltbook" />
           </nav>
 
           {/* Settings at bottom */}
@@ -161,12 +162,13 @@ function SidebarItem({ to, icon, label, badge, end }: SidebarItemProps) {
   )
 }
 
-type IconName = 'grid' | 'settings'
+type IconName = 'grid' | 'settings' | 'moltbook'
 
 // Icon components for navigation
 const NAV_ICONS: Record<IconName, React.FC<{ className?: string }>> = {
   grid: LayoutGrid,
   settings: Settings,
+  moltbook: Users,
 }
 
 function NavIcon({ icon }: { icon: IconName }) {

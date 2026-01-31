@@ -222,3 +222,26 @@ export async function getProjectNarrative(
     return { ok: false, error: error instanceof Error ? error.message : 'Network error' }
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MOLTBOOK ACTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Fetch moltbook data and call setter with result.
+ * Returns a promise that resolves when the fetch completes.
+ */
+export async function fetchMoltbookData<T>(
+  endpoint: string,
+  setter: (data: T) => void,
+): Promise<void> {
+  try {
+    const res = await fetch(`${API_URL}/api/${endpoint}`)
+    const json = await res.json()
+    if (json.success && json.data) {
+      setter(json.data)
+    }
+  } catch (e) {
+    console.error(`[claude-rpg] Error fetching ${endpoint}:`, e)
+  }
+}
