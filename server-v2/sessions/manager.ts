@@ -81,6 +81,9 @@ export async function updateFromHook(paneId: string, status: SessionStatus): Pro
     return
   }
 
+  // Track hook event timestamp for precedence lock
+  session.lastHookUpdateAt = Date.now()
+
   await updateSessionStatus(session, {
     status,
     source: 'hook',
@@ -119,6 +122,7 @@ export async function updateFromTerminal(paneId: string, content: string): Promi
     terminalDetection: detection,
     timeSinceHookChange: Date.now() - hookChangeTime,
     timeSinceTerminalChange: Date.now() - terminalChangeTime,
+    timeSinceHookEvent: session.lastHookUpdateAt ? Date.now() - session.lastHookUpdateAt : Infinity,
   })
 
   if (result.status !== session.status) {
