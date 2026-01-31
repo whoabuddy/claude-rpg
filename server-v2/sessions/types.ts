@@ -4,10 +4,13 @@
 
 export type SessionStatus = 'idle' | 'typing' | 'working' | 'waiting' | 'error'
 
+export type ErrorClass = 'actionable' | 'expected' | 'transient'
+
 export interface SessionError {
   tool: string
   message?: string
   timestamp: number
+  errorClass: ErrorClass
 }
 
 /**

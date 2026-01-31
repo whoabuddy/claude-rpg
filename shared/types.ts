@@ -107,10 +107,13 @@ export interface TerminalPrompt {
   contentHash: string        // For change detection
 }
 
+export type ErrorClass = 'actionable' | 'expected' | 'transient'
+
 export interface SessionError {
   tool: string
   message?: string
   timestamp: number
+  errorClass?: ErrorClass // Classification for display behavior (actionable/expected/transient)
 }
 
 /**
