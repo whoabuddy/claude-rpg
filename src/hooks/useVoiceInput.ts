@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { encodeWav, TARGET_SAMPLE_RATE } from '../lib/audio'
 
-// IndexedDB key for audio backup
+// localStorage key for audio backup
 const AUDIO_BACKUP_KEY = 'claude-rpg-voice-backup'
 
 /**
- * Store audio blob in IndexedDB for crash recovery
+ * Store audio blob in localStorage for crash recovery.
+ * Note: localStorage has limited capacity (~5MB), adequate for short voice clips.
  */
 async function backupAudioBlob(blob: Blob): Promise<void> {
   try {
@@ -220,7 +221,7 @@ export function useVoiceInput(): UseVoiceInputReturn {
           const blob = new Blob(chunksRef.current, { type: recordedMimeType })
           chunksRef.current = []
 
-          // Store blob for potential retry (IndexedDB backup)
+          // Store blob for potential retry (localStorage backup)
           await backupAudioBlob(blob)
 
           // Decode audio to get raw samples (with webkitAudioContext fallback)

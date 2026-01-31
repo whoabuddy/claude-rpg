@@ -247,6 +247,7 @@ export async function refreshPane(params: Record<string, string>): Promise<ApiRe
         paneId,
         target: paneId,
         content,
+        timestamp: Date.now(),
       },
     })
 

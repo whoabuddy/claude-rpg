@@ -31,6 +31,8 @@ export const TerminalDisplay = memo(function TerminalDisplay({ content, onTermin
     }
 
     el.addEventListener('scroll', handleScroll)
+    // Initialize scroll position check immediately
+    handleScroll()
     return () => el.removeEventListener('scroll', handleScroll)
   }, [])
 
