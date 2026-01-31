@@ -1,5 +1,5 @@
-import { useState } from 'react'
 import { useNotifications } from '../hooks/useNotifications'
+import { useSound } from '../hooks/useSound'
 import { PageHeader } from '../components/PageHeader'
 
 /**
@@ -7,7 +7,7 @@ import { PageHeader } from '../components/PageHeader'
  */
 export default function SettingsPage() {
   const { permission, requestPermission } = useNotifications()
-  const [soundEnabled, setSoundEnabled] = useState(false)
+  const { soundEnabled, toggleSound } = useSound()
 
   return (
     <div className="flex flex-col h-full">
@@ -54,7 +54,7 @@ export default function SettingsPage() {
               </p>
             </div>
             <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
+              onClick={toggleSound}
               className={`relative w-11 h-6 rounded-full transition-colors ${
                 soundEnabled ? 'bg-rpg-accent' : 'bg-rpg-border'
               }`}

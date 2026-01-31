@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { SessionStatus, TmuxWindow, TmuxPane } from '@shared/types'
+import { playSoundIfEnabled } from '../lib/sounds'
 
 const DEFAULT_ICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👹</text></svg>"
 
@@ -91,6 +92,8 @@ function checkClaudeTransitions(
     const prevStatus = prev.lastStatus as SessionStatus
 
     // Needs attention: waiting with pending question
+    // Note: sound is played by websocket toast handler (always fires)
+    // to avoid duplicates since both toast and notification may fire
     if (session.status === 'waiting' && prevStatus !== 'waiting' && session.pendingQuestion) {
       const question = session.pendingQuestion.questions[session.pendingQuestion.currentIndex]?.question || 'needs input'
       notify(`${session.name} needs input`, {
@@ -101,6 +104,7 @@ function checkClaudeTransitions(
       })
     }
     // Needs attention: error
+    // Note: sound handled by websocket pane_error handler
     else if (session.status === 'error' && prevStatus !== 'error') {
       const errorInfo = session.lastError ? `Error in ${session.lastError.tool}` : 'encountered an error'
       notify(`${session.name} ${errorInfo}`, {
@@ -118,6 +122,7 @@ function checkClaudeTransitions(
         tag: `pane-${pane.id}-done`,
         icon,
       })
+      playSoundIfEnabled('complete')
     }
 
     return { ...prev, lastStatus: session.status }

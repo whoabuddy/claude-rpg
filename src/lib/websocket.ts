@@ -5,6 +5,7 @@
 
 import { useStore } from '../store'
 import type { ServerMessage } from '../../shared/types'
+import { playSoundIfEnabled } from './sounds'
 
 // Use relative WebSocket URL to go through Vite proxy
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -46,6 +47,7 @@ function checkWaitingTransition(
       title: 'Input Needed',
       body: paneName ? `${paneName} is waiting for you` : `Pane is waiting for input`,
     })
+    playSoundIfEnabled('waiting')
   }
 }
 
@@ -181,7 +183,7 @@ function handleMessage(event: MessageEvent): void {
         store.setEventHistory(message.payload)
         break
 
-      // Achievement unlocked - add toast
+      // Achievement unlocked - add toast with sound
       case 'achievement_unlocked': {
         const ach = message.payload as { achievementName: string; achievementIcon: string; companionName: string }
         store.addToast({
@@ -189,10 +191,11 @@ function handleMessage(event: MessageEvent): void {
           title: `${ach.achievementIcon} ${ach.achievementName}`,
           body: `Unlocked for ${ach.companionName}`,
         })
+        playSoundIfEnabled('achievement')
         break
       }
 
-      // Pane error - add toast
+      // Pane error - add toast with sound
       case 'pane_error': {
         const err = message.payload as { message: string }
         store.addToast({
@@ -200,6 +203,7 @@ function handleMessage(event: MessageEvent): void {
           title: 'Pane Error',
           body: err.message,
         })
+        playSoundIfEnabled('error')
         break
       }
 

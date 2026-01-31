@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef, memo } from 'react'
 import { useStore, type Toast } from '../store'
+import { playSoundIfEnabled } from '../lib/sounds'
 
 const TOAST_DURATION = 4000
 const XP_AGGREGATION_WINDOW_MS = 2000
@@ -49,6 +50,7 @@ export const ToastContainer = memo(function ToastContainer() {
           title: `+${agg.total} XP`,
           body: `${agg.companionName} (${types})`,
         })
+        playSoundIfEnabled('xp')
         xpAggregationRef.current.delete(companionId)
       }
     }
