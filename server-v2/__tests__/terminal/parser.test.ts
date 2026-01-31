@@ -101,12 +101,16 @@ describe('parseTerminal', () => {
   })
 
   describe('error detection', () => {
-    test('detects error messages', () => {
+    test('generic error messages have lower confidence (false positive prevention)', () => {
+      // Generic "Error:" messages have lowered confidence (0.6) to reduce false positives
+      // from tool output that contains "Error:" text
       const content = `
         Error: Something went wrong
       `
       const result = parseTerminal(content)
-      expect(result.status).toBe('error')
+      // Generic errors no longer trigger error status (confidence < 0.7 threshold)
+      expect(result.status).toBe('unknown')
+      expect(result.confidence).toBeLessThan(0.7)
     })
 
     test('detects tool failures', () => {
@@ -124,13 +128,22 @@ describe('parseTerminal', () => {
       const result = parseTerminal(content)
       expect(result.status).toBe('error')
     })
+
+    test('detects permission denied errors', () => {
+      const content = `
+        Permission denied: cannot write to file
+      `
+      const result = parseTerminal(content)
+      expect(result.status).toBe('error')
+    })
   })
 
   describe('priority handling', () => {
-    test('error takes precedence over working', () => {
+    test('tool failure takes precedence over working', () => {
+      // Using tool_failed pattern which has higher confidence (0.85)
       const content = `
         ⠋ Working...
-        Error: Something failed!
+        Command failed with exit code 1
       `
       const result = parseTerminal(content)
       expect(result.status).toBe('error')

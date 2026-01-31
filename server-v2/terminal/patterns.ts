@@ -131,11 +131,11 @@ export const IDLE_PATTERNS: Pattern[] = [
  * Patterns indicating an error occurred
  */
 export const ERROR_PATTERNS: Pattern[] = [
-  // Error messages
+  // Error messages (lowered confidence to reduce false positives from tool output)
   {
     name: 'error_message',
     regex: /Error:|ERROR:|Failed:|FAILED:/i,
-    confidence: 0.8,
+    confidence: 0.6,
   },
   {
     name: 'tool_failed',
