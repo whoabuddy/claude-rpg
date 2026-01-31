@@ -19,6 +19,7 @@ export interface ClaudeSession {
   statusSource: 'hook' | 'terminal' | 'reconciler'
   statusChangedAt: string
   lastActivityAt: string
+  lastHookUpdateAt?: number // Timestamp of last hook event, for precedence lock
   terminalContent?: string
   terminalConfidence?: number
   lastError?: SessionError
