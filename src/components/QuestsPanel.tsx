@@ -99,7 +99,7 @@ function ProjectsSection({ companions }: ProjectsSectionProps) {
 
 /**
  * Compact quest summary for inline display on dashboard.
- * Shows count and current active quest name.
+ * Game-UI style: larger tap target, clear hierarchy.
  */
 export function QuestsSummary({ onOpenPanel }: { onOpenPanel: () => void }) {
   const { activeQuests } = useQuests()
@@ -112,24 +112,33 @@ export function QuestsSummary({ onOpenPanel }: { onOpenPanel: () => void }) {
   const currentPhase = currentQuest?.phases.find(p =>
     p.status !== 'completed' && p.status !== 'pending'
   )
+  const completedPhases = currentQuest?.phases.filter(p => p.status === 'completed').length || 0
+  const totalPhases = currentQuest?.phases.length || 0
 
   return (
     <button
       onClick={onOpenPanel}
-      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rpg-card hover:bg-rpg-card-hover border border-rpg-border transition-colors text-left"
+      className="flex-1 flex items-center gap-3 px-4 py-3 rounded-lg bg-rpg-accent/10 hover:bg-rpg-accent/20 border border-rpg-accent/30 transition-colors text-left min-h-[56px] active:scale-[0.98]"
     >
-      <span className="text-xs text-rpg-accent font-medium">
-        {activeQuests.length} quest{activeQuests.length !== 1 ? 's' : ''}
-      </span>
-      {currentPhase && (
-        <>
-          <span className="text-rpg-text-dim">-</span>
-          <span className="text-xs text-rpg-text-muted truncate max-w-[150px]">
-            {currentPhase.name}
-          </span>
-        </>
-      )}
-      <svg className="w-4 h-4 text-rpg-text-dim ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* Quest icon */}
+      <div className="w-8 h-8 rounded-lg bg-rpg-accent/20 flex items-center justify-center flex-shrink-0">
+        <span className="text-rpg-accent text-lg">Q</span>
+      </div>
+
+      {/* Quest info */}
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-rpg-text truncate">
+          {currentQuest?.name || 'Active Quest'}
+        </div>
+        {currentPhase && (
+          <div className="text-sm text-rpg-text-muted">
+            Phase {completedPhases + 1}/{totalPhases}: {currentPhase.name}
+          </div>
+        )}
+      </div>
+
+      {/* Arrow */}
+      <svg className="w-5 h-5 text-rpg-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
       </svg>
     </button>

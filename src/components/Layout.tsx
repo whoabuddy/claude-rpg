@@ -79,41 +79,43 @@ export function Layout() {
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
-        {/* Mobile header bar with status */}
-        <header className="sm:hidden flex items-center justify-between px-4 py-2 border-b border-rpg-border bg-rpg-bg-elevated">
-          <NavLink to="/" className="flex items-center gap-2">
-            <span className="font-bold text-rpg-text">claude-rpg</span>
-            {attentionCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-rpg-waiting/20 text-rpg-waiting text-xs font-medium animate-pulse">
-                {attentionCount}
-              </span>
-            )}
+        {/* Mobile header bar - game HUD style */}
+        <header className="sm:hidden flex items-center justify-between px-3 py-2 border-b border-rpg-border bg-rpg-bg-elevated">
+          {/* Left: Title */}
+          <NavLink to="/" className="font-bold text-lg text-rpg-text">
+            claude-rpg
           </NavLink>
-          <div className="flex items-center gap-3">
-            {/* Connection indicator */}
-            <div className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full ${connected ? 'bg-rpg-success' : 'bg-rpg-error animate-pulse'}`} />
-              {!connected && (
-                <button
-                  onClick={forceReconnect}
-                  className="text-xs text-rpg-accent"
-                >
-                  Retry
-                </button>
-              )}
-            </div>
-            {/* Settings link */}
-            <NavLink
-              to="/settings"
-              className="p-2 text-rpg-text-muted hover:text-rpg-text rounded-lg transition-colors"
-              aria-label="Settings"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </NavLink>
+
+          {/* Center: Status summary - like a resource bar */}
+          <div className="flex items-center gap-2">
+            {attentionCount > 0 ? (
+              <div className="px-3 py-1.5 rounded-lg bg-rpg-waiting/20 text-rpg-waiting font-semibold animate-pulse min-w-[48px] text-center">
+                {attentionCount}
+              </div>
+            ) : (
+              <div className={`w-3 h-3 rounded-full ${connected ? 'bg-rpg-success' : 'bg-rpg-error animate-pulse'}`} />
+            )}
+            {!connected && (
+              <button
+                onClick={forceReconnect}
+                className="px-2 py-1 text-sm text-rpg-accent bg-rpg-accent/10 rounded"
+              >
+                Retry
+              </button>
+            )}
           </div>
+
+          {/* Right: Settings - larger tap target */}
+          <NavLink
+            to="/settings"
+            className="p-2.5 text-rpg-text-muted hover:text-rpg-text hover:bg-rpg-card rounded-lg transition-colors"
+            aria-label="Settings"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </NavLink>
         </header>
 
         {/* Main content - no bottom padding since no bottom nav */}

@@ -182,114 +182,111 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
     sendArrowKey(pane.id, direction)
   }, [pane.id])
 
-  // Compact mode: minimal display for idle panes
+  // Compact mode: game-UI inspired - clear identity, status bar, readable
   if (compact && !expanded) {
     return (
       <div
-        className={`rounded border ${theme.border} bg-rpg-card card-interactive cursor-pointer hover:border-rpg-accent`}
+        className={`rounded-lg border-2 ${theme.border} bg-rpg-card cursor-pointer hover:bg-rpg-card-hover active:scale-[0.98] transition-all`}
         onClick={toggleExpanded}
       >
-        <div className="px-2 py-1.5 flex items-center gap-2 min-h-[36px]">
-          {pane.repo ? (
-            <>
-              <span className="text-xs text-rpg-accent truncate">
-                {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
-              </span>
-              {isClaudePane && session && (
-                <span className="text-xs text-rpg-text-dim truncate">{session.name}</span>
-              )}
-            </>
-          ) : (
-            <span className="text-xs text-rpg-text-muted truncate">
+        {/* Status bar at top - like a health bar */}
+        <div className={`h-1.5 rounded-t-md ${theme.bg}`} />
+
+        <div className="px-3 py-2.5 flex items-center gap-3 min-h-[52px]">
+          {/* Identity: Name + Repo */}
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-rpg-text truncate">
               {isClaudePane && session ? session.name : pane.process.command}
-            </span>
-          )}
-          <span className={`text-xs font-medium ml-auto ${theme.text} ${
+            </div>
+            {pane.repo && (
+              <div className="text-sm text-rpg-accent truncate">
+                {pane.repo.org ? `${pane.repo.org}/${pane.repo.name}` : pane.repo.name}
+              </div>
+            )}
+          </div>
+
+          {/* Status badge - larger, clearer */}
+          <div className={`px-3 py-1.5 rounded-md text-sm font-medium ${theme.bg} ${theme.text} ${
             status === 'working' || status === 'typing' || status === 'process' ? 'animate-pulse' : ''
-          }`}>{statusLabel}</span>
+          }`}>
+            {statusLabel}
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className={`rounded border-2 ${theme.border} ${theme.bg} ${theme.glow} transition-all`}>
-      {/* Header - always visible */}
-      <div className="px-2 py-1.5 cursor-pointer" onClick={toggleExpanded}>
-        <div className="flex items-center gap-3">
-          <PaneAvatar pane={pane} activity={activity} />
+    <div className={`rounded-lg border-2 ${theme.border} ${theme.glow} transition-all overflow-hidden`}>
+      {/* Status bar at top - like a health/mana bar */}
+      <div className={`h-2 ${theme.bg} ${
+        status === 'working' || status === 'typing' ? 'animate-pulse' : ''
+      }`} />
 
-          {/* Info */}
+      {/* Header - tap to collapse */}
+      <div className="px-3 py-3 cursor-pointer bg-rpg-card hover:bg-rpg-card-hover transition-colors" onClick={toggleExpanded}>
+        <div className="flex items-start gap-3">
+          <PaneAvatar pane={pane} activity={activity} size="md" />
+
+          {/* Info column */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-0.5">
-              {pane.repo ? (
-                <>
-                  <RepoStatusBar repo={pane.repo} compact />
-                  {isClaudePane && session && (
-                    <span className="text-xs text-rpg-text-muted">&middot; {session.name}</span>
-                  )}
-                </>
-              ) : isClaudePane && session ? (
-                <span className="flex items-center gap-1.5">
-                  <span className="text-xs px-1 py-0.5 rounded bg-rpg-accent/20 text-rpg-accent font-medium" title="Worker">W</span>
-                  <span className="font-medium text-sm">{session.name}</span>
-                </span>
-              ) : (
-                <span className="font-mono text-sm">{pane.process.command}</span>
-              )}
+            {/* Name - prominent */}
+            <div className="font-semibold text-base text-rpg-text mb-0.5">
+              {isClaudePane && session ? session.name : pane.process.command}
             </div>
+
+            {/* Repo - secondary */}
+            {pane.repo ? (
+              <RepoStatusBar repo={pane.repo} compact />
+            ) : (
+              <span className="text-sm text-rpg-text-dim">
+                {pane.cwd.split('/').slice(-2).join('/')}
+              </span>
+            )}
 
             {/* Activity line */}
-            <div className="text-sm text-rpg-text-muted truncate">
-              {isClaudePane && session ? (
+            {isClaudePane && session && (
+              <div className="text-sm text-rpg-text-muted mt-1">
                 <ClaudeActivity session={session} />
-              ) : (
-                <span className="text-rpg-text-dim">
-                  <span className="text-rpg-text-dim">cwd:</span> {pane.cwd.split('/').slice(-2).join('/')}
-                </span>
-              )}
-            </div>
-
-            {/* Last prompt */}
-            {isClaudePane && session?.lastPrompt && (
-              <p className="text-xs text-rpg-text-dim mt-1 truncate">
-                <span className="text-rpg-text-muted">Last:</span> {session.lastPrompt}
-              </p>
+              </div>
             )}
 
             {/* Quest badge */}
             {activeQuest && questCurrentPhase && (
-              <div className="text-xs text-rpg-accent/80 truncate mt-0.5">
-                Quest: {activeQuest.name} &middot; Phase {questCurrentPhase.order}/{activeQuest.phases.length}
+              <div className="text-sm text-rpg-accent mt-1">
+                {activeQuest.name} · Phase {questCurrentPhase.order}/{activeQuest.phases.length}
               </div>
             )}
           </div>
 
-          {/* Status + Actions — aligned together */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Status + Actions column */}
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            {/* Status badge - larger touch target */}
             <StatusIndicator status={status} onDismiss={handleDismiss} />
+
+            {/* Action buttons row */}
             {closeConfirm.confirming ? (
-              <div className="flex items-center gap-1 px-2 py-1 bg-rpg-error/20 rounded text-xs">
-                <span className="text-rpg-error">Close?</span>
+              <div className="flex items-center gap-2 px-2 py-1.5 bg-rpg-error/20 rounded-lg">
+                <span className="text-sm text-rpg-error">Close?</span>
                 <button
                   onClick={handleCancelClose}
-                  className="px-1.5 py-0.5 bg-rpg-idle/30 hover:bg-rpg-idle/50 rounded transition-colors"
+                  className="px-2.5 py-1 text-sm bg-rpg-idle/30 hover:bg-rpg-idle/50 rounded transition-colors"
                 >
                   No
                 </button>
                 <button
                   onClick={handleCloseClick}
-                  className="px-1.5 py-0.5 bg-rpg-error/50 hover:bg-rpg-error/70 text-white rounded transition-colors"
+                  className="px-2.5 py-1 text-sm bg-rpg-error/50 hover:bg-rpg-error/70 text-white rounded transition-colors"
                 >
                   Yes
                 </button>
               </div>
             ) : (
-              <>
+              <div className="flex items-center gap-1">
                 {(status === 'working' || status === 'waiting') && (
                   <ActionButton
                     icon="⏹"
-                    label="Interrupt (Ctrl+C)"
+                    label="Interrupt"
                     onClick={(e: React.MouseEvent) => { e.stopPropagation(); onSendSignal(pane.id, 'SIGINT') }}
                     variant="danger"
                     iconOnly
@@ -297,8 +294,8 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
                 )}
                 <ActionButton icon="×" label="Close" onClick={handleCloseClick} variant="danger" iconOnly />
                 <ActionButton icon="↻" label="Refresh" onClick={handleRefresh} iconOnly />
-                <ActionButton icon="⛶" label="Expand" onClick={handleExpand} iconOnly />
-              </>
+                <ActionButton icon="⛶" label="Fullscreen" onClick={handleExpand} iconOnly />
+              </div>
             )}
           </div>
         </div>

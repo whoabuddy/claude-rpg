@@ -322,19 +322,29 @@ function QuickCapture({
 
 /**
  * Compact quick capture for inline display on dashboard.
- * Collapsed by default, expands on tap.
+ * Game-UI style: larger tap target, clear action.
  */
 export function QuickCaptureCompact({ onOpenPanel }: { onOpenPanel: () => void }) {
   return (
     <button
       onClick={onOpenPanel}
-      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rpg-card hover:bg-rpg-card-hover border border-rpg-border transition-colors w-full text-left"
+      className="flex-1 flex items-center gap-3 px-4 py-3 rounded-lg bg-rpg-card hover:bg-rpg-card-hover border border-rpg-border transition-colors text-left min-h-[56px] active:scale-[0.98]"
     >
-      <svg className="w-4 h-4 text-rpg-text-dim" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-      </svg>
-      <span className="text-sm text-rpg-text-dim">Quick note...</span>
-      <svg className="w-4 h-4 text-rpg-text-dim ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* Note icon */}
+      <div className="w-8 h-8 rounded-lg bg-rpg-text-dim/20 flex items-center justify-center flex-shrink-0">
+        <svg className="w-5 h-5 text-rpg-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+      </div>
+
+      {/* Label */}
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-rpg-text">Quick Note</div>
+        <div className="text-sm text-rpg-text-muted">Capture a thought</div>
+      </div>
+
+      {/* Arrow */}
+      <svg className="w-5 h-5 text-rpg-text-dim flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
       </svg>
     </button>
