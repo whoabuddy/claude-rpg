@@ -100,6 +100,7 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
 
     // Set timeout to fade after 5s of inactivity
     const timeout = setTimeout(() => {
+      if (!session.lastError) return
       const timeSinceError = Date.now() - session.lastError.timestamp
       if (timeSinceError >= 5000 && session.status === 'error') {
         setFadingOut(true)
