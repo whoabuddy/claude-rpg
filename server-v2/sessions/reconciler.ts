@@ -10,15 +10,17 @@ import type { TerminalDetection } from '../terminal/types'
 
 const log = createLogger('session-reconciler')
 
-// Thresholds (reduced from 5s/10s for faster status recovery)
-const IDLE_TIMEOUT_MS = 3000 // Trust terminal idle after 3s of working
-const UNKNOWN_TIMEOUT_MS = 5000 // Assume idle after 5s of unknown
+// Thresholds (increased from 3s/5s to reduce false idle detection)
+const IDLE_TIMEOUT_MS = 10000 // Trust terminal idle after 10s of working
+const UNKNOWN_TIMEOUT_MS = 15000 // Assume idle after 15s of unknown
+const HOOK_PRECEDENCE_MS = 5000 // Trust hook status for 5s after hook event
 
 export interface ReconciliationInput {
   hookStatus: SessionStatus
   terminalDetection: TerminalDetection
   timeSinceHookChange: number // ms since last hook status change
   timeSinceTerminalChange: number // ms since terminal content changed
+  timeSinceHookEvent?: number // ms since last hook event (for precedence lock)
 }
 
 export interface ReconciliationResult {
@@ -32,7 +34,7 @@ export interface ReconciliationResult {
  * Reconcile hook state with terminal state
  */
 export function reconcile(input: ReconciliationInput): ReconciliationResult {
-  const { hookStatus, terminalDetection, timeSinceHookChange, timeSinceTerminalChange } = input
+  const { hookStatus, terminalDetection, timeSinceHookChange, timeSinceTerminalChange, timeSinceHookEvent } = input
 
   log.debug('Reconciling session state', {
     hookStatus,
@@ -40,6 +42,7 @@ export function reconcile(input: ReconciliationInput): ReconciliationResult {
     terminalConfidence: terminalDetection.confidence,
     timeSinceHookChange,
     timeSinceTerminalChange,
+    timeSinceHookEvent,
   })
 
   // Rule 1: Terminal shows prompt while hook says working → trust terminal (waiting)
@@ -84,12 +87,14 @@ export function reconcile(input: ReconciliationInput): ReconciliationResult {
     }
   }
 
-  // Rule 4: Hook says working, terminal idle for 5s+ → missed stop hook
+  // Rule 4: Hook says working, terminal idle for 10s+ → missed stop hook
+  // Respect hook precedence: don't override if hook event was recent
   if (
     hookStatus === 'working' &&
     terminalDetection.status === 'idle' &&
     terminalDetection.confidence > 0.6 &&
-    timeSinceTerminalChange > IDLE_TIMEOUT_MS
+    timeSinceTerminalChange > IDLE_TIMEOUT_MS &&
+    (timeSinceHookEvent === undefined || timeSinceHookEvent > HOOK_PRECEDENCE_MS)
   ) {
     return {
       status: 'idle',
@@ -99,11 +104,13 @@ export function reconcile(input: ReconciliationInput): ReconciliationResult {
     }
   }
 
-  // Rule 5: Hook says working, terminal unknown for 10s+ → assume done
+  // Rule 5: Hook says working, terminal unknown for 15s+ → assume done
+  // Respect hook precedence: don't override if hook event was recent
   if (
     hookStatus === 'working' &&
     terminalDetection.status === 'unknown' &&
-    timeSinceHookChange > UNKNOWN_TIMEOUT_MS
+    timeSinceHookChange > UNKNOWN_TIMEOUT_MS &&
+    (timeSinceHookEvent === undefined || timeSinceHookEvent > HOOK_PRECEDENCE_MS)
   ) {
     return {
       status: 'idle',
