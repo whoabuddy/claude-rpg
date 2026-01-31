@@ -3,7 +3,6 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useStore } from '../store'
 import { useConnectionStatus } from '../hooks/useConnection'
 import { ToastContainer } from './ToastContainer'
-import { CelebrationOverlay } from './CelebrationOverlay'
 
 /**
  * Main application layout with simplified navigation
@@ -125,9 +124,6 @@ export function Layout() {
 
       {/* Toast notifications */}
       <ToastContainer />
-
-      {/* Celebration overlay */}
-      <CelebrationOverlay />
     </div>
   )
 }
