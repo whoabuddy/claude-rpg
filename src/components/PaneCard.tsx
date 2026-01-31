@@ -262,12 +262,19 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
             )}
           </div>
 
-          {/* Status + Actions column */}
-          <div className="flex flex-col items-end gap-2 flex-shrink-0">
-            {/* Status badge - larger touch target */}
-            <StatusIndicator status={status} onDismiss={handleDismiss} />
+          {/* Status + Actions - responsive layout */}
+          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-shrink-0">
+            {/* GitHub links - show only on desktop inline, otherwise in expanded content */}
+            {pane.repo?.org && (
+              <div className="hidden sm:flex">
+                <GitHubLinks repo={pane.repo} iconOnly />
+              </div>
+            )}
 
-            {/* Action buttons row */}
+            {/* Separator on desktop */}
+            {pane.repo?.org && <div className="hidden sm:block w-px h-6 bg-rpg-border-dim" />}
+
+            {/* Action buttons */}
             {closeConfirm.confirming ? (
               <div className="flex items-center gap-2 px-2 py-1.5 bg-rpg-error/20 rounded-lg">
                 <span className="text-sm text-rpg-error">Close?</span>
@@ -300,6 +307,9 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
                 <ActionButton icon="⛶" label="Fullscreen" onClick={handleExpand} iconOnly />
               </div>
             )}
+
+            {/* Status badge - always rightmost */}
+            <StatusIndicator status={status} onDismiss={handleDismiss} />
           </div>
         </div>
       </div>
@@ -330,7 +340,12 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
       {/* Expanded Content */}
       {expanded && (
         <div className="px-2 pb-2 space-y-1.5">
-          {pane.repo?.org && <GitHubLinks repo={pane.repo} />}
+          {/* Only show GitHub links in content on mobile */}
+          {pane.repo?.org && (
+            <div className="sm:hidden">
+              <GitHubLinks repo={pane.repo} />
+            </div>
+          )}
 
           {/* Subagent list (#32) */}
           {isClaudePane && session?.activeSubagents && session.activeSubagents.length > 0 && (
