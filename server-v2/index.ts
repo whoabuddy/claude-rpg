@@ -11,6 +11,7 @@ import { getConfig } from './lib/config'
 import { logger, createLogger } from './lib/logger'
 import { initShutdown, onShutdown } from './lib/shutdown'
 import { initDatabase } from './db'
+import { startEventCleanup, stopEventCleanup } from './db/cleanup'
 import { eventBus, initEventHandlers } from './events'
 import { startPolling, stopPolling, cleanupPaneTracking } from './tmux'
 import { handleRequest, handleCors, isWebSocketUpgrade, wsHandlers, broadcast } from './api'
@@ -37,6 +38,14 @@ async function main() {
   // Initialize database
   const db = initDatabase()
   log.info('Database ready')
+
+  // Start event cleanup scheduler (retention policy)
+  startEventCleanup()
+
+  onShutdown('event-cleanup', () => {
+    log.info('Stopping event cleanup')
+    stopEventCleanup()
+  }, 95) // High priority - stop early, before database closes
 
   // Initialize avatars directory
   const avatarsDir = join(config.dataDir, 'avatars')
