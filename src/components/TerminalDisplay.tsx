@@ -11,14 +11,32 @@ interface TerminalDisplayProps {
 
 export const TerminalDisplay = memo(function TerminalDisplay({ content, onTerminalClick, onCopy, className }: TerminalDisplayProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
+  const isAtBottomRef = useRef(true) // Track if user is scrolled to bottom
 
   const htmlContent = useMemo(() => {
     if (!content) return null
     return linkifyTerminalHtml(ansiToHtml(content))
   }, [content])
 
+  // Update isAtBottom on scroll
   useEffect(() => {
-    if (!terminalRef.current) return
+    const el = terminalRef.current
+    if (!el) return
+
+    const handleScroll = () => {
+      // Consider "at bottom" if within 50px of the end
+      const threshold = 50
+      const scrollBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+      isAtBottomRef.current = scrollBottom < threshold
+    }
+
+    el.addEventListener('scroll', handleScroll)
+    return () => el.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // Only auto-scroll if user was already at bottom
+  useEffect(() => {
+    if (!terminalRef.current || !isAtBottomRef.current) return
     requestAnimationFrame(() => {
       if (terminalRef.current) {
         terminalRef.current.scrollTop = terminalRef.current.scrollHeight

@@ -6,6 +6,7 @@ import { createLogger } from '../lib/logger'
 import { processHookEvent } from '../events/hooks'
 import { pollTmux } from '../tmux'
 import * as tmuxCommands from '../tmux/commands'
+import { broadcast } from './broadcast'
 import { getAllPersonas, getPersonaById } from '../personas'
 import { getAllProjects, getProjectById, getOrCreateProject } from '../projects'
 import { getAllCompanions, getCompanionById } from '../companions'
@@ -225,13 +226,33 @@ export async function dismissPane(params: Record<string, string>): Promise<ApiRe
 }
 
 /**
- * Refresh a pane (scroll to bottom)
+ * Refresh a pane (scroll to bottom and immediately capture + broadcast terminal)
  */
-export async function refreshPane(params: Record<string, string>): Promise<ApiResponse<{ refreshed: boolean }>> {
+export async function refreshPane(params: Record<string, string>): Promise<ApiResponse<{ refreshed: boolean; content?: string }>> {
   try {
-    await tmuxCommands.sendKeys(params.id, 'C-l', false)
-    return { success: true, data: { refreshed: true } }
+    const paneId = params.id
+
+    // Send Ctrl+L to redraw terminal
+    await tmuxCommands.sendKeys(paneId, 'C-l', false)
+
+    // Small delay for terminal to redraw
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    // Immediately capture and broadcast terminal content (don't wait for next poll)
+    const content = await tmuxCommands.capturePane(paneId, 100)  // 100 lines for better context
+
+    broadcast({
+      type: 'terminal_output',
+      payload: {
+        paneId,
+        target: paneId,
+        content,
+      },
+    })
+
+    return { success: true, data: { refreshed: true, content } }
   } catch (error) {
+    log.error('Refresh pane failed', { paneId: params.id, error: error instanceof Error ? error.message : String(error) })
     return {
       success: false,
       error: { code: 'REFRESH_FAILED', message: 'Failed to refresh pane' },

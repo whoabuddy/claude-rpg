@@ -10,9 +10,9 @@ import type { TerminalDetection } from '../terminal/types'
 
 const log = createLogger('session-reconciler')
 
-// Thresholds
-const IDLE_TIMEOUT_MS = 5000 // Trust terminal idle after 5s of working
-const UNKNOWN_TIMEOUT_MS = 10000 // Assume idle after 10s of unknown
+// Thresholds (reduced from 5s/10s for faster status recovery)
+const IDLE_TIMEOUT_MS = 3000 // Trust terminal idle after 3s of working
+const UNKNOWN_TIMEOUT_MS = 5000 // Assume idle after 5s of unknown
 
 export interface ReconciliationInput {
   hookStatus: SessionStatus

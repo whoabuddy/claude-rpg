@@ -12,7 +12,7 @@ import { logger, createLogger } from './lib/logger'
 import { initShutdown, onShutdown } from './lib/shutdown'
 import { initDatabase } from './db'
 import { eventBus, initEventHandlers } from './events'
-import { startPolling, stopPolling } from './tmux'
+import { startPolling, stopPolling, cleanupPaneTracking } from './tmux'
 import { handleRequest, handleCors, isWebSocketUpgrade, wsHandlers, broadcast } from './api'
 import { hasClientBuild, serveStatic, serveSpaFallback } from './api/static'
 import { startHeartbeat, stopHeartbeat } from './api/heartbeat'
@@ -131,9 +131,10 @@ async function main() {
 
     for (const paneId of previousPaneIds) {
       if (!currentPaneIds.has(paneId)) {
-        // Pane was removed - clean up session, hash, and notify clients
+        // Pane was removed - clean up session, hash, tracking, and notify clients
         removeSession(paneId)
         terminalHashes.delete(paneId)
+        cleanupPaneTracking(paneId)
         broadcast({
           type: 'pane_removed',
           paneId,

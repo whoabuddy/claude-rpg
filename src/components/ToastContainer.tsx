@@ -103,6 +103,7 @@ const TOAST_STYLES = {
   quest_xp: 'border-rpg-success/50 bg-rpg-success/15',
   achievement: 'border-yellow-400/50 bg-yellow-400/15',
   info: 'border-rpg-border bg-rpg-card',
+  waiting: 'border-amber-400/50 bg-amber-400/15',
 } as const
 
 const TOAST_ICONS = {
@@ -111,6 +112,7 @@ const TOAST_ICONS = {
   quest_xp: 'Q',
   achievement: '★',
   info: 'i',
+  waiting: '?',
 } as const
 
 const ToastItem = memo(function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string) => void }) {
@@ -127,6 +129,7 @@ const ToastItem = memo(function ToastItem({ toast, onDismiss }: { toast: Toast; 
           toast.type === 'error' ? 'bg-rpg-error/30 text-rpg-error'
             : toast.type === 'quest_xp' ? 'bg-rpg-success/30 text-rpg-success'
             : toast.type === 'achievement' ? 'bg-yellow-400/30 text-yellow-400'
+            : toast.type === 'waiting' ? 'bg-amber-400/30 text-amber-400'
             : 'bg-rpg-accent/30 text-rpg-accent'
         }`}>
           {icon}
