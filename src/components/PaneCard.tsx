@@ -208,11 +208,9 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
             </span>
           )}
           <div className="flex items-center gap-1.5 ml-auto">
-            <span className="text-xs text-rpg-text-muted">{statusLabel}</span>
-            <div className={`w-2 h-2 rounded-full ${theme.indicator} ${
+            <span className={`text-xs font-medium ${theme.text} ${
               status === 'working' || status === 'typing' || status === 'process' ? 'animate-pulse' : ''
-            }`} />
-            <span className="text-rpg-text-dim text-xs">▼</span>
+            }`}>{statusLabel}</span>
           </div>
         </div>
       </div>

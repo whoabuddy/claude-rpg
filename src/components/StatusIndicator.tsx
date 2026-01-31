@@ -7,6 +7,10 @@ interface StatusIndicatorProps {
   showLabel?: boolean
 }
 
+/**
+ * Text-first status indicator with color-coded label.
+ * The status text itself is colored, no separate dot indicator needed.
+ */
 export const StatusIndicator = memo(function StatusIndicator({ status, onDismiss, showLabel = true }: StatusIndicatorProps) {
   const theme = STATUS_THEME[status as keyof typeof STATUS_THEME] || STATUS_THEME.idle
   const statusLabel = STATUS_LABELS[status] || status
@@ -22,14 +26,17 @@ export const StatusIndicator = memo(function StatusIndicator({ status, onDismiss
       {status === 'waiting' && onDismiss && (
         <button
           onClick={handleDismiss}
-          className="px-1.5 py-0.5 text-xs bg-rpg-idle/30 hover:bg-rpg-idle/50 text-rpg-text-muted rounded transition-colors"
+          className="px-1.5 py-0.5 text-xs bg-rpg-idle/30 hover:bg-rpg-idle/50 text-rpg-text-muted rounded transition-colors min-h-[28px]"
           title="Dismiss - Claude is waiting for you to type"
         >
-          ✓
+          OK
         </button>
       )}
-      {showLabel && <span className="text-xs text-rpg-text-muted">{statusLabel}</span>}
-      <div className={`w-2 h-2 rounded-full ${theme.indicator} ${isPulsing ? 'animate-pulse' : ''}`} />
+      {showLabel && (
+        <span className={`text-xs font-medium ${theme.text} ${isPulsing ? 'animate-pulse' : ''}`}>
+          {statusLabel}
+        </span>
+      )}
     </div>
   )
 })
