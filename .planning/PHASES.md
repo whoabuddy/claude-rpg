@@ -137,9 +137,11 @@
 
 ---
 
-## Phase 5: Targeted WebSocket Updates
+## Phase 5: Targeted WebSocket Updates [COMPLETED]
 
 **Goal:** Broadcast status changes immediately instead of waiting for windows poll
+
+**Status:** Completed (2026-01-31)
 
 **Dependencies:** Phases 1-2 (status must be correct before optimizing delivery)
 
