@@ -13,6 +13,7 @@ export interface Config {
   wsHeartbeatInterval: number
   wsBackpressureHigh: number
   wsBackpressureLow: number
+  eventsRetentionDays: number
 }
 
 function getEnv(key: string, defaultValue: string): string {
@@ -35,6 +36,7 @@ export function loadConfig(): Config {
     wsHeartbeatInterval: getEnvInt('WS_HEARTBEAT_INTERVAL', 30000),
     wsBackpressureHigh: getEnvInt('WS_BACKPRESSURE_HIGH', 65536), // 64KB
     wsBackpressureLow: getEnvInt('WS_BACKPRESSURE_LOW', 16384),   // 16KB
+    eventsRetentionDays: getEnvInt('EVENTS_RETENTION_DAYS', 7),
   }
 }
 
