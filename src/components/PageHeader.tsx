@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { ChevronLeft } from 'lucide-react'
 
 interface PageHeaderProps {
   title: string
@@ -18,9 +19,7 @@ export function PageHeader({ title, backTo, backLabel, children }: PageHeaderPro
           className="p-1.5 -ml-1.5 text-rpg-text-muted hover:text-rpg-text rounded-lg hover:bg-rpg-card transition-colors"
           aria-label={backLabel || 'Go back'}
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
+<ChevronLeft className="w-5 h-5" />
         </button>
       )}
       <h1 className="text-lg font-bold text-rpg-text flex-1">{title}</h1>

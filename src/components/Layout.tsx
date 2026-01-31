@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { LayoutGrid, Settings } from 'lucide-react'
 import { useStore } from '../store'
 import { useConnectionStatus } from '../hooks/useConnection'
 import { ToastContainer } from './ToastContainer'
@@ -111,10 +112,7 @@ export function Layout() {
             className="p-2.5 text-rpg-text-muted hover:text-rpg-text hover:bg-rpg-card rounded-lg transition-colors"
             aria-label="Settings"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+            <Settings className="w-6 h-6" />
           </NavLink>
         </header>
 
@@ -165,23 +163,13 @@ function SidebarItem({ to, icon, label, badge, end }: SidebarItemProps) {
 
 type IconName = 'grid' | 'settings'
 
-// Icon paths for navigation
-const ICON_PATHS: Record<IconName, string | string[]> = {
-  grid: "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z",
-  settings: [
-    "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z",
-    "M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-  ],
+// Icon components for navigation
+const NAV_ICONS: Record<IconName, React.FC<{ className?: string }>> = {
+  grid: LayoutGrid,
+  settings: Settings,
 }
 
 function NavIcon({ icon }: { icon: IconName }) {
-  const paths = ICON_PATHS[icon]
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      {Array.isArray(paths)
-        ? paths.map((d, i) => <path key={i} strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={d} />)
-        : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={paths} />
-      }
-    </svg>
-  )
+  const IconComponent = NAV_ICONS[icon]
+  return <IconComponent className="w-5 h-5" />
 }

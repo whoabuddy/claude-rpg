@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { ChevronRight, PenLine } from 'lucide-react'
 import { VoiceButton } from './VoiceButton'
 import { NoteCard } from './NoteCard'
 import { CreateIssueModal } from './CreateIssueModal'
@@ -332,9 +333,7 @@ export function QuickCaptureCompact({ onOpenPanel }: { onOpenPanel: () => void }
     >
       {/* Note icon */}
       <div className="w-8 h-8 rounded-lg bg-rpg-text-dim/20 flex items-center justify-center flex-shrink-0">
-        <svg className="w-5 h-5 text-rpg-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-        </svg>
+        <PenLine className="w-5 h-5 text-rpg-text-muted" />
       </div>
 
       {/* Label */}
@@ -344,9 +343,7 @@ export function QuickCaptureCompact({ onOpenPanel }: { onOpenPanel: () => void }
       </div>
 
       {/* Arrow */}
-      <svg className="w-5 h-5 text-rpg-text-dim flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-      </svg>
+      <ChevronRight className="w-5 h-5 text-rpg-text-dim flex-shrink-0" />
     </button>
   )
 }

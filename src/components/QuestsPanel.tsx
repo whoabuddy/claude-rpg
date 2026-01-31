@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { useQuests } from '../hooks/useQuests'
 import { useStore } from '../store'
 import { QuestCard } from './QuestCard'
@@ -138,9 +139,7 @@ export function QuestsSummary({ onOpenPanel }: { onOpenPanel: () => void }) {
       </div>
 
       {/* Arrow */}
-      <svg className="w-5 h-5 text-rpg-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-      </svg>
+      <ChevronRight className="w-5 h-5 text-rpg-accent flex-shrink-0" />
     </button>
   )
 }

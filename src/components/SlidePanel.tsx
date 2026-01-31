@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
 
 interface SlidePanelProps {
   open: boolean
@@ -87,9 +88,7 @@ export function SlidePanel({ open, onClose, title, children, headerAction }: Sli
               className="p-2 text-rpg-text-muted hover:text-rpg-text hover:bg-rpg-card rounded-lg transition-colors"
               aria-label="Close panel"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+<X className="w-5 h-5" />
             </button>
           </div>
         </div>
