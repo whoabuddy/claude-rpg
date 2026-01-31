@@ -7,6 +7,8 @@ import { ActionButton } from './ActionButton'
 import { closeWindow } from '../lib/api'
 import { useConfirmAction } from '../hooks/useConfirmAction'
 import { WorkersSummary } from './WorkersSummary'
+import { QuestsSummary } from './QuestsPanel'
+import { QuickCaptureCompact } from './ScratchpadPanel'
 
 // Maximum panes per window (must match server constant)
 const MAX_PANES_PER_WINDOW = 4
@@ -20,6 +22,10 @@ interface OverviewDashboardProps {
   onNewPane: (windowId: string) => void
   onCreateWindow: (sessionName: string, windowName: string) => Promise<boolean>
   onRenameWindow: (windowId: string, windowName: string) => Promise<{ ok: boolean; error?: string }>
+  /** Callback to open quests panel */
+  onOpenQuests?: () => void
+  /** Callback to open scratchpad panel */
+  onOpenScratchpad?: () => void
 }
 
 interface WindowGroup {
@@ -71,6 +77,8 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   onNewPane,
   onCreateWindow,
   onRenameWindow,
+  onOpenQuests,
+  onOpenScratchpad,
 }: OverviewDashboardProps) {
   const { onExpandPane } = usePaneActions()
   const [collapsedWindows, setCollapsedWindows] = useState<Set<string>>(new Set())
@@ -231,6 +239,14 @@ export const OverviewDashboard = memo(function OverviewDashboard({
           )}
         </div>
       </div>
+
+      {/* Inline quests and scratchpad - mobile single-screen UI */}
+      {(onOpenQuests || onOpenScratchpad) && (
+        <div className="flex flex-col sm:flex-row gap-2">
+          {onOpenQuests && <QuestsSummary onOpenPanel={onOpenQuests} />}
+          {onOpenScratchpad && <QuickCaptureCompact onOpenPanel={onOpenScratchpad} />}
+        </div>
+      )}
 
       {/* Active Workers summary (#36) — visible when 2+ Claude panes */}
       {stats.claude >= 2 && (
