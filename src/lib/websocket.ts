@@ -6,7 +6,6 @@
 import { useStore } from '../store'
 import type { ServerMessage } from '../../shared/types'
 import { playSoundIfEnabled } from './sounds'
-import { notifyDiscordIfConfigured } from './discord'
 
 // Use relative WebSocket URL to go through Vite proxy
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -197,7 +196,7 @@ function handleMessage(event: MessageEvent): void {
         break
       }
 
-      // Pane error - add toast with sound and Discord
+      // Pane error - add toast with sound
       case 'pane_error': {
         const err = message.payload as { message: string }
         store.addToast({
@@ -206,7 +205,6 @@ function handleMessage(event: MessageEvent): void {
           body: err.message,
         })
         playSoundIfEnabled('error')
-        notifyDiscordIfConfigured('error', 'Pane Error', err.message)
         break
       }
 

@@ -1,7 +1,5 @@
-import { useState } from 'react'
 import { useNotifications } from '../hooks/useNotifications'
 import { useSound } from '../hooks/useSound'
-import { useDiscord } from '../hooks/useDiscord'
 import { PageHeader } from '../components/PageHeader'
 
 /**
@@ -10,9 +8,6 @@ import { PageHeader } from '../components/PageHeader'
 export default function SettingsPage() {
   const { permission, requestPermission } = useNotifications()
   const { soundEnabled, toggleSound } = useSound()
-  const { webhookUrl, isConfigured, setWebhook, testWebhook } = useDiscord()
-  const [webhookInput, setWebhookInput] = useState(webhookUrl)
-  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle')
 
   return (
     <div className="flex flex-col h-full">
@@ -77,52 +72,16 @@ export default function SettingsPage() {
       {/* Discord Integration */}
       <section className="rounded-lg border border-rpg-border bg-rpg-card p-4">
         <h2 className="text-sm font-medium text-rpg-text mb-4">Discord</h2>
-        <div className="space-y-3">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-rpg-text mb-1">Webhook URL</p>
-            <p className="text-xs text-rpg-text-muted mb-2">
-              Get notifications in Discord when Claude needs input
+            <p className="text-sm text-rpg-text">Webhook Notifications</p>
+            <p className="text-xs text-rpg-text-muted">
+              Sends to #claude-rpg when Claude needs input
             </p>
-            <div className="flex gap-2">
-              <input
-                type="url"
-                value={webhookInput}
-                onChange={(e) => setWebhookInput(e.target.value)}
-                onBlur={() => setWebhook(webhookInput)}
-                placeholder="https://discord.com/api/webhooks/..."
-                className="flex-1 px-3 py-2 text-sm bg-rpg-bg border border-rpg-border rounded focus:outline-none focus:border-rpg-accent"
-              />
-              {isConfigured && (
-                <button
-                  onClick={async () => {
-                    setTestStatus('testing')
-                    const success = await testWebhook()
-                    setTestStatus(success ? 'success' : 'error')
-                    setTimeout(() => setTestStatus('idle'), 2000)
-                  }}
-                  disabled={testStatus === 'testing'}
-                  className="px-3 py-2 text-sm bg-rpg-border hover:bg-rpg-border-dim rounded transition-colors disabled:opacity-50"
-                >
-                  {testStatus === 'testing' ? '...' : testStatus === 'success' ? '✓' : testStatus === 'error' ? '✗' : 'Test'}
-                </button>
-              )}
-            </div>
           </div>
-          {isConfigured && (
-            <p className="text-xs text-rpg-working">
-              ✓ Discord notifications enabled
-            </p>
-          )}
-          <p className="text-xs text-rpg-text-muted">
-            <a
-              href="https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-rpg-accent hover:underline"
-            >
-              How to create a webhook
-            </a>
-          </p>
+          <span className="px-2 py-1 text-xs bg-rpg-working/20 text-rpg-working rounded">
+            Enabled
+          </span>
         </div>
       </section>
 
