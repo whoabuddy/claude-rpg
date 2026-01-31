@@ -25,9 +25,14 @@ import { getSession, updateFromHook, clearError } from '../sessions/manager'
 import type { ErrorClass } from '../sessions/types'
 import { getProjectById } from '../projects'
 import { notifyWaiting, notifyComplete, notifyError } from '../lib/discord'
+import { broadcast } from '../api/broadcast'
 import type { PostToolUseEvent, UserPromptEvent, StopEvent, PreToolUseEvent, SessionStatusChangedEvent } from './types'
 
 const log = createLogger('event-handlers')
+
+// Deduplication: Track last broadcast timestamp per pane
+const lastBroadcastAt = new Map<string, number>()
+const DEDUPE_WINDOW_MS = 50 // Minimum time between broadcasts for same pane
 
 /**
  * Classify an error as actionable, expected, or transient.
@@ -333,32 +338,55 @@ export function initEventHandlers(): void {
     }
   })
 
-  // Handle session status changes for Discord notifications
+  // Handle session status changes for WebSocket broadcast and Discord notifications
   eventBus.on<SessionStatusChangedEvent>('session:status_changed', async (event) => {
     try {
       const session = getSession(event.paneId)
+      if (!session) {
+        log.warn('Session not found for status change broadcast', { paneId: event.paneId })
+        return
+      }
+
+      // Immediate WebSocket broadcast with deduplication
+      const now = Date.now()
+      const lastBroadcast = lastBroadcastAt.get(event.paneId) || 0
+      if (now - lastBroadcast >= DEDUPE_WINDOW_MS) {
+        lastBroadcastAt.set(event.paneId, now)
+        broadcast({
+          type: 'pane_update',
+          paneId: event.paneId,
+          session,
+        })
+        log.debug('Broadcast pane_update', {
+          paneId: event.paneId,
+          status: event.newStatus,
+          latencyMs: now - new Date(session.statusChangedAt).getTime(),
+        })
+      }
+
+      // Discord notifications
       const persona = getPersonaById(event.personaId)
       const sessionName = persona?.name || `Session ${event.paneId.slice(0, 6)}`
-      const project = session?.projectId ? getProjectById(session.projectId) : null
+      const project = session.projectId ? getProjectById(session.projectId) : null
       const repoName = project?.name
 
       // Notify on status transitions
       if (event.newStatus === 'waiting') {
         notifyWaiting(sessionName, repoName)
       } else if (event.newStatus === 'error') {
-        const errorInfo = session?.lastError?.message || 'Tool execution failed'
+        const errorInfo = session.lastError?.message || 'Tool execution failed'
         notifyError(sessionName, errorInfo, repoName)
       } else if (event.newStatus === 'idle' && event.oldStatus === 'working') {
         notifyComplete(sessionName, repoName)
       }
 
-      log.debug('Session status change processed for Discord', {
+      log.debug('Session status change processed', {
         paneId: event.paneId,
         oldStatus: event.oldStatus,
         newStatus: event.newStatus,
       })
     } catch (error) {
-      log.error('Failed to send Discord notification', {
+      log.error('Failed to process session status change', {
         paneId: event.paneId,
         error: error instanceof Error ? error.message : String(error),
       })
