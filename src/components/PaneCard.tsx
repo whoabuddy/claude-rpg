@@ -16,6 +16,7 @@ import { RepoStatusBar } from './RepoStatusBar'
 import { TerminalPromptUI } from './TerminalPromptUI'
 import { PaneInput } from './PaneInput'
 import { ClaudeActivity } from './ClaudeActivity'
+import { SessionMetrics } from './SessionMetrics'
 import { GitHubLinks } from './GitHubLinks'
 import { ActionButton } from './ActionButton'
 
@@ -249,9 +250,14 @@ export const PaneCard = memo(function PaneCard({ pane, window, compact = false }
 
             {/* Activity line */}
             {isClaudePane && session && (
-              <div className="text-sm text-rpg-text-muted mt-1">
-                <ClaudeActivity session={session} />
-              </div>
+              <>
+                <div className="text-sm text-rpg-text-muted mt-1">
+                  <ClaudeActivity session={session} />
+                </div>
+                <div className="mt-1">
+                  <SessionMetrics session={session} />
+                </div>
+              </>
             )}
 
             {/* Quest badge */}
