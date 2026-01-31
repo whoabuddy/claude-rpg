@@ -10,6 +10,92 @@ import type { TmuxWindow, TmuxPane, TmuxState, PaneProcessType, RepoInfo } from 
 
 const log = createLogger('tmux-poller')
 
+// Adaptive capture intervals based on activity state
+const CAPTURE_INTERVAL_ACTIVE_MS = 250   // Content changed within 2s
+const CAPTURE_INTERVAL_NORMAL_MS = 500   // Claude pane working/waiting
+const CAPTURE_INTERVAL_IDLE_MS = 2000    // Non-Claude or stable
+const CAPTURE_INTERVAL_BACKOFF_MS = 5000 // 5+ consecutive no-changes
+
+// Thresholds
+const ACTIVE_WINDOW_MS = 2000            // Consider "active" if changed within 2s
+const BACKOFF_THRESHOLD = 5              // Start backoff after 5 no-changes
+
+// Per-pane tracking for adaptive polling
+const lastPaneCapture = new Map<string, number>()
+const lastContentChange = new Map<string, number>()
+const consecutiveNoChange = new Map<string, number>()
+const lastTerminalContent = new Map<string, string>()
+
+/**
+ * Calculate capture interval for a pane based on activity state
+ */
+function getCaptureInterval(paneId: string, claudeStatus?: string): number {
+  const now = Date.now()
+  const noChangeCount = consecutiveNoChange.get(paneId) || 0
+  const lastChange = lastContentChange.get(paneId) || 0
+  const recentlyActive = (now - lastChange) < ACTIVE_WINDOW_MS
+
+  // Backoff: many consecutive no-changes
+  if (noChangeCount >= BACKOFF_THRESHOLD) {
+    return CAPTURE_INTERVAL_BACKOFF_MS
+  }
+
+  // Active: content changed recently
+  if (recentlyActive) {
+    return CAPTURE_INTERVAL_ACTIVE_MS
+  }
+
+  // Claude in working/waiting states gets normal interval
+  if (claudeStatus === 'working' || claudeStatus === 'waiting') {
+    return CAPTURE_INTERVAL_NORMAL_MS
+  }
+
+  // Everything else: idle interval
+  return CAPTURE_INTERVAL_IDLE_MS
+}
+
+/**
+ * Check if we should capture terminal for this pane
+ */
+function shouldCapturePane(paneId: string, claudeStatus?: string): boolean {
+  const now = Date.now()
+  const interval = getCaptureInterval(paneId, claudeStatus)
+  const lastCapture = lastPaneCapture.get(paneId) || 0
+
+  if (now - lastCapture >= interval) {
+    lastPaneCapture.set(paneId, now)
+    return true
+  }
+  return false
+}
+
+/**
+ * Update adaptive tracking after capture
+ */
+function updateCaptureTracking(paneId: string, content: string): void {
+  const previousContent = lastTerminalContent.get(paneId)
+  const contentChanged = previousContent !== content
+
+  if (contentChanged) {
+    consecutiveNoChange.set(paneId, 0)
+    lastContentChange.set(paneId, Date.now())
+    lastTerminalContent.set(paneId, content)
+  } else {
+    const count = consecutiveNoChange.get(paneId) || 0
+    consecutiveNoChange.set(paneId, count + 1)
+  }
+}
+
+/**
+ * Clean up tracking state for removed pane
+ */
+export function cleanupPaneTracking(paneId: string): void {
+  lastPaneCapture.delete(paneId)
+  lastContentChange.delete(paneId)
+  consecutiveNoChange.delete(paneId)
+  lastTerminalContent.delete(paneId)
+}
+
 interface ParsedPane {
   paneId: string
   windowId: string
@@ -132,16 +218,25 @@ export async function pollTmux(): Promise<TmuxState> {
           claudeSession = await buildClaudeSessionInfo(p.paneId, undefined, cwd)
         }
 
-        // Capture terminal content for Claude panes
+        // Capture terminal content for Claude panes (adaptive)
         let terminalContent: string | undefined
         if (processType === 'claude') {
-          try {
-            terminalContent = await capturePane(p.paneId, 50)
-          } catch (error) {
-            log.debug('Failed to capture terminal content', {
-              paneId: p.paneId,
-              error: error instanceof Error ? error.message : String(error),
-            })
+          const claudeStatus = claudeSession?.status
+          if (shouldCapturePane(p.paneId, claudeStatus)) {
+            try {
+              terminalContent = await capturePane(p.paneId, 100)
+              if (terminalContent) {
+                updateCaptureTracking(p.paneId, terminalContent)
+              }
+            } catch (error) {
+              log.debug('Failed to capture terminal content', {
+                paneId: p.paneId,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+          } else {
+            // Use cached content when skipping capture
+            terminalContent = lastTerminalContent.get(p.paneId)
           }
         }
 

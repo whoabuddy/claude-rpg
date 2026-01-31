@@ -4,7 +4,7 @@
 
 import { createLogger } from '../lib/logger'
 import { eventBus } from './bus'
-import { getOrCreatePersona, addXp, updateHealth } from '../personas/service'
+import { getOrCreatePersona, getPersonaById, addXp, updateHealth } from '../personas/service'
 import { calculateXp } from '../xp/calculator'
 import { recordXpEvent } from '../xp/ledger'
 import {
@@ -23,7 +23,8 @@ import {
 import { incrementStat, updateStreak } from '../companions'
 import { getSession, updateFromHook, clearError } from '../sessions/manager'
 import { getProjectById } from '../projects'
-import type { PostToolUseEvent, UserPromptEvent, StopEvent, PreToolUseEvent } from './types'
+import { notifyWaiting, notifyComplete, notifyError } from '../lib/discord'
+import type { PostToolUseEvent, UserPromptEvent, StopEvent, PreToolUseEvent, SessionStatusChangedEvent } from './types'
 
 const log = createLogger('event-handlers')
 
@@ -276,6 +277,38 @@ export function initEventHandlers(): void {
       }
     } catch (error) {
       log.error('Failed to update companion stats on stop', {
+        paneId: event.paneId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  })
+
+  // Handle session status changes for Discord notifications
+  eventBus.on<SessionStatusChangedEvent>('session:status_changed', async (event) => {
+    try {
+      const session = getSession(event.paneId)
+      const persona = getPersonaById(event.personaId)
+      const sessionName = persona?.name || `Session ${event.paneId.slice(0, 6)}`
+      const project = session?.projectId ? getProjectById(session.projectId) : null
+      const repoName = project?.name
+
+      // Notify on status transitions
+      if (event.newStatus === 'waiting') {
+        notifyWaiting(sessionName, repoName)
+      } else if (event.newStatus === 'error') {
+        const errorInfo = session?.lastError?.message || 'Tool execution failed'
+        notifyError(sessionName, errorInfo, repoName)
+      } else if (event.newStatus === 'idle' && event.oldStatus === 'working') {
+        notifyComplete(sessionName, repoName)
+      }
+
+      log.debug('Session status change processed for Discord', {
+        paneId: event.paneId,
+        oldStatus: event.oldStatus,
+        newStatus: event.newStatus,
+      })
+    } catch (error) {
+      log.error('Failed to send Discord notification', {
         paneId: event.paneId,
         error: error instanceof Error ? error.message : String(error),
       })

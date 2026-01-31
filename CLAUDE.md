@@ -172,6 +172,37 @@ Claude Code releases frequently. Changes that affect claude-rpg fall into three 
 
 To audit: compare Claude Code release notes (focus on hooks, terminal UI, and process changes) against what the server expects.
 
+## Notification System
+
+Multiple notification channels alert users when Claude needs attention:
+
+| Channel | Trigger | Configuration |
+|---------|---------|---------------|
+| **Toast** | All status changes | Always enabled |
+| **Browser** | Waiting, error, complete | Settings > Enable |
+| **Sound** | Waiting, error, complete, XP, achievement | Settings > Sound Effects |
+| **Discord** | Waiting, error, complete | Settings > Webhook URL |
+
+**Sound effects** use Web Audio API synthesis (no external files). Sounds:
+- `waiting` - two-tone chime
+- `complete` - upward arpeggio
+- `error` - low buzz
+- `achievement` - sparkle
+- `xp` - coin sound
+
+**Discord webhooks** send colored embeds with session name, repo, and question context.
+
+## Voice Input
+
+Push-to-talk voice transcription using whisper.cpp:
+
+- **Client**: MediaRecorder → WAV encoding → POST to `/api/transcribe`
+- **Server**: whisper.cpp with base.en model (~140MB)
+- **Backup**: Audio stored in localStorage during processing for crash recovery
+- **Mobile**: Haptic feedback, iOS Safari AudioContext handling
+
+Model location: `~/.claude-rpg/models/ggml-base.en.bin`
+
 ## API Endpoints
 
 | Endpoint | Method | Description |

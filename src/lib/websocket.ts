@@ -5,6 +5,7 @@
 
 import { useStore } from '../store'
 import type { ServerMessage } from '../../shared/types'
+import { playSoundIfEnabled } from './sounds'
 
 // Use relative WebSocket URL to go through Vite proxy
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -21,6 +22,35 @@ let reconnectTimeout: number | undefined
 let lastActivityTime = Date.now()
 let scheduledReconnectTime = 0
 let reconnectAttemptCount = 0
+
+// Track pane statuses to detect transitions to 'waiting'
+const paneStatuses = new Map<string, string>()
+
+/**
+ * Check if a pane status transitioned to 'waiting' and fire toast if so
+ */
+function checkWaitingTransition(
+  paneId: string,
+  newStatus: string | undefined,
+  paneName: string | undefined,
+  store: ReturnType<typeof useStore.getState>
+): void {
+  if (!newStatus) return
+
+  const oldStatus = paneStatuses.get(paneId)
+  paneStatuses.set(paneId, newStatus)
+
+  // Fire toast when transitioning TO waiting (not already waiting)
+  // Note: Discord notification sent from useNotifications with more context
+  if (newStatus === 'waiting' && oldStatus !== 'waiting') {
+    store.addToast({
+      type: 'waiting',
+      title: 'Input Needed',
+      body: paneName ? `${paneName} is waiting for you` : `Pane is waiting for input`,
+    })
+    playSoundIfEnabled('waiting')
+  }
+}
 
 /**
  * Clean up WebSocket handlers and close connection
@@ -64,15 +94,34 @@ function handleMessage(event: MessageEvent): void {
         break
 
       // Pane-centric messages
-      case 'windows':
+      case 'windows': {
+        // Check for waiting transitions before updating store
+        const windows = message.payload as Array<{ panes: Array<{ id: string; process: { claudeSession?: { status: string; name: string } } }> }>
+        for (const window of windows) {
+          for (const pane of window.panes) {
+            const session = pane.process.claudeSession
+            if (session) {
+              checkWaitingTransition(pane.id, session.status, session.name, store)
+            }
+          }
+        }
         store.setWindows(message.payload)
         break
+      }
 
-      case 'pane_update':
+      case 'pane_update': {
+        // Check for waiting transition on single pane update
+        const pane = message.payload as { id: string; process: { claudeSession?: { status: string; name: string } } }
+        const session = pane.process.claudeSession
+        if (session) {
+          checkWaitingTransition(pane.id, session.status, session.name, store)
+        }
         store.updatePane(message.payload)
         break
+      }
 
       case 'pane_removed':
+        paneStatuses.delete(message.payload.paneId)  // Clean up status tracking
         store.removePane(message.payload.paneId)
         break
 
@@ -135,7 +184,7 @@ function handleMessage(event: MessageEvent): void {
         store.setEventHistory(message.payload)
         break
 
-      // Achievement unlocked - add toast
+      // Achievement unlocked - add toast with sound
       case 'achievement_unlocked': {
         const ach = message.payload as { achievementName: string; achievementIcon: string; companionName: string }
         store.addToast({
@@ -143,10 +192,11 @@ function handleMessage(event: MessageEvent): void {
           title: `${ach.achievementIcon} ${ach.achievementName}`,
           body: `Unlocked for ${ach.companionName}`,
         })
+        playSoundIfEnabled('achievement')
         break
       }
 
-      // Pane error - add toast
+      // Pane error - add toast with sound
       case 'pane_error': {
         const err = message.payload as { message: string }
         store.addToast({
@@ -154,6 +204,7 @@ function handleMessage(event: MessageEvent): void {
           title: 'Pane Error',
           body: err.message,
         })
+        playSoundIfEnabled('error')
         break
       }
 

@@ -51,7 +51,7 @@ export interface EventsState {
 // Toast types for notification system
 export interface Toast {
   id: string
-  type: 'error' | 'xp' | 'quest_xp' | 'achievement' | 'info'
+  type: 'error' | 'xp' | 'quest_xp' | 'achievement' | 'info' | 'waiting'
   title: string
   body?: string
   timestamp: number

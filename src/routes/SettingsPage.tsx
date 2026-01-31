@@ -1,5 +1,5 @@
-import { useState } from 'react'
 import { useNotifications } from '../hooks/useNotifications'
+import { useSound } from '../hooks/useSound'
 import { PageHeader } from '../components/PageHeader'
 
 /**
@@ -7,7 +7,7 @@ import { PageHeader } from '../components/PageHeader'
  */
 export default function SettingsPage() {
   const { permission, requestPermission } = useNotifications()
-  const [soundEnabled, setSoundEnabled] = useState(false)
+  const { soundEnabled, toggleSound } = useSound()
 
   return (
     <div className="flex flex-col h-full">
@@ -54,7 +54,7 @@ export default function SettingsPage() {
               </p>
             </div>
             <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
+              onClick={toggleSound}
               className={`relative w-11 h-6 rounded-full transition-colors ${
                 soundEnabled ? 'bg-rpg-accent' : 'bg-rpg-border'
               }`}
@@ -66,6 +66,22 @@ export default function SettingsPage() {
               />
             </button>
           </div>
+        </div>
+      </section>
+
+      {/* Discord Integration */}
+      <section className="rounded-lg border border-rpg-border bg-rpg-card p-4">
+        <h2 className="text-sm font-medium text-rpg-text mb-4">Discord</h2>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-rpg-text">Webhook Notifications</p>
+            <p className="text-xs text-rpg-text-muted">
+              Sends to #claude-rpg when Claude needs input
+            </p>
+          </div>
+          <span className="px-2 py-1 text-xs bg-rpg-working/20 text-rpg-working rounded">
+            Enabled
+          </span>
         </div>
       </section>
 

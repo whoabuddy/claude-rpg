@@ -1,14 +1,42 @@
-import { existsSync, unlinkSync } from 'fs'
+import { existsSync, unlinkSync, mkdirSync, readdirSync } from 'fs'
+import { join } from 'path'
+import os from 'os'
 import { DEFAULTS } from '../../shared/defaults.js'
 import { createLogger } from './logger'
 
 const log = createLogger('whisper')
+
+// Directory for failed audio backups (for debugging)
+const FAILED_AUDIO_DIR = join(os.homedir(), '.claude-rpg', 'failed-audio')
 
 /**
  * Check if whisper.cpp and the model are available
  */
 export function isWhisperAvailable(): boolean {
   return existsSync(DEFAULTS.WHISPER_MODEL)
+}
+
+/**
+ * Save audio file for debugging when transcription fails
+ */
+function saveFailedAudio(audioBuffer: Buffer): string | null {
+  try {
+    mkdirSync(FAILED_AUDIO_DIR, { recursive: true })
+
+    // Keep only last 10 failed files
+    const files = readdirSync(FAILED_AUDIO_DIR).sort()
+    while (files.length >= 10) {
+      const oldest = files.shift()
+      if (oldest) unlinkSync(join(FAILED_AUDIO_DIR, oldest))
+    }
+
+    const filename = `failed-${Date.now()}.wav`
+    const filepath = join(FAILED_AUDIO_DIR, filename)
+    Bun.write(filepath, audioBuffer)
+    return filepath
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -21,15 +49,20 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
     throw new Error('Whisper model not found. Please install whisper.cpp and download the model.')
   }
 
+  const startTime = Date.now()
+  const audioSizeKB = Math.round(audioBuffer.length / 1024)
+
   // Write audio to temp file
   const tempFile = `/tmp/claude-rpg-audio-${Date.now()}.wav`
   await Bun.write(tempFile, audioBuffer)
 
   try {
-    // Run whisper.cpp
+    // Run whisper.cpp with optimized settings
     // -nt: no timestamps
     // -np: no progress
-    // -ml 1: max segment length 1 (output as single line)
+    // -t: thread count (use half of available cores)
+    const threadCount = Math.max(1, Math.floor(os.cpus().length / 2))
+
     const proc = Bun.spawn(
       [
         'whisper',
@@ -39,6 +72,7 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
         '-np',
         '--no-prints',
         '-l', 'en',
+        '-t', String(threadCount),
       ],
       {
         stdout: 'pipe',
@@ -71,14 +105,39 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
     // Clean up temp file
     unlinkSync(tempFile)
 
+    const durationMs = Date.now() - startTime
+
     // Parse output - whisper outputs text directly
     const text = stdout.trim()
-    if (!text && stderr) {
-      log.error('Whisper stderr output', { stderr })
+
+    if (!text) {
+      if (stderr) {
+        log.error('Whisper stderr output', { stderr, durationMs })
+      } else {
+        log.warn('Whisper returned empty text', { audioSizeKB, durationMs })
+      }
+    } else {
+      log.info('Transcription complete', {
+        textLength: text.length,
+        audioSizeKB,
+        durationMs,
+      })
     }
 
     return text
   } catch (error) {
+    const durationMs = Date.now() - startTime
+
+    // Save failed audio for debugging
+    const savedPath = saveFailedAudio(audioBuffer)
+
+    log.error('Transcription failed', {
+      error: error instanceof Error ? error.message : String(error),
+      audioSizeKB,
+      durationMs,
+      savedPath,
+    })
+
     // Clean up temp file on error
     try {
       unlinkSync(tempFile)
