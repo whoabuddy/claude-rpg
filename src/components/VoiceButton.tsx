@@ -34,6 +34,11 @@ export const VoiceButton = memo(function VoiceButton({ onTranscription, disabled
     try {
       await startRecording()
       isActiveRef.current = true
+
+      // Haptic feedback on mobile
+      if ('vibrate' in navigator) {
+        navigator.vibrate(50)
+      }
     } catch {
       // Error handled by hook
     }
@@ -49,6 +54,11 @@ export const VoiceButton = memo(function VoiceButton({ onTranscription, disabled
     }
 
     isActiveRef.current = false
+
+    // Haptic feedback on release
+    if ('vibrate' in navigator) {
+      navigator.vibrate([30, 50, 30])  // Double pulse for send
+    }
 
     try {
       const text = await stopRecording()

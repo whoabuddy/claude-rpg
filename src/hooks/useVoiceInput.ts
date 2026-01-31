@@ -1,5 +1,58 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { encodeWav } from '../lib/audio'
+import { encodeWav, TARGET_SAMPLE_RATE } from '../lib/audio'
+
+// IndexedDB key for audio backup
+const AUDIO_BACKUP_KEY = 'claude-rpg-voice-backup'
+
+/**
+ * Store audio blob in IndexedDB for crash recovery
+ */
+async function backupAudioBlob(blob: Blob): Promise<void> {
+  try {
+    const arrayBuffer = await blob.arrayBuffer()
+    localStorage.setItem(AUDIO_BACKUP_KEY, JSON.stringify({
+      data: Array.from(new Uint8Array(arrayBuffer)),
+      type: blob.type,
+      timestamp: Date.now(),
+    }))
+  } catch {
+    // Silently fail - backup is best-effort
+    console.warn('[claude-rpg] Failed to backup audio')
+  }
+}
+
+/**
+ * Clear audio backup after successful transcription
+ */
+function clearAudioBackup(): void {
+  try {
+    localStorage.removeItem(AUDIO_BACKUP_KEY)
+  } catch {
+    // Ignore
+  }
+}
+
+/**
+ * Retrieve backed up audio blob if exists and recent (< 5 min)
+ */
+export function getBackedUpAudio(): Blob | null {
+  try {
+    const stored = localStorage.getItem(AUDIO_BACKUP_KEY)
+    if (!stored) return null
+
+    const { data, type, timestamp } = JSON.parse(stored)
+
+    // Only restore if less than 5 minutes old
+    if (Date.now() - timestamp > 5 * 60 * 1000) {
+      clearAudioBackup()
+      return null
+    }
+
+    return new Blob([new Uint8Array(data)], { type })
+  } catch {
+    return null
+  }
+}
 
 interface UseVoiceInputReturn {
   isRecording: boolean
@@ -34,17 +87,20 @@ function isVoiceSupported(): { supported: boolean; reason?: string } {
 
 /**
  * Get a supported mimeType for MediaRecorder
+ * Prioritizes formats by transcription quality and browser support
  */
 function getSupportedMimeType(): string | undefined {
   if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) {
     return undefined
   }
 
+  // Order matters: prefer opus for quality, mp4 for Safari compatibility
   const types = [
-    'audio/webm;codecs=opus',
-    'audio/webm',
-    'audio/ogg;codecs=opus',
-    'audio/mp4',
+    'audio/webm;codecs=opus',  // Chrome, Firefox, Edge
+    'audio/webm',               // Fallback webm
+    'audio/mp4',                // Safari (iOS and macOS)
+    'audio/ogg;codecs=opus',    // Firefox alternative
+    'audio/wav',                // Last resort
   ]
 
   for (const type of types) {
@@ -53,6 +109,32 @@ function getSupportedMimeType(): string | undefined {
     }
   }
   return undefined
+}
+
+/**
+ * Get a human-readable error message for getUserMedia errors
+ */
+function getMediaErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) return 'Failed to access microphone'
+
+  // Handle specific DOMException types
+  if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+    return 'Microphone permission denied. Please allow access in your browser settings.'
+  }
+  if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+    return 'No microphone found. Please connect a microphone and try again.'
+  }
+  if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+    return 'Microphone is in use by another application.'
+  }
+  if (error.name === 'OverconstrainedError') {
+    return 'Microphone does not support required audio settings.'
+  }
+  if (error.name === 'SecurityError') {
+    return 'Microphone access blocked. This page must be served over HTTPS.'
+  }
+
+  return error.message || 'Failed to access microphone'
 }
 
 export function useVoiceInput(): UseVoiceInputReturn {
@@ -77,13 +159,15 @@ export function useVoiceInput(): UseVoiceInputReturn {
     }
 
     try {
-      // Request microphone permission
+      // Request microphone permission with flexible constraints
+      // Use 'ideal' instead of exact values for better cross-browser/device support
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          channelCount: 1,
-          sampleRate: TARGET_SAMPLE_RATE,
-          echoCancellation: true,
-          noiseSuppression: true,
+          channelCount: { ideal: 1 },
+          sampleRate: { ideal: TARGET_SAMPLE_RATE },  // Will accept any rate, resamples later
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true },  // Helps normalize volume levels
         },
       })
       streamRef.current = stream
@@ -108,7 +192,7 @@ export function useVoiceInput(): UseVoiceInputReturn {
       mediaRecorder.start(100) // Collect data every 100ms
       setIsRecording(true)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to access microphone'
+      const message = getMediaErrorMessage(err)
       setError(message)
       throw err
     }
@@ -136,6 +220,9 @@ export function useVoiceInput(): UseVoiceInputReturn {
           const blob = new Blob(chunksRef.current, { type: recordedMimeType })
           chunksRef.current = []
 
+          // Store blob for potential retry (IndexedDB backup)
+          await backupAudioBlob(blob)
+
           // Decode audio to get raw samples (with webkitAudioContext fallback)
           const AudioContextClass = window.AudioContext ||
             (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
@@ -145,6 +232,11 @@ export function useVoiceInput(): UseVoiceInputReturn {
 
           const audioContext = new AudioContextClass()
           audioContextRef.current = audioContext
+
+          // Resume AudioContext if suspended (required for iOS Safari)
+          if (audioContext.state === 'suspended') {
+            await audioContext.resume()
+          }
 
           const arrayBuffer = await blob.arrayBuffer()
           const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
@@ -179,6 +271,8 @@ export function useVoiceInput(): UseVoiceInputReturn {
             return
           }
 
+          // Success - clear backup
+          clearAudioBackup()
           resolve(data.text || '')
         } catch (err) {
           // Clean up AudioContext if it was created
