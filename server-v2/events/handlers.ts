@@ -22,11 +22,53 @@ import {
 } from '../personas/challenges'
 import { incrementStat, updateStreak } from '../companions'
 import { getSession, updateFromHook, clearError } from '../sessions/manager'
+import type { ErrorClass } from '../sessions/types'
 import { getProjectById } from '../projects'
 import { notifyWaiting, notifyComplete, notifyError } from '../lib/discord'
 import type { PostToolUseEvent, UserPromptEvent, StopEvent, PreToolUseEvent, SessionStatusChangedEvent } from './types'
 
 const log = createLogger('event-handlers')
+
+/**
+ * Classify an error as actionable, expected, or transient.
+ *
+ * - 'actionable': User attention needed (permission denied, rate limit)
+ * - 'expected': Normal workflow errors (test failures, lint errors)
+ * - 'transient': Default for errors that may be retried
+ */
+function classifyError(toolName: string, message?: string): ErrorClass {
+  const lowerMessage = message?.toLowerCase() || ''
+
+  // Actionable: Permission denied, rate limit, explicit user-facing errors
+  if (
+    lowerMessage.includes('permission denied') ||
+    lowerMessage.includes('access denied') ||
+    lowerMessage.includes('unauthorized') ||
+    lowerMessage.includes('rate limit') ||
+    lowerMessage.includes('quota exceeded') ||
+    lowerMessage.includes('too many requests')
+  ) {
+    return 'actionable'
+  }
+
+  // Expected: Bash tool with test/lint-related exit codes
+  if (toolName === 'Bash') {
+    if (
+      lowerMessage.includes('test') ||
+      lowerMessage.includes('jest') ||
+      lowerMessage.includes('vitest') ||
+      lowerMessage.includes('eslint') ||
+      lowerMessage.includes('lint') ||
+      lowerMessage.includes('exit code') ||
+      lowerMessage.includes('git') // Git exit codes are often informational
+    ) {
+      return 'expected'
+    }
+  }
+
+  // Default: Transient (can be retried, may be part of chain)
+  return 'transient'
+}
 
 /**
  * Initialize event handlers
@@ -47,6 +89,9 @@ export function initEventHandlers(): void {
         session.personaId = persona.id
         log.debug('Linked persona to session (first hook)', { paneId: event.paneId, personaId: persona.id })
       }
+
+      // Clear any previous error state when a new tool starts (handles retries)
+      clearError(event.paneId)
 
       // Update session status to working
       await updateFromHook(event.paneId, 'working')
@@ -158,12 +203,17 @@ export function initEventHandlers(): void {
 
       // Handle error state: set on failure, clear on success
       if (event.success === false) {
+        // Classify the error
+        const errorMessage = typeof event.output === 'string' ? event.output : undefined
+        const errorClass = classifyError(event.toolName, errorMessage)
+
         // Set error state
         if (session) {
           session.lastError = {
             tool: event.toolName,
-            message: typeof event.output === 'string' ? event.output : undefined,
+            message: errorMessage,
             timestamp: Date.now(),
+            errorClass,
           }
         }
         await updateFromHook(event.paneId, 'error')
