@@ -14,6 +14,7 @@ const log = createLogger('session-reconciler')
 const IDLE_TIMEOUT_MS = 10000 // Trust terminal idle after 10s of working
 const UNKNOWN_TIMEOUT_MS = 15000 // Assume idle after 15s of unknown
 const HOOK_PRECEDENCE_MS = 5000 // Trust hook status for 5s after hook event
+const ERROR_STALE_MS = 10000 // Clear stale error after 10s if terminal shows working/idle
 
 export interface ReconciliationInput {
   hookStatus: SessionStatus
@@ -21,6 +22,7 @@ export interface ReconciliationInput {
   timeSinceHookChange: number // ms since last hook status change
   timeSinceTerminalChange: number // ms since terminal content changed
   timeSinceHookEvent?: number // ms since last hook event (for precedence lock)
+  timeSinceError?: number // ms since last error (for error staleness)
   hasActiveSubagents?: boolean // Guard: don't idle if subagents are still running
 }
 
@@ -35,7 +37,7 @@ export interface ReconciliationResult {
  * Reconcile hook state with terminal state
  */
 export function reconcile(input: ReconciliationInput): ReconciliationResult {
-  const { hookStatus, terminalDetection, timeSinceHookChange, timeSinceTerminalChange, timeSinceHookEvent, hasActiveSubagents } = input
+  const { hookStatus, terminalDetection, timeSinceHookChange, timeSinceTerminalChange, timeSinceHookEvent, timeSinceError, hasActiveSubagents } = input
 
   log.debug('Reconciling session state', {
     hookStatus,
@@ -44,6 +46,7 @@ export function reconcile(input: ReconciliationInput): ReconciliationResult {
     timeSinceHookChange,
     timeSinceTerminalChange,
     timeSinceHookEvent,
+    timeSinceError,
     hasActiveSubagents,
   })
 
@@ -86,6 +89,23 @@ export function reconcile(input: ReconciliationInput): ReconciliationResult {
       source: 'terminal',
       confidence: terminalDetection.confidence,
       reason: 'Terminal shows error',
+    }
+  }
+
+  // Rule 3.5: Error staleness - if hook says error but terminal shows working/idle for 10s+
+  // This handles cases where Claude recovered from an error but we missed the update
+  if (
+    hookStatus === 'error' &&
+    timeSinceError !== undefined &&
+    timeSinceError > ERROR_STALE_MS &&
+    (terminalDetection.status === 'working' || terminalDetection.status === 'idle') &&
+    terminalDetection.confidence > 0.6
+  ) {
+    return {
+      status: terminalDetection.status as SessionStatus,
+      source: 'timeout',
+      confidence: 0.7,
+      reason: `Stale error (${Math.round(timeSinceError / 1000)}s), terminal shows ${terminalDetection.status}`,
     }
   }
 

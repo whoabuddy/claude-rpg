@@ -119,6 +119,11 @@ export async function updateFromTerminal(paneId: string, content: string): Promi
   // Calculate hasActiveSubagents guard
   const hasActiveSubagents = (session.activeSubagents?.length ?? 0) > 0
 
+  // Calculate time since error (for error staleness rule)
+  const timeSinceError = session.lastError?.timestamp
+    ? Date.now() - session.lastError.timestamp
+    : undefined
+
   // Reconcile
   const result = reconcile({
     hookStatus: session.status,
@@ -126,6 +131,7 @@ export async function updateFromTerminal(paneId: string, content: string): Promi
     timeSinceHookChange: Date.now() - hookChangeTime,
     timeSinceTerminalChange: Date.now() - terminalChangeTime,
     timeSinceHookEvent: session.lastHookUpdateAt ? Date.now() - session.lastHookUpdateAt : Infinity,
+    timeSinceError,
     hasActiveSubagents,
   })
 
