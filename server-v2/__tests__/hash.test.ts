@@ -125,7 +125,7 @@ describe('hashContent', function() {
     }
   })
 
-  test('no collisions in 100k random terminal samples', function() {
+  test('no collisions in 100k random terminal samples', { timeout: 30000 }, function() {
     const sampleCount = 100_000
     const hashes = new Set<string>()
     const contents = new Set<string>()

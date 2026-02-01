@@ -40,7 +40,7 @@ See [PHASES.md](./PHASES.md) for detailed breakdown.
 | 2 | Complete | Elevate terminal priority |
 | 3 | Complete | Increase capture lines |
 | 4 | Complete | Add incremental diffs |
-| 5 | Pending | Pattern versioning system |
+| 5 | Complete | Pattern versioning system |
 | 6 | Pending | End-to-end verification |
 
 ## Notes
