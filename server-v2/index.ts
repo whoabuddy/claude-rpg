@@ -136,7 +136,9 @@ async function main() {
             const diff = generateDiff(lastContent, pane.terminalContent)
             const fullSize = JSON.stringify(pane.terminalContent).length
 
-            if (diff.estimatedSize < fullSize * 0.8) {
+            // TODO: Diffs require per-client tracking to work correctly
+            // Currently disabled (threshold 0) until we track what each client has received
+            if (diff.estimatedSize < fullSize * 0) {
               // Diff is smaller - send it
               broadcast({
                 type: 'terminal_diff',
