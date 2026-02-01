@@ -158,4 +158,83 @@ describe('parseTerminal', () => {
       expect(result.status).toBe('waiting')
     })
   })
+
+  describe('large terminal captures', () => {
+    test('detects prompts in last 50 lines of 150-line capture', () => {
+      // Generate 120 lines of filler content
+      const fillerLines = Array.from({ length: 120 }, (_, i) => `Line ${i + 1}: Some output...`)
+
+      // Add a permission prompt after line 120 (within last 50 lines of total)
+      const promptLines = [
+        'Context about the operation...',
+        'File changes detected:',
+        '- Added new feature',
+        '- Updated tests',
+        'Allow these changes? (Edit)',
+        '[y/n]:',
+      ]
+
+      const content = [...fillerLines, ...promptLines].join('\n')
+
+      // Parser takes last 50 lines, so prompt at line 121-126 should be detected
+      const result = parseTerminal(content)
+      expect(result.status).toBe('waiting')
+      expect(result.confidence).toBeGreaterThan(0.6)
+      expect(result.prompt?.type).toBe('permission')
+    })
+
+    test('handles 150-line capture efficiently', () => {
+      // Generate exactly 150 lines with working indicator at the end
+      const lines = Array.from({ length: 145 }, (_, i) => `Content line ${i + 1}`)
+      lines.push('⠋ Working on task...')
+      lines.push('Processing files...')
+      lines.push('Reading file data...')
+      lines.push('Analyzing content...')
+      lines.push('⠙ Still working...')
+
+      const content = lines.join('\n')
+
+      const startTime = Date.now()
+      const result = parseTerminal(content)
+      const duration = Date.now() - startTime
+
+      // Should complete quickly (< 50ms)
+      expect(duration).toBeLessThan(50)
+      // Should detect working state from spinner in last 50 lines
+      expect(result.status).toBe('working')
+    })
+
+    test('validates 150-line capture allows deeper prompt detection', () => {
+      // Test case: prompt that spans lines 100-110 (would be missed with 100-line capture)
+      // Generate 95 lines of normal output
+      const prefixLines = Array.from({ length: 95 }, (_, i) => `Output ${i + 1}`)
+
+      // Add prompt context starting at line 96 (would be line 96-110 in capture)
+      const promptContext = [
+        '',
+        'I need to modify several files:',
+        '1. src/components/Header.tsx - Add navigation',
+        '2. src/pages/Home.tsx - Update content',
+        '3. src/lib/api.ts - Add endpoint',
+        '',
+        'This will affect the following areas:',
+        '- User interface navigation',
+        '- Home page layout',
+        '- API integration',
+        '',
+        'Allow these changes? (Edit)',
+        '[y/n]:',
+      ]
+
+      // Add more lines after to reach 150 total
+      const suffixLines = Array.from({ length: 38 }, (_, i) => `Additional line ${i + 1}`)
+
+      const content = [...prefixLines, ...promptContext, ...suffixLines].join('\n')
+
+      const result = parseTerminal(content)
+      // Prompt is within last 50 lines of 150, should be detected
+      expect(result.status).toBe('waiting')
+      expect(result.prompt?.type).toBe('permission')
+    })
+  })
 })
