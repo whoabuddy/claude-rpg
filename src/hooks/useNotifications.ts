@@ -42,17 +42,24 @@ export function useNotifications(): UseNotificationsResult {
       return null
     }
 
-    const notification = new Notification(title, {
-      icon: DEFAULT_ICON,
-      ...options,
-    })
+    try {
+      const notification = new Notification(title, {
+        icon: DEFAULT_ICON,
+        ...options,
+      })
 
-    notification.onclick = () => {
-      window.focus()
-      notification.close()
+      notification.onclick = () => {
+        window.focus()
+        notification.close()
+      }
+
+      return notification
+    } catch {
+      // iOS Safari and some browsers don't support direct Notification construction
+      // They require ServiceWorker.showNotification() instead
+      console.warn('Browser notifications not supported, use ServiceWorker instead')
+      return null
     }
-
-    return notification
   }, [permission])
 
   return { permission, requestPermission, notify }
