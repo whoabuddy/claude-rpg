@@ -323,14 +323,14 @@ Cloudflare tunnel without needing a second route.
 - `event` - New Claude event (low priority, skipped under backpressure)
 - `xp_gain` - XP was awarded
 - `history` - Recent events on connect
-- `terminal_output` - Terminal content for a pane (low priority, skipped under backpressure)
+- `terminal_output` - Terminal content for a pane (high priority, always sent)
 
 ### WebSocket Backpressure
 
 When a client's send buffer exceeds 64KB, the server pauses non-critical messages:
-- **High priority** (always sent): `pane_update`, `pane_removed`
+- **High priority** (always sent): `pane_update`, `pane_removed`, `terminal_output`, `error`
 - **Normal priority** (paused when buffered): `windows`, `companions`, `xp_gain`
-- **Low priority** (dropped when buffered): `terminal_output`, `event`
+- **Low priority** (dropped when buffered): `event`
 
 Resumes when buffer drops below 16KB.
 

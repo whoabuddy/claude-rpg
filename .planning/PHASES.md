@@ -1,262 +1,207 @@
-# v2.6 State Machine Fixes - Phases
+# Terminal Capture and Display Fix - Phases
 
-**Goal:** Implement all fixes from Data Tracking Audit to create a robust, resilient state machine for claude-rpg.
+**Goal:** Fix terminal capture and display issues identified in audit
 
-**Base Branch:** main
-**Target:** Eliminate "ready while active" bug, reduce false error displays, improve data integrity
+**Status:** Phase 1 Complete
 
----
+## Phase Overview
 
-## Phase 1: Reconciler Timeout and Precedence Lock [COMPLETED]
-
-**Goal:** Prevent reconciler from prematurely overriding hook-reported status
-
-**Status:** Completed (2026-01-31)
-
-**Dependencies:** None (foundation phase)
-
-**Fixes Addressed:**
-- Fix 1: Increase reconciler timeouts from 3s/5s to 10s/15s
-- Fix 2: Implement hook precedence lock (5s window after hook event)
-
-**Key Files:**
-- `server-v2/sessions/reconciler.ts` - Timeout constants, add lock check
-- `server-v2/sessions/manager.ts` - Track lastHookUpdateAt timestamp
-- `server-v2/sessions/types.ts` - Add lastHookUpdateAt to ClaudeSession
-
-**Tests Required:**
-- Reconciler respects IDLE_TIMEOUT_MS=10000ms
-- Reconciler respects UNKNOWN_TIMEOUT_MS=15000ms
-- Reconciler skips override when within 5s of hook event
-- Hook events always update status (precedence over terminal)
-
-**Acceptance Criteria:**
-- Timeout constants changed to 10s/15s
-- New `lastHookUpdateAt` field tracks hook event timing
-- Reconciler checks `timeSinceHookEvent < 5000` before override
-- Unit tests pass for all timeout scenarios
+| Phase | Name | Risk | Impact | Time |
+|-------|------|------|--------|------|
+| 1 | Upgrade hash function | Low | High | 1h |
+| 2 | Elevate terminal priority | Low | High | 1h |
+| 3 | Increase capture lines | Low | Medium | 1h |
+| 4 | Add incremental diffs | Medium | Medium | 2h |
+| 5 | Pattern versioning system | Low | Medium | 1h |
+| 6 | End-to-end verification | Low | High | 1h |
 
 ---
 
-## Phase 2: Subagent Tracking Guard [COMPLETED]
+## Phase 1: Upgrade Hash Function ✅
 
-**Goal:** Prevent idle detection when subagents are still running
+**Status:** COMPLETED
 
-**Status:** Completed (2026-01-31)
+**Goal:** Replace 32-bit DJB2 hash with collision-resistant alternative
 
-**Dependencies:** Phase 1 (builds on reconciler changes)
+**Problem:** Current `hashContent()` in `server-v2/index.ts:81-89` uses 32-bit DJB2 hash which has ~50% collision probability at 77k items. For terminal content that changes frequently, this could cause missed updates.
 
-**Fixes Addressed:**
-- Fix 3: Add back hasActiveSubagents guard from legacy reconciler
-
-**Key Files:**
-- `server-v2/sessions/reconciler.ts` - Add subagent check to Rules 4/5
-- `server-v2/sessions/manager.ts` - Pass activeSubagents to reconciler
-- `server-v2/sessions/types.ts` - Update ReconciliationInput if needed
-- `shared/types.ts` - Verify SubagentInfo is accessible
-
-**Tests Required:**
-- Reconciler does NOT set idle when activeSubagents.length > 0
-- Reconciler allows idle when activeSubagents is empty/undefined
-- Subagent state is correctly passed through reconciliation flow
-
-**Acceptance Criteria:**
-- Rules 4 and 5 include `hasActiveSubagents` guard
-- Status stays working/waiting when subagents active
-- Legacy behavior parity verified
-
----
-
-## Phase 3: Error Classification System [COMPLETED]
-
-**Goal:** Distinguish actionable errors from expected/transient ones
-
-**Status:** Completed (2026-01-31)
-
-**Dependencies:** None (can run in parallel with Phase 1-2)
-
-**Fixes Addressed:**
-- Fix 4: Implement 3-tier error classification (actionable/expected/transient)
-- Fix 5: Clear error state when PreToolUse arrives
-- Fix 6: Add server-side 10s error staleness check
-
-**Key Files:**
-- `server-v2/sessions/types.ts` - Add errorClass field to SessionError
-- `server-v2/events/handlers.ts` - Classify errors on PostToolUse, clear on PreToolUse
-- `server-v2/sessions/reconciler.ts` - Add error staleness rule from legacy
-- `server-v2/terminal/patterns.ts` - Reduce ERROR_PATTERNS confidence (0.8 -> 0.6)
-
-**Error Classification Logic:**
-- `'transient'`: Followed by PreToolUse within 2s (retry pattern)
-- `'expected'`: Test failures, git exit codes, lint errors (known tools)
-- `'actionable'`: Everything else (needs user attention)
-
-**Tests Required:**
-- PreToolUse clears previous error state
-- Error staleness (>10s) triggers status recovery
-- Transient errors (retry within 2s) not displayed prominently
-- Expected errors auto-dismiss faster than actionable
-
-**Acceptance Criteria:**
-- SessionError has errorClass: 'actionable' | 'expected' | 'transient'
-- PreToolUse event calls clearError() before setting working
-- Reconciler clears stale errors after 10s
-- Lower ERROR_PATTERNS confidence to 0.6
-
----
-
-## Phase 4: Terminal Pattern Confidence Tuning [COMPLETED]
-
-**Goal:** Reduce false positive idle detections from terminal content
-
-**Status:** Completed (2026-01-31)
-
-**Dependencies:** Phases 1-3 (refinement phase)
-
-**Fixes Addressed:**
-- Fix 9: Lower IDLE_PATTERNS confidence to reduce false positives
-
-**Key Files:**
-- `server-v2/terminal/patterns.ts` - Adjust IDLE_PATTERNS confidence values
-
-**Pattern Changes:**
-- `checkmark`: 0.6 -> 0.4 (common in test output)
-- `task_complete`: 0.7 -> 0.5 ("Done" appears in many contexts)
-- `claude_prompt`: 0.8 -> 0.6 (can match mid-output)
-
-**Tests Required:**
-- Checkmarks in test output don't trigger idle
-- "Done" in tool output doesn't trigger idle
-- Actual Claude prompt (end of session) still detected
-- Overall detection accuracy maintained
-
-**Acceptance Criteria:**
-- IDLE_PATTERNS have reduced confidence values
-- False positive rate reduced (manual verification)
-- Legitimate idle detection still works
-
----
-
-## Phase 5: Targeted WebSocket Updates [COMPLETED]
-
-**Goal:** Broadcast status changes immediately instead of waiting for windows poll
-
-**Status:** Completed (2026-01-31)
-
-**Dependencies:** Phases 1-2 (status must be correct before optimizing delivery)
-
-**Fixes Addressed:**
-- Fix 7: Broadcast targeted pane_update on status change
-
-**Key Files:**
-- `server-v2/sessions/manager.ts` - Emit pane_update after status change
-- `server-v2/api/broadcast.ts` - Ensure pane_update uses high priority
-- `server-v2/events/handlers.ts` - Trigger broadcast after updateFromHook
-
-**Implementation:**
-- After `updateSessionStatus()` succeeds, broadcast `pane_update` message
-- Include full pane state in update (not just status)
-- Ensure message priority is HIGH for reliable delivery
-
-**Tests Required:**
-- Status change triggers immediate pane_update broadcast
-- pane_update has high priority (not dropped under backpressure)
-- Client receives status change within 50ms of hook event
-
-**Acceptance Criteria:**
-- pane_update broadcast added to updateSessionStatus flow
-- Status changes visible in UI within 50ms (vs 0-250ms before)
-- No duplicate status updates (dedupe logic)
-
----
-
-## Phase 6: Events Table Retention Policy [COMPLETED]
-
-**Goal:** Prevent unbounded database growth
-
-**Status:** Completed (2026-01-31)
-
-**Dependencies:** None (can run in parallel)
-
-**Fixes Addressed:**
-- Fix 8: Add cleanup policy for events table
-
-**Key Files:**
-- `server-v2/db/index.ts` - Schedule periodic cleanup
-- `server-v2/db/queries.ts` - Verify deleteOldEvents query works
-- `server-v2/lib/config.ts` - Add eventsRetentionDays config (default: 7)
-
-**Implementation:**
-- Add scheduled job (daily) to delete events older than retention period
-- Alternative: Enforce row limit (keep last 10000 events)
-- Log cleanup actions for monitoring
-
-**Tests Required:**
-- Events older than retention period are deleted
-- Recent events are preserved
-- Cleanup doesn't affect other tables
-
-**Acceptance Criteria:**
-- Events table has enforced retention policy
-- Database file size stabilizes over time
-- Cleanup logged for monitoring
-
----
-
-## Phase 7: Verification and Cleanup
-
-**Goal:** Verify all fixes work together, clean up implementation
-
-**Dependencies:** Phases 1-6 (final phase)
+**Files:**
+- `server-v2/index.ts` (lines 80-89)
+- `server-v2/lib/hash.ts` (new)
+- `server-v2/__tests__/hash.test.ts` (new)
 
 **Tasks:**
-1. Run full test suite (bun test)
-2. Manual testing: Create scenarios that triggered original bugs
-3. Verify reconciler behavior with extended timeouts
-4. Verify error classification in real usage
-5. Check WebSocket update latency
-6. Document any remaining edge cases
-
-**Verification Scenarios:**
-- [ ] Long-running Bash command (>10s) stays "Working"
-- [ ] Test failures show as "expected" errors, auto-dismiss in 2s
-- [ ] Subagent work doesn't trigger parent idle
-- [ ] PreToolUse after error clears error state
-- [ ] Status change reaches UI within 100ms
-- [ ] Events table stays under 10000 rows
-
-**Cleanup Tasks:**
-- Remove any debug logging added during implementation
-- Update CLAUDE.md with new timeout values
-- Archive audit findings to .planning/archive
-- Create release notes for v2.6
+1. ✅ Create `server-v2/lib/hash.ts` with Bun's native Wyhash (64-bit)
+2. ✅ Replace `hashContent()` calls with new hash function
+3. ✅ Add unit tests verifying no collisions across 100k sample strings
 
 **Acceptance Criteria:**
-- All tests pass
-- No regression in existing functionality
-- Documentation updated
-- Performance benchmarks acceptable
+- ✅ Hash function produces 64-bit output (16 hex chars)
+- ✅ No collisions detected in test suite with 100k random terminal samples
+- ✅ Terminal content changes are always detected
+
+**Commits:**
+- 89346b8: feat(hash): add 64-bit hash function for terminal content
+- 47bf9c4: refactor(server): replace inline hash with 64-bit hash module
+- a8eeec3: test(hash): add comprehensive test suite for 64-bit hash
 
 ---
 
-## Summary
+## Phase 2: Elevate Terminal Output Priority
 
-| Phase | Fixes | Est. Tasks | Priority |
-|-------|-------|------------|----------|
-| 1. Reconciler Timeouts | 1, 2 | 3 | Critical |
-| 2. Subagent Guard | 3 | 2 | High |
-| 3. Error Classification | 4, 5, 6 | 4 | High |
-| 4. Pattern Confidence | 9 | 2 | Medium |
-| 5. WebSocket Updates | 7 | 3 | Medium |
-| 6. Events Retention | 8 | 2 | Low |
-| 7. Verification | - | 2 | Required |
+**Goal:** Ensure terminal_output messages are never dropped under backpressure
 
-**Parallelization:**
-- Phases 1-2 must be sequential (reconciler foundation)
-- Phase 3 can run in parallel with 1-2 (error system is separate)
-- Phase 4 depends on 1-3 (refinement)
-- Phase 5 depends on 1-2 (correct status before fast delivery)
-- Phase 6 can run in parallel (database only)
-- Phase 7 must be last (verification)
+**Problem:** `server-v2/api/messages.ts:157` marks terminal_output as high priority, but the README.md:147 documents it as LOW. Need to verify implementation matches intent and add safeguards.
 
-**Total Estimated Tasks:** 18
+**Files:**
+- `server-v2/api/messages.ts` (verify line 157)
+- `server-v2/api/broadcast.ts` (verify priority handling)
+- `server-v2/README.md` (update documentation)
+- `server-v2/__tests__/broadcast.test.ts` (add priority test)
+
+**Tasks:**
+1. Verify `terminal_output` returns `'high'` from `getPriority()` (it does per line 157)
+2. Update README.md to reflect actual priority (currently says LOW, should say HIGH)
+3. Add test that terminal_output is never skipped even when client is paused
+4. Consider adding message sequence numbers for client-side gap detection
+
+**Acceptance Criteria:**
+- README.md documents terminal_output as HIGH priority
+- Test confirms terminal_output sent even when client buffer > BUFFER_HIGH
+- No terminal updates lost during network congestion simulation
+
+---
+
+## Phase 3: Increase Terminal Capture Lines
+
+**Goal:** Capture enough terminal lines to reliably detect all prompt types
+
+**Problem:** `server-v2/tmux/commands.ts:88` defaults to 50 lines, `poller.ts:227` uses 100 lines. Some Claude prompts (especially with context/options) can span 60+ lines.
+
+**Files:**
+- `server-v2/tmux/commands.ts` (line 88)
+- `server-v2/tmux/poller.ts` (line 227)
+- `server/terminal-parser.ts` (verify parsing handles larger input)
+- `server-v2/lib/config.ts` (add configurable setting)
+
+**Tasks:**
+1. Increase default capture from 100 to 150 lines in poller.ts
+2. Add `terminalCaptureLines` to config.ts with default 150
+3. Update capturePane() to accept config value
+4. Test parser with 150-line terminal samples containing prompts at various positions
+
+**Acceptance Criteria:**
+- Config allows setting capture lines (50-500 range)
+- Default captures 150 lines
+- Parser correctly identifies prompts in lines 100-150 of capture
+
+---
+
+## Phase 4: Implement Incremental Diffs
+
+**Goal:** Reduce bandwidth by sending only changed lines instead of full content
+
+**Problem:** Every terminal_output message sends full content (~4-8KB per pane). With 4 Claude panes at 250ms, that's 64-128KB/s of redundant data.
+
+**Files:**
+- `server-v2/lib/diff.ts` (new)
+- `server-v2/index.ts` (modify terminal broadcast)
+- `server-v2/api/messages.ts` (add TerminalDiffMessage type)
+- `src/lib/websocket.ts` (apply diffs client-side)
+- `src/store/index.ts` (store and apply diffs)
+- `server-v2/__tests__/diff.test.ts` (new)
+
+**Tasks:**
+1. Create `diff.ts` with line-based diff algorithm (add/remove/keep)
+2. Add `terminal_diff` message type with {paneId, ops: DiffOp[], seq: number}
+3. Server tracks last-sent content per pane, sends diff if < 50% changed
+4. Client applies diffs to cached terminal content
+5. Fallback: send full content if diff is larger than original
+
+**Acceptance Criteria:**
+- Diff-based updates reduce bandwidth by 60%+ in typical usage
+- Client correctly reconstructs terminal from diffs
+- Sequence numbers allow client to request full refresh on gap
+- Full content fallback works when terminal changes significantly
+
+---
+
+## Phase 5: Pattern Versioning System
+
+**Goal:** Make terminal patterns maintainable across Claude Code updates
+
+**Problem:** `server-v2/terminal/patterns.ts` contains hardcoded regexes that break when Claude Code UI changes. Need a system to track and update patterns.
+
+**Files:**
+- `server-v2/terminal/patterns.ts` (refactor)
+- `server-v2/terminal/pattern-registry.ts` (new)
+- `server-v2/__tests__/patterns.test.ts` (new)
+- `server-v2/terminal/test-fixtures/` (new directory)
+
+**Tasks:**
+1. Create `pattern-registry.ts` with versioned pattern sets
+2. Add test fixtures with real terminal captures for each prompt type
+3. Add pattern confidence scoring that weights multiple matches
+4. Document pattern update procedure in README
+5. Add CLI command to test patterns against saved fixtures
+
+**Acceptance Criteria:**
+- Pattern registry supports multiple versions
+- Test fixtures cover all 5 prompt types (permission, question, plan, feedback, selector)
+- `bun run test:patterns` validates all patterns against fixtures
+- README documents how to update patterns for new Claude Code versions
+
+---
+
+## Phase 6: End-to-End Verification
+
+**Goal:** Verify all fixes work together in realistic conditions
+
+**Files:**
+- `server-v2/__tests__/integration/terminal-flow.test.ts` (new)
+- `scripts/stress-test.ts` (new)
+
+**Tasks:**
+1. Create integration test simulating 4 Claude panes with rapid updates
+2. Verify no updates lost under simulated network latency
+3. Verify diffs correctly reconstruct content after 100 updates
+4. Verify patterns detect prompts in stress conditions
+5. Measure and document bandwidth reduction
+
+**Acceptance Criteria:**
+- Integration test passes with 0 lost updates over 1000 cycles
+- Bandwidth reduced by 50%+ compared to baseline
+- Prompt detection latency < 500ms in stress conditions
+- All patterns detect prompts correctly in 95%+ of test cases
+
+---
+
+## Dependencies
+
+```
+Phase 1 (hash) ─────────────────────────────────────┐
+                                                     │
+Phase 2 (priority) ─────────────────────────────────┼──► Phase 6 (verify)
+                                                     │
+Phase 3 (lines) ────────────────────────────────────┤
+                                                     │
+Phase 4 (diffs) ────────────────────────────────────┤
+                                                     │
+Phase 5 (patterns) ─────────────────────────────────┘
+```
+
+Phases 1-5 are independent and can be worked in parallel.
+Phase 6 requires all others to be complete.
+
+---
+
+## Risk Assessment
+
+| Phase | Risk | Mitigation |
+|-------|------|------------|
+| 1 | Hash change could cause all content to be "new" | Clear hash cache on server restart |
+| 2 | High priority could overwhelm slow clients | Keep buffer thresholds, just don't drop |
+| 3 | More lines = more processing | Profile parser, lazy-parse from bottom |
+| 4 | Diff bugs could corrupt client state | Sequence numbers + periodic full sync |
+| 5 | New patterns could have regressions | Test fixtures catch regressions |
+| 6 | Integration tests may be flaky | Deterministic fixtures, retry logic |
