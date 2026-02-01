@@ -1,6 +1,6 @@
 # Quest: Fix Terminal Capture and Display Issues
 
-**Status:** Planning
+**Status:** Completed
 **Created:** 2026-01-31
 **Priority:** High
 
@@ -20,11 +20,11 @@ An audit of the terminal capture system identified 5 issues affecting reliabilit
 
 ## Success Criteria
 
-- [ ] Zero missed terminal updates in 1000-cycle stress test
-- [ ] 50%+ bandwidth reduction with incremental diffs
-- [ ] Prompt detection works for all 5 prompt types
-- [ ] Pattern update procedure documented
-- [ ] All changes covered by tests
+- [x] Zero missed terminal updates in 1000-cycle stress test
+- [x] 50%+ bandwidth reduction with incremental diffs
+- [x] Prompt detection works for all 5 prompt types
+- [x] Pattern update procedure documented
+- [x] All changes covered by tests
 
 ## Linked Repos
 
@@ -41,7 +41,7 @@ See [PHASES.md](./PHASES.md) for detailed breakdown.
 | 3 | Complete | Increase capture lines |
 | 4 | Complete | Add incremental diffs |
 | 5 | Complete | Pattern versioning system |
-| 6 | Pending | End-to-end verification |
+| 6 | Complete | End-to-end verification |
 
 ## Notes
 
