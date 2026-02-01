@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.2.0](https://github.com/whoabuddy/claude-rpg/compare/v2.1.0...v2.2.0) (2026-02-01)
+
+
+### Features
+
+* terminal reliability, personas, and UI improvements ([#191](https://github.com/whoabuddy/claude-rpg/issues/191)) ([fb28556](https://github.com/whoabuddy/claude-rpg/commit/fb28556a9afb956aa5080a2bf3b7afdb4fa96a65))
+* terminal responsiveness, notifications, and voice improvements ([#192](https://github.com/whoabuddy/claude-rpg/issues/192)) ([e8041f5](https://github.com/whoabuddy/claude-rpg/commit/e8041f541acb33ec2e2126bb4f4d06ca1fe837ce))
+* **terminal:** improve capture reliability and reduce bandwidth ([#194](https://github.com/whoabuddy/claude-rpg/issues/194)) ([bcd16c1](https://github.com/whoabuddy/claude-rpg/commit/bcd16c155f61e8968300b63f679238b119824bbc))
+* v2.2 issue cleanup - fix bugs, consolidate pages, enhance UI ([#185](https://github.com/whoabuddy/claude-rpg/issues/185)) ([d2da04f](https://github.com/whoabuddy/claude-rpg/commit/d2da04f713141bc14105853210c58020f00c8d93))
+* v2.3 cleanup - fixes, perf, and code quality ([#190](https://github.com/whoabuddy/claude-rpg/issues/190)) ([d17af74](https://github.com/whoabuddy/claude-rpg/commit/d17af7494d95aa9902d6a35f965e6a822a60ecea))
+
+
+### Bug Fixes
+
+* **hooks:** handle Claude Code event type field names ([#193](https://github.com/whoabuddy/claude-rpg/issues/193)) ([e7baf4c](https://github.com/whoabuddy/claude-rpg/commit/e7baf4cb4531a12d99feb6976be087be904c14f2))
+* **notifications:** handle browsers that don't support Notification constructor ([#196](https://github.com/whoabuddy/claude-rpg/issues/196)) ([b49b000](https://github.com/whoabuddy/claude-rpg/commit/b49b000ba1c3e530250fafdce5ab835ecb148a04))
+* **terminal:** capture current content instead of stale cache ([#198](https://github.com/whoabuddy/claude-rpg/issues/198)) ([6415bfc](https://github.com/whoabuddy/claude-rpg/commit/6415bfccadc76704fb47d1012d95064fd5be2f42))
+* **terminal:** disable diffs until per-client tracking implemented ([#195](https://github.com/whoabuddy/claude-rpg/issues/195)) ([22dddff](https://github.com/whoabuddy/claude-rpg/commit/22dddffe4c5ca1009a51561862664bffb0cfceff))
+* **ui:** correct header title and subtitle order ([#189](https://github.com/whoabuddy/claude-rpg/issues/189)) ([09ed03d](https://github.com/whoabuddy/claude-rpg/commit/09ed03d8538561808f0f6df540570b5bb119edc8)), closes [#186](https://github.com/whoabuddy/claude-rpg/issues/186)
+
 ## [2.1.0](https://github.com/whoabuddy/claude-rpg/compare/v2.0.0...v2.1.0) (2026-01-30)
 
 
