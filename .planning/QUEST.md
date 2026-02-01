@@ -38,8 +38,8 @@ See [PHASES.md](./PHASES.md) for detailed breakdown.
 |-------|--------|-------------|
 | 1 | Complete | Upgrade hash function |
 | 2 | Complete | Elevate terminal priority |
-| 3 | Pending | Increase capture lines |
-| 4 | Pending | Add incremental diffs |
+| 3 | Complete | Increase capture lines |
+| 4 | Complete | Add incremental diffs |
 | 5 | Pending | Pattern versioning system |
 | 6 | Pending | End-to-end verification |
 
