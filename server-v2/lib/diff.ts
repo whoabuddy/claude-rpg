@@ -138,6 +138,11 @@ function estimateDiffSize(ops: DiffOp[]): number {
  * Used for testing and client-side application
  */
 export function applyDiff(oldContent: string, ops: DiffOp[]): string {
+  // Empty ops means no changes - return original
+  if (ops.length === 0) {
+    return oldContent
+  }
+
   const oldLines = oldContent ? oldContent.split('\n') : []
   const result: string[] = []
   let lineIndex = 0
