@@ -2,13 +2,12 @@
  * WebSocket message types and priorities
  */
 
-import type { DiffOp } from '../lib/diff'
 import type { TmuxWindow } from '../tmux/types'
 import type { ClaudeSession } from '../sessions/types'
 import type { Persona } from '../personas/types'
 import type { Project } from '../projects/types'
 import type { XpGain } from '../xp/types'
-import type { Companion, Quest } from '../../shared/types'
+import type { Companion, Quest, DiffOp } from '../../shared/types'
 
 export type MessagePriority = 'high' | 'normal' | 'low'
 

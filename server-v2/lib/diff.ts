@@ -5,10 +5,10 @@
  * Optimized for terminal output where most changes are appended lines.
  */
 
-export type DiffOp =
-  | { type: 'keep'; count: number }
-  | { type: 'add'; lines: string[] }
-  | { type: 'remove'; count: number }
+import type { DiffOp } from '../../shared/types'
+
+// Re-export for convenience
+export type { DiffOp }
 
 export interface DiffResult {
   ops: DiffOp[]
