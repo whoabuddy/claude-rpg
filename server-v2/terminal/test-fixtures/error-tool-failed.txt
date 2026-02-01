@@ -1,0 +1,28 @@
+/**
+ * Fixture: Tool failure error
+ * Type: error
+ * Expected status: error
+ * Claude Code version: 1.x (Jan 2026)
+ */
+
+Let me run the tests to verify everything works correctly.
+
+Running test suite...
+
+┌─ Bash ─────────────────────────────────────────────────────────────────────┐
+│ bun test                                                                   │
+└────────────────────────────────────────────────────────────────────────────┘
+
+bun test v1.3.1 (89fa0f34)
+
+server-v2/__tests__/pattern-registry.test.ts:
+✓ pattern-registry > getPatternVersion > returns version 1.0.0
+✓ pattern-registry > getCurrentPatterns > returns current pattern version
+✗ pattern-registry > getCurrentPatterns > current patterns have expected structure
+
+  error: Cannot read property 'forEach' of undefined
+    at server-v2/__tests__/pattern-registry.test.ts:42:35
+
+Tool failed with exit code 1
+
+The test suite failed. There appears to be an issue with the pattern structure validation.

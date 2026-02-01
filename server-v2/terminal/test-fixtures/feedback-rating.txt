@@ -1,0 +1,19 @@
+/**
+ * Fixture: Feedback rating prompt
+ * Type: feedback
+ * Expected status: waiting
+ * Claude Code version: 1.x (Jan 2026)
+ */
+
+I've completed the implementation of the pattern versioning system.
+
+Summary:
+- Created pattern registry with version metadata
+- Added test fixtures for all prompt types
+- Implemented confidence scoring with multi-match weighting
+- All tests passing (265 total)
+
+The system is now ready to track pattern changes across Claude Code versions.
+
+● How would you rate this response?
+1: Bad    2: Fine   3: Good   0: Dismiss

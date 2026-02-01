@@ -1,0 +1,30 @@
+/**
+ * Fixture: Plan approval prompt
+ * Type: plan
+ * Expected status: waiting
+ * Claude Code version: 1.x (Jan 2026)
+ */
+
+I've created a comprehensive plan for implementing the pattern versioning system.
+
+Here's what I'll do:
+
+1. Create pattern registry with versioning
+2. Add test fixtures for all prompt types
+3. Implement confidence scoring
+4. Add fixture validation tests
+5. Document update procedures
+6. Create CLI test script
+
+┌─ Plan Complete ────────────────────────────────────────────────────────────┐
+│ Your plan is ready for approval.                                           │
+│                                                                            │
+│ ● (1) Yes, and manually approve edits (Recommended)                       │
+│   Review each file change individually                                    │
+│ ○ (2) Yes, and bypass permissions                                         │
+│   Auto-approve all edits for this plan                                    │
+│ ○ (3) No, continue planning                                               │
+│   I need to revise the plan first                                         │
+│                                                                            │
+│ Tab to add context                                                         │
+└────────────────────────────────────────────────────────────────────────────┘

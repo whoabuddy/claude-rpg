@@ -1,0 +1,25 @@
+/**
+ * Fixture: Multi-option question prompt
+ * Type: question
+ * Expected status: waiting
+ * Claude Code version: 1.x (Jan 2026)
+ */
+
+I need to decide which testing framework to use for this project.
+
+Let me help you choose the best testing framework for your needs.
+
+┌─ Question ─────────────────────────────────────────────────────────────────┐
+│ Which testing framework should we use?                                     │
+│                                                                            │
+│ ● (1) Vitest (Recommended)                                                │
+│   Modern, fast, built-in TypeScript support                               │
+│ ○ (2) Jest                                                                │
+│   Traditional, widely used                                                │
+│ ○ (3) Bun Test                                                            │
+│   Ultra-fast, built into Bun runtime                                      │
+│ ○ (4) Other                                                               │
+│   Specify a different option                                              │
+│                                                                            │
+│ Tab to add context                                                         │
+└────────────────────────────────────────────────────────────────────────────┘
