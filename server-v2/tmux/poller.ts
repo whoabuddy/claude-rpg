@@ -219,26 +219,22 @@ export async function pollTmux(): Promise<TmuxState> {
           claudeSession = await buildClaudeSessionInfo(p.paneId, undefined, cwd)
         }
 
-        // Capture terminal content for Claude panes (adaptive)
+        // Capture terminal content for Claude panes
+        // Always capture - don't use adaptive backoff which causes stale content
+        // V1 captured every 500ms and rate-limited broadcasts, not captures
         let terminalContent: string | undefined
         if (processType === 'claude') {
-          const claudeStatus = claudeSession?.status
-          if (shouldCapturePane(p.paneId, claudeStatus)) {
-            try {
-              const captureLines = getConfig().terminalCaptureLines
-              terminalContent = await capturePane(p.paneId, captureLines)
-              if (terminalContent) {
-                updateCaptureTracking(p.paneId, terminalContent)
-              }
-            } catch (error) {
-              log.debug('Failed to capture terminal content', {
-                paneId: p.paneId,
-                error: error instanceof Error ? error.message : String(error),
-              })
+          try {
+            const captureLines = getConfig().terminalCaptureLines
+            terminalContent = await capturePane(p.paneId, captureLines)
+            if (terminalContent) {
+              updateCaptureTracking(p.paneId, terminalContent)
             }
-          } else {
-            // Use cached content when skipping capture
-            terminalContent = lastTerminalContent.get(p.paneId)
+          } catch (error) {
+            log.debug('Failed to capture terminal content', {
+              paneId: p.paneId,
+              error: error instanceof Error ? error.message : String(error),
+            })
           }
         }
 
