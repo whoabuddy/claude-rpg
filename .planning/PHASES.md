@@ -2,7 +2,7 @@
 
 **Goal:** Fix terminal capture and display issues identified in audit
 
-**Status:** Phase 1 Complete
+**Status:** Phase 3 Complete
 
 ## Phase Overview
 
@@ -47,32 +47,40 @@
 
 ---
 
-## Phase 2: Elevate Terminal Output Priority
+## Phase 2: Elevate Terminal Output Priority ✅
+
+**Status:** COMPLETED
 
 **Goal:** Ensure terminal_output messages are never dropped under backpressure
 
-**Problem:** `server-v2/api/messages.ts:157` marks terminal_output as high priority, but the README.md:147 documents it as LOW. Need to verify implementation matches intent and add safeguards.
+**Problem:** `server-v2/api/messages.ts:157` marks terminal_output as high priority, but the CLAUDE.md:326 documents it as LOW. Need to verify implementation matches intent and add safeguards.
 
 **Files:**
 - `server-v2/api/messages.ts` (verify line 157)
 - `server-v2/api/broadcast.ts` (verify priority handling)
-- `server-v2/README.md` (update documentation)
+- `CLAUDE.md` (update documentation)
 - `server-v2/__tests__/broadcast.test.ts` (add priority test)
 
 **Tasks:**
-1. Verify `terminal_output` returns `'high'` from `getPriority()` (it does per line 157)
-2. Update README.md to reflect actual priority (currently says LOW, should say HIGH)
-3. Add test that terminal_output is never skipped even when client is paused
-4. Consider adding message sequence numbers for client-side gap detection
+1. ✅ Verify `terminal_output` returns `'high'` from `getPriority()` (it does per line 157)
+2. ✅ Update CLAUDE.md to reflect actual priority (currently says LOW, should say HIGH)
+3. ✅ Add test that terminal_output is never skipped even when client is paused
+4. ✅ Consider adding message sequence numbers for client-side gap detection (documented in FUTURE.md)
 
 **Acceptance Criteria:**
-- README.md documents terminal_output as HIGH priority
-- Test confirms terminal_output sent even when client buffer > BUFFER_HIGH
-- No terminal updates lost during network congestion simulation
+- ✅ CLAUDE.md documents terminal_output as HIGH priority
+- ✅ Test confirms terminal_output sent even when client buffer > BUFFER_HIGH
+- ✅ No terminal updates lost during network congestion simulation
+
+**Commits:**
+- 3d21b70: docs(websocket): fix terminal_output priority documentation
+- de06eba: test(broadcast): add comprehensive priority and backpressure tests
 
 ---
 
-## Phase 3: Increase Terminal Capture Lines
+## Phase 3: Increase Terminal Capture Lines ✅
+
+**Status:** COMPLETED
 
 **Goal:** Capture enough terminal lines to reliably detect all prompt types
 
@@ -85,15 +93,21 @@
 - `server-v2/lib/config.ts` (add configurable setting)
 
 **Tasks:**
-1. Increase default capture from 100 to 150 lines in poller.ts
-2. Add `terminalCaptureLines` to config.ts with default 150
-3. Update capturePane() to accept config value
-4. Test parser with 150-line terminal samples containing prompts at various positions
+1. ✅ Increase default capture from 100 to 150 lines in poller.ts
+2. ✅ Add `terminalCaptureLines` to config.ts with default 150
+3. ✅ Update capturePane() to accept config value
+4. ✅ Test parser with 150-line terminal samples containing prompts at various positions
 
 **Acceptance Criteria:**
-- Config allows setting capture lines (50-500 range)
-- Default captures 150 lines
-- Parser correctly identifies prompts in lines 100-150 of capture
+- ✅ Config allows setting capture lines (50-500 range)
+- ✅ Default captures 150 lines
+- ✅ Parser correctly identifies prompts in lines 100-150 of capture
+
+**Commits:**
+- b8afa75: feat(config): add terminalCaptureLines setting
+- e0b5724: feat(tmux): use configurable terminalCaptureLines in poller
+- ce84d8c: docs(tmux): update capturePane default to 150 lines
+- eb0e35d: test(terminal): add tests for 150-line capture detection
 
 ---
 
