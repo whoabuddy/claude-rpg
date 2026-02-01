@@ -2,6 +2,7 @@
  * WebSocket message types and priorities
  */
 
+import type { DiffOp } from '../lib/diff'
 import type { TmuxWindow } from '../tmux/types'
 import type { ClaudeSession } from '../sessions/types'
 import type { Persona } from '../personas/types'
@@ -98,6 +99,16 @@ export interface TerminalOutputMessage {
   }
 }
 
+export interface TerminalDiffMessage {
+  type: 'terminal_diff'
+  payload: {
+    paneId: string
+    target: string
+    ops: DiffOp[]
+    seq: number
+  }
+}
+
 export interface ErrorMessage {
   type: 'error'
   code: string
@@ -142,6 +153,7 @@ export type ServerMessage =
   | XpGainMessage
   | EventMessage
   | TerminalOutputMessage
+  | TerminalDiffMessage
   | ErrorMessage
   | MoltbookActivityMessage
   | MoltbookHealthMessage
@@ -155,6 +167,7 @@ export function getPriority(message: ServerMessage): MessagePriority {
     case 'pane_update':
     case 'pane_removed':
     case 'terminal_output': // Terminal monitoring is critical
+    case 'terminal_diff': // Terminal diffs are as critical as full content
     case 'error':
       return 'high'
 
