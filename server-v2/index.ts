@@ -20,6 +20,7 @@ import { startHeartbeat, stopHeartbeat } from './api/heartbeat'
 import { getAllCompanions } from './companions'
 import { updateFromTerminal, removeSession } from './sessions/manager'
 import { startWatcher as startMoltbookWatcher, stopWatcher as stopMoltbookWatcher } from './moltbook'
+import { hashContent } from './lib/hash'
 import type { WsData } from './api'
 
 const log = createLogger('main')
@@ -72,21 +73,11 @@ async function main() {
   })
 
   // Track previous terminal content hashes to avoid redundant broadcasts
+  // Hash cache is cleared on server restart (no persistence needed)
   const terminalHashes = new Map<string, string>()
 
   // Track previous pane IDs to detect removals
   let previousPaneIds = new Set<string>()
-
-  // Simple hash function for terminal content
-  function hashContent(content: string): string {
-    let hash = 0
-    for (let i = 0; i < content.length; i++) {
-      const char = content.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash // Convert to 32bit integer
-    }
-    return hash.toString(36)
-  }
 
   // Start tmux poller
   startPolling(async (state) => {
