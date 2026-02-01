@@ -1,0 +1,17 @@
+/**
+ * Fixture: Bash permission prompt
+ * Type: permission
+ * Expected status: waiting
+ * Claude Code version: 1.x (Jan 2026)
+ */
+
+Reading the project structure...
+
+I'll help you set up the development environment. Let me start by installing dependencies.
+
+┌─ Bash ─────────────────────────────────────────────────────────────────────┐
+│ npm install                                                                │
+├────────────────────────────────────────────────────────────────────────────┤
+│ Do you want to proceed?                                                    │
+│ Allow: y | Deny: n | Always allow: ! | Always deny: * | Skip: s           │
+└────────────────────────────────────────────────────────────────────────────┘

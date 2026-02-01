@@ -1,0 +1,8 @@
+{
+  "maxRetries": 3,
+  "autoRetry": true,
+  "commitFormat": "conventional",
+  "rpgNotify": true,
+  "questId": "v2.1-remaining-features",
+  "repos": ["claude-rpg"]
+}

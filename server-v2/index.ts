@@ -20,6 +20,8 @@ import { startHeartbeat, stopHeartbeat } from './api/heartbeat'
 import { getAllCompanions } from './companions'
 import { updateFromTerminal, removeSession } from './sessions/manager'
 import { startWatcher as startMoltbookWatcher, stopWatcher as stopMoltbookWatcher } from './moltbook'
+import { hashContent } from './lib/hash'
+import { generateDiff } from './lib/diff'
 import type { WsData } from './api'
 
 const log = createLogger('main')
@@ -72,21 +74,17 @@ async function main() {
   })
 
   // Track previous terminal content hashes to avoid redundant broadcasts
+  // Hash cache is cleared on server restart (no persistence needed)
   const terminalHashes = new Map<string, string>()
+
+  // Track last sent content for diff generation
+  const lastSentContent = new Map<string, string>()
+
+  // Track terminal sequence numbers for gap detection
+  const terminalSequence = new Map<string, number>()
 
   // Track previous pane IDs to detect removals
   let previousPaneIds = new Set<string>()
-
-  // Simple hash function for terminal content
-  function hashContent(content: string): string {
-    let hash = 0
-    for (let i = 0; i < content.length; i++) {
-      const char = content.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash // Convert to 32bit integer
-    }
-    return hash.toString(36)
-  }
 
   // Start tmux poller
   startPolling(async (state) => {
@@ -106,6 +104,7 @@ async function main() {
     // Broadcast terminal content for Claude panes (only when changed)
     // Also update session status based on terminal content
     let terminalBroadcasts = 0
+    let diffBroadcasts = 0
     for (const pane of state.panes) {
       if (pane.process.type === 'claude' && pane.terminalContent) {
         // Update session status from terminal content
@@ -115,24 +114,67 @@ async function main() {
         const previousHash = terminalHashes.get(pane.id)
 
         if (contentHash !== previousHash) {
-          // Content changed, broadcast it
-          broadcast({
-            type: 'terminal_output',
-            payload: {
-              paneId: pane.id,
-              target: pane.id,
-              content: pane.terminalContent,
-            },
-          })
+          // Increment sequence number
+          const seq = (terminalSequence.get(pane.id) || 0) + 1
+          terminalSequence.set(pane.id, seq)
+
+          const lastContent = lastSentContent.get(pane.id)
+
+          if (!lastContent) {
+            // First update for this pane - send full content
+            broadcast({
+              type: 'terminal_output',
+              payload: {
+                paneId: pane.id,
+                target: pane.id,
+                content: pane.terminalContent,
+              },
+            })
+            terminalBroadcasts++
+          } else {
+            // Generate diff
+            const diff = generateDiff(lastContent, pane.terminalContent)
+            const fullSize = JSON.stringify(pane.terminalContent).length
+
+            if (diff.estimatedSize < fullSize * 0.8) {
+              // Diff is smaller - send it
+              broadcast({
+                type: 'terminal_diff',
+                payload: {
+                  paneId: pane.id,
+                  target: pane.id,
+                  ops: diff.ops,
+                  seq,
+                },
+              })
+              diffBroadcasts++
+            } else {
+              // Diff is larger - send full content
+              broadcast({
+                type: 'terminal_output',
+                payload: {
+                  paneId: pane.id,
+                  target: pane.id,
+                  content: pane.terminalContent,
+                },
+              })
+              terminalBroadcasts++
+            }
+          }
+
+          // Update tracking
+          lastSentContent.set(pane.id, pane.terminalContent)
           terminalHashes.set(pane.id, contentHash)
-          terminalBroadcasts++
         }
       }
     }
 
     // Log terminal broadcasts if any occurred
-    if (terminalBroadcasts > 0) {
-      log.debug('Broadcast terminal updates', { count: terminalBroadcasts })
+    if (terminalBroadcasts > 0 || diffBroadcasts > 0) {
+      log.debug('Broadcast terminal updates', {
+        full: terminalBroadcasts,
+        diff: diffBroadcasts
+      })
     }
 
     // Detect removed panes and clean up
@@ -143,6 +185,8 @@ async function main() {
         // Pane was removed - clean up session, hash, tracking, and notify clients
         removeSession(paneId)
         terminalHashes.delete(paneId)
+        lastSentContent.delete(paneId)
+        terminalSequence.delete(paneId)
         cleanupPaneTracking(paneId)
         broadcast({
           type: 'pane_removed',

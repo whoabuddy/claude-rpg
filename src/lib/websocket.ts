@@ -144,6 +144,10 @@ function handleMessage(event: MessageEvent): void {
         store.setTerminalContent(message.payload.paneId, message.payload.content)
         break
 
+      case 'terminal_diff':
+        store.applyTerminalDiff(message.payload.paneId, message.payload.ops)
+        break
+
       // Companion messages
       case 'companions':
         store.setCompanions(message.payload)

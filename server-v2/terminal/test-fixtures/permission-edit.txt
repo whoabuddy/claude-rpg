@@ -1,0 +1,31 @@
+/**
+ * Fixture: Edit permission prompt
+ * Type: permission
+ * Expected status: waiting
+ * Claude Code version: 1.x (Jan 2026)
+ */
+
+I'll update the configuration file to add the new feature flag.
+
+Let me make the following changes:
+
+File: config/settings.ts
+- Add FEATURE_PATTERN_VERSIONING flag
+- Update version to 2.1.0
+- Add documentation comment
+
+┌─ Edit ─────────────────────────────────────────────────────────────────────┐
+│ config/settings.ts                                                         │
+│                                                                            │
+│ @@ -12,6 +12,9 @@                                                         │
+│    FEATURE_VOICE_INPUT: true,                                             │
+│    FEATURE_NOTIFICATIONS: true,                                           │
+│  + FEATURE_PATTERN_VERSIONING: true,                                      │
+│  }                                                                         │
+│                                                                            │
+│  - export const VERSION = '2.0.0'                                         │
+│  + export const VERSION = '2.1.0'                                         │
+├────────────────────────────────────────────────────────────────────────────┤
+│ Do you want to proceed?                                                    │
+│ Allow: y | Deny: n | Always allow: ! | Always deny: * | Skip: s           │
+└────────────────────────────────────────────────────────────────────────────┘

@@ -55,6 +55,11 @@ export const WAITING_PATTERNS: Pattern[] = [
     regex: /[►▶→]\s+.+\n\s*[►▶→]\s+/m,
     confidence: 0.85,
   },
+  {
+    name: 'boxed_options',
+    regex: /[●○]\s*\(\d+\)|^\s*\(\d+\)/m,
+    confidence: 0.85,
+  },
 
   // Plan mode
   {

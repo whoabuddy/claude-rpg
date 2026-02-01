@@ -31,9 +31,17 @@ export function parseTerminal(content: string): TerminalDetection {
   const lines = content.split('\n')
   const relevantContent = lines.slice(-MAX_LINES).join('\n')
 
-  // Check patterns in priority order
+  // Check all pattern groups and collect candidates
   const errorMatch = matchPatterns(relevantContent, ERROR_PATTERNS)
-  if (errorMatch && errorMatch.confidence > 0.7) {
+  const waitingMatch = matchPatterns(relevantContent, WAITING_PATTERNS)
+  const workingMatch = matchPatterns(relevantContent, WORKING_PATTERNS)
+  const idleMatch = matchPatterns(relevantContent, IDLE_PATTERNS)
+
+  // Check in priority order with confidence thresholds
+  // Priority: error > waiting > working > idle
+  // Use higher thresholds to prevent weak multi-match boosts from overriding better signals
+
+  if (errorMatch && errorMatch.confidence > 0.75) {
     return {
       status: 'error',
       confidence: errorMatch.confidence,
@@ -42,8 +50,7 @@ export function parseTerminal(content: string): TerminalDetection {
     }
   }
 
-  const waitingMatch = matchPatterns(relevantContent, WAITING_PATTERNS)
-  if (waitingMatch && waitingMatch.confidence > 0.6) {
+  if (waitingMatch && waitingMatch.confidence > 0.65) {
     return {
       status: 'waiting',
       confidence: waitingMatch.confidence,
@@ -52,8 +59,7 @@ export function parseTerminal(content: string): TerminalDetection {
     }
   }
 
-  const workingMatch = matchPatterns(relevantContent, WORKING_PATTERNS)
-  if (workingMatch && workingMatch.confidence > 0.5) {
+  if (workingMatch && workingMatch.confidence > 0.6) {
     return {
       status: 'working',
       confidence: workingMatch.confidence,
@@ -61,8 +67,7 @@ export function parseTerminal(content: string): TerminalDetection {
     }
   }
 
-  const idleMatch = matchPatterns(relevantContent, IDLE_PATTERNS)
-  if (idleMatch && idleMatch.confidence > 0.4) {
+  if (idleMatch && idleMatch.confidence > 0.5) {
     return {
       status: 'idle',
       confidence: idleMatch.confidence,
@@ -79,22 +84,41 @@ export function parseTerminal(content: string): TerminalDetection {
 
 /**
  * Match content against a set of patterns
+ *
+ * Uses weighted confidence scoring:
+ * - Multiple weak signals boost confidence (up to +0.3)
+ * - Returns highest confidence pattern with adjusted score
  */
 function matchPatterns(
   content: string,
   patterns: Array<{ name: string; regex: RegExp; confidence: number }>
 ): { name: string; confidence: number } | null {
-  let bestMatch: { name: string; confidence: number } | null = null
+  const matches: Array<{ name: string; confidence: number }> = []
 
+  // Collect all matching patterns
   for (const pattern of patterns) {
     if (pattern.regex.test(content)) {
-      if (!bestMatch || pattern.confidence > bestMatch.confidence) {
-        bestMatch = { name: pattern.name, confidence: pattern.confidence }
-      }
+      matches.push({ name: pattern.name, confidence: pattern.confidence })
     }
   }
 
-  return bestMatch
+  if (matches.length === 0) return null
+
+  // Calculate weighted confidence
+  // Multiple weak signals are stronger than single strong signal
+  const totalConfidence = matches.reduce((sum, m) => sum + m.confidence, 0)
+  const avgConfidence = totalConfidence / matches.length
+  // Boost for multiple matches (up to +0.3)
+  const boost = Math.min(matches.length * 0.1, 0.3)
+  const finalConfidence = Math.min(avgConfidence + boost, 1.0)
+
+  // Return best match with boosted confidence
+  const bestMatch = matches.sort((a, b) => b.confidence - a.confidence)[0]
+
+  return {
+    name: bestMatch.name,
+    confidence: finalConfidence,
+  }
 }
 
 /**

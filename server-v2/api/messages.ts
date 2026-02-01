@@ -7,7 +7,7 @@ import type { ClaudeSession } from '../sessions/types'
 import type { Persona } from '../personas/types'
 import type { Project } from '../projects/types'
 import type { XpGain } from '../xp/types'
-import type { Companion, Quest } from '../../shared/types'
+import type { Companion, Quest, DiffOp } from '../../shared/types'
 
 export type MessagePriority = 'high' | 'normal' | 'low'
 
@@ -98,6 +98,16 @@ export interface TerminalOutputMessage {
   }
 }
 
+export interface TerminalDiffMessage {
+  type: 'terminal_diff'
+  payload: {
+    paneId: string
+    target: string
+    ops: DiffOp[]
+    seq: number
+  }
+}
+
 export interface ErrorMessage {
   type: 'error'
   code: string
@@ -142,6 +152,7 @@ export type ServerMessage =
   | XpGainMessage
   | EventMessage
   | TerminalOutputMessage
+  | TerminalDiffMessage
   | ErrorMessage
   | MoltbookActivityMessage
   | MoltbookHealthMessage
@@ -155,6 +166,7 @@ export function getPriority(message: ServerMessage): MessagePriority {
     case 'pane_update':
     case 'pane_removed':
     case 'terminal_output': // Terminal monitoring is critical
+    case 'terminal_diff': // Terminal diffs are as critical as full content
     case 'error':
       return 'high'
 

@@ -101,6 +101,7 @@ export interface AppState extends
   updatePane: (pane: TmuxPane) => void
   removePane: (paneId: string) => void
   setTerminalContent: (paneId: string, content: string) => void
+  applyTerminalDiff: (paneId: string, ops: import('../../shared/types').DiffOp[]) => void
   recordPaneActivity: (paneId: string, type: PaneActivity['type']) => void
 
   // Actions - Companions
@@ -242,6 +243,33 @@ export const useStore = create<AppState>()(
       setTerminalContent: (paneId, content) => set((state) => {
         const terminalCache = new Map(state.terminalCache)
         terminalCache.set(paneId, content)
+        return { terminalCache }
+      }),
+
+      applyTerminalDiff: (paneId, ops) => set((state) => {
+        const current = state.terminalCache.get(paneId) || ''
+        const lines = current.split('\n')
+
+        let result: string[] = []
+        let lineIndex = 0
+
+        for (const op of ops) {
+          switch (op.type) {
+            case 'keep':
+              result.push(...lines.slice(lineIndex, lineIndex + op.count))
+              lineIndex += op.count
+              break
+            case 'add':
+              result.push(...op.lines)
+              break
+            case 'remove':
+              lineIndex += op.count
+              break
+          }
+        }
+
+        const terminalCache = new Map(state.terminalCache)
+        terminalCache.set(paneId, result.join('\n'))
         return { terminalCache }
       }),
 

@@ -3,6 +3,7 @@
  */
 
 import { createLogger } from '../lib/logger'
+import { getConfig } from '../lib/config'
 import { classifyProcess, getProcessCwd } from './process'
 import { isTmuxRunning, capturePane } from './commands'
 import { buildClaudeSessionInfo } from './session-builder'
@@ -224,7 +225,8 @@ export async function pollTmux(): Promise<TmuxState> {
           const claudeStatus = claudeSession?.status
           if (shouldCapturePane(p.paneId, claudeStatus)) {
             try {
-              terminalContent = await capturePane(p.paneId, 100)
+              const captureLines = getConfig().terminalCaptureLines
+              terminalContent = await capturePane(p.paneId, captureLines)
               if (terminalContent) {
                 updateCaptureTracking(p.paneId, terminalContent)
               }

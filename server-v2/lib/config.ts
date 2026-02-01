@@ -14,6 +14,7 @@ export interface Config {
   wsBackpressureHigh: number
   wsBackpressureLow: number
   eventsRetentionDays: number
+  terminalCaptureLines: number
 }
 
 function getEnv(key: string, defaultValue: string): string {
@@ -28,6 +29,8 @@ function getEnvInt(key: string, defaultValue: number): number {
 }
 
 export function loadConfig(): Config {
+  const terminalCaptureLines = getEnvInt('TERMINAL_CAPTURE_LINES', 150)
+
   return {
     port: getEnvInt('PORT', 4011),
     dataDir: getEnv('DATA_DIR', join(homedir(), '.claude-rpg')),
@@ -37,6 +40,7 @@ export function loadConfig(): Config {
     wsBackpressureHigh: getEnvInt('WS_BACKPRESSURE_HIGH', 65536), // 64KB
     wsBackpressureLow: getEnvInt('WS_BACKPRESSURE_LOW', 16384),   // 16KB
     eventsRetentionDays: getEnvInt('EVENTS_RETENTION_DAYS', 7),
+    terminalCaptureLines: Math.max(50, Math.min(500, terminalCaptureLines)), // Clamp to 50-500
   }
 }
 

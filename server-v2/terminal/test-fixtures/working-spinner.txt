@@ -1,0 +1,27 @@
+/**
+ * Fixture: Working state with spinner
+ * Type: working
+ * Expected status: working
+ * Claude Code version: 1.x (Jan 2026)
+ */
+
+Let me analyze the terminal capture system...
+
+Reading files:
+  ✓ server-v2/terminal/parser.ts
+  ✓ server-v2/terminal/patterns.ts
+  ✓ server-v2/terminal/types.ts
+  ✓ server/__tests__/terminal/parser.test.ts
+
+⠋ Analyzing pattern usage across codebase...
+
+Processing modules:
+  - terminal/parser.ts (185 lines)
+  - terminal/patterns.ts (173 lines)
+  - __tests__/terminal/parser.test.ts (241 lines)
+
+⠙ Running pattern detection tests...
+
+Scanning for pattern references in 47 files...
+
+⠹ Generating recommendations...

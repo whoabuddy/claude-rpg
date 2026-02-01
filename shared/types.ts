@@ -1,4 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
+// DIFF OPERATIONS (for incremental terminal updates)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type DiffOp =
+  | { type: 'keep'; count: number }
+  | { type: 'add'; lines: string[] }
+  | { type: 'remove'; count: number }
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TMUX PANE-CENTRIC MODEL (Primary entities - ephemeral, polled from tmux)
 // ═══════════════════════════════════════════════════════════════════════════
 
