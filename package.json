@@ -21,6 +21,7 @@
     "test": "bun test",
     "test:client": "bun test src",
     "test:server": "bun test server-v2",
+    "test:patterns": "bun scripts/test-patterns.ts",
     "deploy": "./deploy/deploy.sh"
   },
   "dependencies": {
