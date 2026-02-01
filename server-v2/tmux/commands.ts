@@ -90,9 +90,10 @@ export async function capturePane(paneId: string, lines = 150): Promise<string> 
   const output = await tmux(
     'capture-pane', '-t', paneId,
     '-p',           // Print to stdout
+    '-J',           // Join wrapped lines
     '-e',           // Include escape sequences (colors)
     '-S', `-${lines}`,  // Start from N lines ago
-    '-E', '-1'      // End at last line
+    '-E', '-'       // End at current line (bottom of visible area)
   )
   return output
 }
