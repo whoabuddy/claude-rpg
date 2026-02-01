@@ -84,8 +84,9 @@ export async function sendInterrupt(paneId: string): Promise<void> {
 
 /**
  * Capture pane content
+ * @param lines - Number of lines to capture (default 150, configurable via TERMINAL_CAPTURE_LINES)
  */
-export async function capturePane(paneId: string, lines = 50): Promise<string> {
+export async function capturePane(paneId: string, lines = 150): Promise<string> {
   const output = await tmux(
     'capture-pane', '-t', paneId,
     '-p',           // Print to stdout
